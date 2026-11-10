@@ -142,6 +142,12 @@ TEXT_RULES: list[tuple[str, str, str, bool]] = [
      "registerPragmatikaEval();\n", True),
     # Пакет zod у проекта один, а не из node_modules старого ядра.
     (r"e2e/**/*.ts", r"'(?:\.\./)+core/node_modules/zod'", "'zod'", False),
+    # Профиля LABOPS_PII_PROFILE у библиотеки маскирования платформы нет (с ним она не стартует):
+    # настройки второго pseudonymizer (с маскированием юрлица) задаются явно, ключ и токен API
+    # приходят из окружения прогона.
+    (r"e2e/**/*.ts", r"( *)LABOPS_PII_PROFILE: 'pragmatika',\n",
+     "\\1PSEUDONYMIZER_STORE: 'sqlite',\n\\1PSEUDONYMIZER_KEY_SCHEME: 'v2',\n"
+     "\\1PSEUDONYMIZER_RETENTION_DAYS: '90',\n\\1PSEUDONYMIZER_ADDRESS_MASK: 'on',\n", False),
     # Фикстуры и шаблоны проекта лежат в репозитории проекта, а сервисы и venv - в дереве
     # платформы: E2E_ROOT указывает на платформу, E2E_PROJECT_ROOT - на проект.
     (r"e2e/**/*.ts", r"requireEnv\('E2E_ROOT'\)\}/e2e/fixtures/",

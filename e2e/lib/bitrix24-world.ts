@@ -22,7 +22,13 @@ import {
   type ProductionConfig,
   type Service,
 } from '@business-ai/core/compose';
-import type { MailboxDirectory } from '@business-ai/core';
+import {
+  chatHooksOf,
+  effectiveSchedules,
+  lifecycleOf,
+  type MailboxDirectory,
+} from '@business-ai/core';
+import { pragmatikaProject, type PragmatikaConfig } from '../../src';
 import {
   startBitrix24PortalStub,
   type Bitrix24PortalStub,
@@ -582,6 +588,14 @@ export async function startBitrixWorld(options: BitrixWorldOptions): Promise<Bit
     chatGreetingEnabled: config.service.chatGreetingEnabled,
     chatTurnTimeoutMs: config.service.chatTurnTimeoutMs,
     chatTurnJournalEnabled: config.service.chatTurnJournalEnabled,
+    // Как в `main.ts` платформы: задачи, обработчики чата и жизненный цикл идут из манифеста.
+    operatorThreadId: config.agents.ownerThreadId,
+    schedules: effectiveSchedules(
+      pragmatikaProject.schedules,
+      config as unknown as ProductionConfig<PragmatikaConfig>,
+    ),
+    chatHooks: chatHooksOf(pragmatikaProject),
+    lifecycle: lifecycleOf(pragmatikaProject),
     workerIntervalMs: options.workerIntervalMs ?? E2E_WORKER_INTERVAL_MS,
     shutdownTimeoutMs: E2E_SHUTDOWN_MS,
     botsStatus: () => channel.botStatus(),

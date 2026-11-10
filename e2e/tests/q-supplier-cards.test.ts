@@ -206,7 +206,10 @@ async function startMaskingPseudonymizer(): Promise<void> {
       env: {
         ...process.env,
         PYTHONPATH: `${root}/vendor/labops-pii`,
-        LABOPS_PII_PROFILE: 'pragmatika',
+        PSEUDONYMIZER_STORE: 'sqlite',
+        PSEUDONYMIZER_KEY_SCHEME: 'v2',
+        PSEUDONYMIZER_RETENTION_DAYS: '90',
+        PSEUDONYMIZER_ADDRESS_MASK: 'on',
         PSEUDONYMIZER_DB: `${env.work}/pseudonymizer-q.sqlite3`,
         PSEUDONYMIZER_HOST: '127.0.0.1',
         PSEUDONYMIZER_PORT: String(port),
