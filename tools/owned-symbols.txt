@@ -46,3 +46,14 @@ PriceFileTooLargeReason
 isPriceFileTooLargeError
 FILE_MAX_BYTES
 OperationTurn
+# Добавлено при подключении адаптеров CRM, договоров и прайсов (sync-seeds): помощники старых
+# файлов платформы, которые пакет не экспортирует. Пробел платформы (см. отчёт манифеста):
+# пока символы не публичны, проект держит их копию из старого репозитория.
+OWN_SIGNATORY_REFUSALS
+PRICE_JUMP_THRESHOLD
+parseCount
+priceItemRow
+isValidTimeZone
+previousWorkingDay
+blobOf
+bytesOf

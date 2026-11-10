@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { FixedClock } from '@business-ai/adapters';
-import { EVENT_SEVERITY } from '@business-ai/adapters';
+import { severityOf } from '@business-ai/adapters';
 import { bindingThreadId } from '@business-ai/core';
 import { activeRequestBlocks, setActiveRequest } from '../../src/agents/order-calc/active-request';
 import { answerOrderReminder, recordDigestShown } from '../../src/agents/order-calc/reminder-reply';
@@ -654,7 +654,7 @@ describe('этап 226, ревью: сбой справки, сводка, да�
   });
 
   test('сбой записи справки - warning, а не serious', () => {
-    expect(EVENT_SEVERITY['order_digest_shown_failed']).toBe('warning');
-    expect(EVENT_SEVERITY['order_reminder_context_failed']).toBe('warning');
+    expect(severityOf('order_digest_shown_failed')).toBe('warning');
+    expect(severityOf('order_reminder_context_failed')).toBe('warning');
   });
 });

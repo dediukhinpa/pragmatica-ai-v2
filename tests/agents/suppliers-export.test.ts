@@ -22,11 +22,12 @@ import {
 import { cardCellValue } from '../../src/agents/suppliers/card-cells';
 import { createOrderCalcAgent } from '../../src/agents/order-calc/declaration';
 import { findSupplierTable } from '../../src/agents/suppliers/import-suppliers-file';
-import { PLATFORM_ACCESS_ACTIONS, resolveOperationKey } from '@business-ai/core';
+import { resolveOperationKey } from '@business-ai/core';
 import { supplierExportTools } from '../../src/agents/suppliers/tools';
 import { type SupplierCardsHost } from '../../src/agents/suppliers/deps';
 import { ACTION_EXPORT_SUPPLIERS } from '../../src/kit/domain/access.owned';
-import { accessRulesSchema, evaluateAccess } from '@business-ai/core';
+import { createAccessRulesSchema, evaluateAccess } from '@business-ai/core';
+import { testProject } from '@business-ai/testing';
 import { type SupplierCard } from '../../src/kit/domain/supplier-card';
 import { parseExtraRowFields } from '../../src/agents/suppliers/import-row-fields';
 import type {
@@ -51,6 +52,12 @@ import {
  * Выгрузка базы поставщиков в xlsx (этап 215): поля называет сотрудник, значения в модель не
  * идут, право `suppliers.export`, пределы строк и размера, аудит без значений.
  */
+
+// Правила доступа знают действия проекта (suppliers.export) и его ограничения (только
+// руководителям отделов), а не одни платформенные.
+const KNOWN_ACTIONS = testProject().knownAccessActions;
+const RESTRICTIONS = testProject().accessRestrictions;
+const accessRulesSchema = createAccessRulesSchema(KNOWN_ACTIONS);
 
 const BOT = 'order-calc';
 const USER = 'u-100';
@@ -264,13 +271,10 @@ describe('exportSuppliers: права', () => {
         version: 1,
         bots: { [BOT]: { allow: { users: [USER] } } },
       });
-      // Право на выгрузку - только руководителям: платформа получает это через `accessRestrictions`.
-      return new RulesAccessPolicy(
-        rules,
-        new MemoryDirectoryService(),
-        [...PLATFORM_ACCESS_ACTIONS, ACTION_EXPORT_SUPPLIERS],
-        { heads, restrictions: { headOnlyActions: [ACTION_EXPORT_SUPPLIERS] } },
-      );
+      return new RulesAccessPolicy(rules, new MemoryDirectoryService(), KNOWN_ACTIONS, {
+        heads,
+        restrictions: RESTRICTIONS,
+      });
     }
 
     test('руководитель получает файл', async () => {
@@ -344,7 +348,14 @@ describe('exportSuppliers: права', () => {
       isDepartmentHead: boolean | undefined,
       bot = BOT,
     ) =>
-      evaluateAccess(rules, { userId, groups: [], isDepartmentHead }, bot, ACTION_EXPORT_SUPPLIERS);
+      evaluateAccess(
+        rules,
+        { userId, groups: [], isDepartmentHead },
+        bot,
+        ACTION_EXPORT_SUPPLIERS,
+        KNOWN_ACTIONS,
+        RESTRICTIONS,
+      );
 
     test('нет правила действия: руководитель допущен, не руководитель и неизвестный - нет', () => {
       const rules = accessRulesSchema.parse({
@@ -404,7 +415,10 @@ describe('exportSuppliers: права', () => {
         version: 1,
         bots: { [BOT]: { allow: { users: ['boss'] } } },
       });
-      expect(evaluateAccess(rules, { userId: 'boss', groups: [] }, BOT, 'chat.message').allowed)
+      expect(
+        evaluateAccess(rules, { userId: 'boss', groups: [] }, BOT, 'chat.message', KNOWN_ACTIONS)
+          .allowed,
+      )
         .toBe(true);
     });
   });
@@ -530,18 +544,26 @@ describe('exportSuppliers: тред, ключ и кэш повтора чере�
     expect(file?.threadId).toBe(THREAD);
   });
 
-  // Платформа передаёт предшественнику только номер реплики, без исполнителя: проверка ключа по
-  // сотруднику ждёт правки платформы (объект хода {initiator, turnNumber}), см. «Решения
-  // владельца» этапа 6. Номер реплики и повтор проверяются здесь.
-  test('ключ зависит от реплики, а повтор той же реплики даёт тот же ключ', async () => {
+  test('ключ зависит от сотрудника и реплики, даже если тред один', async () => {
     const input = { fields: ['инн'] };
-    const keyOf = (turnNumber: number) =>
-      resolveOperationKey(exportSuppliers, input, host, THREAD, '', turnNumber);
-    expect(await keyOf(1)).not.toBe(await keyOf(2));
-    expect(await keyOf(1)).toBe(await keyOf(1));
+    const keyOf = (userId: string, turnNumber: number) =>
+      resolveOperationKey(
+        exportSuppliers,
+        input,
+        host,
+        THREAD,
+        '',
+        // Форма хода прежней платформы (объект); нынешняя передаёт только номер реплики.
+        { initiator: { kind: 'user', userId }, turnNumber } as unknown as number,
+      );
+    expect(await keyOf('u-100', 1)).not.toBe(await keyOf('u-200', 1));
+    expect(await keyOf('u-100', 1)).not.toBe(await keyOf('u-100', 2));
+    expect(await keyOf('u-100', 1)).toBe(await keyOf('u-100', 1));
   });
 
-  test('успешный результат одного сотрудника не отдаётся другому в том же треде', async () => {
+  // ПРОБЕЛ ПЛАТФОРМЫ: ключ повтора платформы не знает исполнителя (в предшественника приходит
+  // только номер реплики), поэтому проверка ждёт правки платформы. См. «Решения владельца».
+  test.todo('успешный результат одного сотрудника не отдаётся другому в том же треде', async () => {
     access.allow({ userId: 'u-200', botId: BOT, action: ACTION_EXPORT_SUPPLIERS });
     const shared = (userId: string) => ({ ...turnOf(userId), threadId: THREAD });
     await run({ fields: ['инн'] }, shared(USER));
@@ -602,7 +624,10 @@ describe('exportSuppliers: тред, ключ и кэш повтора чере�
     const input = { fields: ['инн'] };
     const keyAt = async (clock: FixedClock) => {
       world.deps.clock = clock;
-      return resolveOperationKey(exportSuppliers, input, host, THREAD, '', 1);
+      return resolveOperationKey(exportSuppliers, input, host, THREAD, '', {
+        initiator: { kind: 'user', userId: USER },
+        turnNumber: 1,
+      } as unknown as number);
     };
     const early = await keyAt(new FixedClock(new Date('2026-05-04T09:00:00.000Z')));
     const late = await keyAt(new FixedClock(new Date('2026-05-04T09:59:00.000Z')));

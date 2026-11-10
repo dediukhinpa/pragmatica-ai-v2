@@ -14,7 +14,7 @@ import { requestTag } from '../../src/agents/order-calc/reply-routing';
 import { runOrdersDigest } from '../../src/agents/order-calc/orders-digest';
 import { storeReply } from '../../src/agents/order-calc/reply-store';
 import { workSubject } from '../../src/agents/shared/work-owner.owned';
-import { EVENT_SEVERITY } from '@business-ai/adapters';
+import { severityOf } from '@business-ai/adapters';
 import { MAIL_OWNER, ORDER_REQUEST, buildOrderDeps, type OrderTestDeps } from './order-support';
 
 const TIMEZONE = 'Europe/Moscow';
@@ -663,8 +663,8 @@ describe('Сводка по заказам: ящики сотрудников', 
     expect((await run(deps)).status).toBe('sent');
     expect(events).toContain('order_digest_mailbox_not_connected');
     expect(events).not.toContain('order_digest_mailbox_unreadable');
-    expect(EVENT_SEVERITY['order_digest_mailbox_not_connected']).toBe('info');
-    expect(EVENT_SEVERITY['order_digest_mailbox_unreadable']).toBe('serious');
+    expect(severityOf('order_digest_mailbox_not_connected')).toBe('info');
+    expect(severityOf('order_digest_mailbox_unreadable')).toBe('serious');
   });
 
   test('сбой чтения подключённого ящика остаётся ошибкой (этап 217)', async () => {

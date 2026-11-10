@@ -1,0 +1,22 @@
+--- tests/application/agents/order-digest.test.ts
++++ tests/application/agents/order-digest.test.ts
+@@ -11,7 +11,7 @@
+ import { runOrdersDigest } from '../../../src/application/agents/order-calc/orders-digest';
+ import { storeReply } from '../../../src/application/agents/order-calc/reply-store';
+ import { workSubject } from '../../../src/application/agents/shared/work-owner.owned';
+-import { EVENT_SEVERITY } from '@business-ai/adapters';
++import { severityOf } from '@business-ai/adapters';
+ import { MAIL_OWNER, ORDER_REQUEST, buildOrderDeps, type OrderTestDeps } from './order-support';
+ 
+ const TIMEZONE = 'Europe/Moscow';
+@@ -660,8 +660,8 @@
+     expect((await run(deps)).status).toBe('sent');
+     expect(events).toContain('order_digest_mailbox_not_connected');
+     expect(events).not.toContain('order_digest_mailbox_unreadable');
+-    expect(EVENT_SEVERITY['order_digest_mailbox_not_connected']).toBe('info');
+-    expect(EVENT_SEVERITY['order_digest_mailbox_unreadable']).toBe('serious');
++    expect(severityOf('order_digest_mailbox_not_connected')).toBe('info');
++    expect(severityOf('order_digest_mailbox_unreadable')).toBe('serious');
+   });
+ 
+   test('сбой чтения подключённого ящика остаётся ошибкой (этап 217)', async () => {

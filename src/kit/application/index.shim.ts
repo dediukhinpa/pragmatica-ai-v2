@@ -1,4 +1,4 @@
-// Сгенерировано sync-agents: платформенные имена + проектные файлы черновика.
+// Сгенерировано sync-agents: платформенные имена + проектные файлы.
 export {
   AGENT_CALL_AUDIT_ACTION,
   AGENT_CALL_BUDGET_RESERVE_MS,

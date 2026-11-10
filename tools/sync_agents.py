@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import logging
 import re
@@ -184,8 +185,10 @@ class Syncer:
     """Строит черновой проект."""
 
     def __init__(self, src: Tree, plat_root: Path, out: Path, owned: set[str],
-                 tools_dir: Path, renames: dict[str, str] | None = None) -> None:
+                 tools_dir: Path, renames: dict[str, str] | None = None,
+                 seeds: list[str] | None = None) -> None:
         self.owned = owned
+        self.seeds = seeds or []
         self.renames = renames or {}
         self.tools_dir = tools_dir
         self.overlays: dict[str, str] = {}
@@ -412,8 +415,27 @@ class Syncer:
                     continue  # тест платформенного модуля: он в платформе
                 self.want(f)
 
+    def seed_extra(self) -> None:
+        """Дополнительные засевы проекта (`tools/sync-seeds.txt`).
+
+        Строка файла - шаблон пути старого репо (`fnmatch`); строка с `!` в начале исключает.
+        Файлы, у которых есть платформенный двойник, не копируются: их даёт пакет платформы.
+        Всё остальное идёт тем же замыканием, что и агенты.
+        """
+        include = [p for p in self.seeds if not p.startswith("!")]
+        exclude = [p[1:] for p in self.seeds if p.startswith("!")]
+        for f in sorted(self.src.files):
+            if not any(fnmatch.fnmatchcase(f, pat) for pat in include):
+                continue
+            if any(fnmatch.fnmatchcase(f, pat) for pat in exclude):
+                continue
+            if self.platform_file(f) and not self._project_owned(f):
+                continue
+            self.want(f)
+
     def run(self) -> None:
         self.seed()
+        self.seed_extra()
         done: set[str] = set()
         while self.queue:
             f = self.queue.pop()
@@ -430,7 +452,7 @@ class Syncer:
     def write_shims(self) -> None:
         """Barrel для динамических и namespace-импортов: платформа + уже скопированное проектное."""
         for barrel, virt in sorted(self.shims.items()):
-            lines = ["// Сгенерировано sync-agents: платформенные имена + проектные файлы черновика."]
+            lines = ["// Сгенерировано sync-agents: платформенные имена + проектные файлы."]
             pkg_names: dict[str, list[str]] = {}
             local: dict[str, list[str]] = {}
             for name, leaf in sorted(self.sym.table(barrel).items()):
@@ -463,6 +485,8 @@ def main() -> None:
     ap.add_argument("--out", type=Path, required=True, help="каталог чернового проекта")
     ap.add_argument("--renames", type=Path, default=None,
                     help="файл переименований: `старое<TAB>новое` (нейтральные имена платформы)")
+    ap.add_argument("--seeds", type=Path, default=None,
+                    help="файл засевов: шаблоны путей старого репо, `!` - исключение")
     ap.add_argument("--owned", type=Path, default=None,
                     help="файл со списком проектных символов (по одному в строке, # - комментарий)")
     args = ap.parse_args()
@@ -485,7 +509,14 @@ def main() -> None:
             if ln:
                 old, new = ln.split()
                 renames[old] = new
-    sy = Syncer(src, args.platform, args.out, owned, Path(__file__).resolve().parent, renames)
+    seeds: list[str] = []
+    if args.seeds:
+        for ln in args.seeds.read_text(encoding="utf-8").splitlines():
+            ln = ln.split("#", 1)[0].strip()
+            if ln:
+                seeds.append(ln)
+    sy = Syncer(src, args.platform, args.out, owned, Path(__file__).resolve().parent, renames,
+                seeds)
     sy.run()
     with (args.out / "GAPS.tsv").open("w", encoding="utf-8") as fh:
         fh.write("символ\tфайл Прагматики\tфайл платформы\tпричина\n")

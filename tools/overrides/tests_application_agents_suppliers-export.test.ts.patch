@@ -1,67 +1,84 @@
 --- tests/application/agents/suppliers-export.test.ts
 +++ tests/application/agents/suppliers-export.test.ts
-@@ -6,7 +6,7 @@
- import { cardCellValue } from '../../../src/application/agents/suppliers/card-cells';
- import { createOrderCalcAgent } from '../../../src/application/agents/order-calc/declaration';
- import { findSupplierTable } from '../../../src/application/agents/suppliers/import-suppliers-file';
--import { resolveOperationKey } from '@business-ai/core';
-+import { PLATFORM_ACCESS_ACTIONS, resolveOperationKey } from '@business-ai/core';
+@@ -10,7 +10,8 @@
  import { supplierExportTools } from '../../../src/application/agents/suppliers/tools';
  import { type SupplierCardsHost } from '../../../src/application/agents/suppliers/deps';
  import { ACTION_EXPORT_SUPPLIERS } from '../../../src/domain/access.owned';
-@@ -233,7 +233,13 @@
+-import { accessRulesSchema, evaluateAccess } from '@business-ai/core';
++import { createAccessRulesSchema, evaluateAccess } from '@business-ai/core';
++import { testProject } from '@business-ai/testing';
+ import { type SupplierCard } from '../../../src/domain/supplier-card';
+ import { parseExtraRowFields } from '../../../src/application/agents/suppliers/import-row-fields';
+ import type { ExportedFile, JsonValue, TableExporter, TableFormat, TableSheet } from '@business-ai/core';
+@@ -21,6 +22,12 @@
+  * идут, право `suppliers.export`, пределы строк и размера, аудит без значений.
+  */
+ 
++// Правила доступа знают действия проекта (suppliers.export) и его ограничения (только
++// руководителям отделов), а не одни платформенные.
++const KNOWN_ACTIONS = testProject().knownAccessActions;
++const RESTRICTIONS = testProject().accessRestrictions;
++const accessRulesSchema = createAccessRulesSchema(KNOWN_ACTIONS);
++
+ const BOT = 'order-calc';
+ const USER = 'u-100';
+ const THREAD = `${BOT}/${USER}`;
+@@ -233,7 +240,10 @@
          version: 1,
          bots: { [BOT]: { allow: { users: [USER] } } },
        });
 -      return new RulesAccessPolicy(rules, new MemoryDirectoryService(), { heads });
-+      // Право на выгрузку - только руководителям: платформа получает это через `accessRestrictions`.
-+      return new RulesAccessPolicy(
-+        rules,
-+        new MemoryDirectoryService(),
-+        [...PLATFORM_ACCESS_ACTIONS, ACTION_EXPORT_SUPPLIERS],
-+        { heads, restrictions: { headOnlyActions: [ACTION_EXPORT_SUPPLIERS] } },
-+      );
++      return new RulesAccessPolicy(rules, new MemoryDirectoryService(), KNOWN_ACTIONS, {
++        heads,
++        restrictions: RESTRICTIONS,
++      });
      }
  
      test('руководитель получает файл', async () => {
-@@ -493,20 +499,15 @@
-     expect(file?.threadId).toBe(THREAD);
-   });
+@@ -307,7 +317,14 @@
+       isDepartmentHead: boolean | undefined,
+       bot = BOT,
+     ) =>
+-      evaluateAccess(rules, { userId, groups: [], isDepartmentHead }, bot, ACTION_EXPORT_SUPPLIERS);
++      evaluateAccess(
++        rules,
++        { userId, groups: [], isDepartmentHead },
++        bot,
++        ACTION_EXPORT_SUPPLIERS,
++        KNOWN_ACTIONS,
++        RESTRICTIONS,
++      );
  
--  test('ключ зависит от сотрудника и реплики, даже если тред один', async () => {
-+  // Платформа передаёт предшественнику только номер реплики, без исполнителя: проверка ключа по
-+  // сотруднику ждёт правки платформы (объект хода {initiator, turnNumber}), см. «Решения
-+  // владельца» этапа 6. Номер реплики и повтор проверяются здесь.
-+  test('ключ зависит от реплики, а повтор той же реплики даёт тот же ключ', async () => {
-     const input = { fields: ['инн'] };
--    const keyOf = (userId: string, turnNumber: number) =>
--      resolveOperationKey(
--        exportSuppliers,
--        input,
--        host,
--        THREAD,
--        '',
+     test('нет правила действия: руководитель допущен, не руководитель и неизвестный - нет', () => {
+       const rules = accessRulesSchema.parse({
+@@ -367,7 +384,10 @@
+         version: 1,
+         bots: { [BOT]: { allow: { users: ['boss'] } } },
+       });
+-      expect(evaluateAccess(rules, { userId: 'boss', groups: [] }, BOT, 'chat.message').allowed)
++      expect(
++        evaluateAccess(rules, { userId: 'boss', groups: [] }, BOT, 'chat.message', KNOWN_ACTIONS)
++          .allowed,
++      )
+         .toBe(true);
+     });
+   });
+@@ -502,7 +522,8 @@
+         host,
+         THREAD,
+         '',
 -        { initiator: { kind: 'user', userId }, turnNumber },
--      );
--    expect(await keyOf('u-100', 1)).not.toBe(await keyOf('u-200', 1));
--    expect(await keyOf('u-100', 1)).not.toBe(await keyOf('u-100', 2));
--    expect(await keyOf('u-100', 1)).toBe(await keyOf('u-100', 1));
-+    const keyOf = (turnNumber: number) =>
-+      resolveOperationKey(exportSuppliers, input, host, THREAD, '', turnNumber);
-+    expect(await keyOf(1)).not.toBe(await keyOf(2));
-+    expect(await keyOf(1)).toBe(await keyOf(1));
-   });
- 
-   test('успешный результат одного сотрудника не отдаётся другому в том же треде', async () => {
-@@ -570,10 +571,7 @@
-     const input = { fields: ['инн'] };
-     const keyAt = async (clock: FixedClock) => {
-       world.deps.clock = clock;
--      return resolveOperationKey(exportSuppliers, input, host, THREAD, '', {
--        initiator: { kind: 'user', userId: USER },
--        turnNumber: 1,
++        // Форма хода прежней платформы (объект); нынешняя передаёт только номер реплики.
++        { initiator: { kind: 'user', userId }, turnNumber } as unknown as number,
+       );
+     expect(await keyOf('u-100', 1)).not.toBe(await keyOf('u-200', 1));
+     expect(await keyOf('u-100', 1)).not.toBe(await keyOf('u-100', 2));
+@@ -573,7 +594,7 @@
+       return resolveOperationKey(exportSuppliers, input, host, THREAD, '', {
+         initiator: { kind: 'user', userId: USER },
+         turnNumber: 1,
 -      });
-+      return resolveOperationKey(exportSuppliers, input, host, THREAD, '', 1);
++      } as unknown as number);
      };
      const early = await keyAt(new FixedClock(new Date('2026-05-04T09:00:00.000Z')));
      const late = await keyAt(new FixedClock(new Date('2026-05-04T09:59:00.000Z')));

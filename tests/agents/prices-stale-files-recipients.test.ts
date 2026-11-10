@@ -11,7 +11,7 @@ import { PRICES_AGENT_ID, type PricesDeps } from '../../src/agents/prices/deps';
 import { PRICE_FILE_AUTHORSHIP_MAX_FILES } from '../../src/agents/prices/stale-price-recipients';
 import { MONITORING_NAMESPACE, monitoringKey, recordEmployeeContact } from '@business-ai/core';
 import { runStalePriceFilesCheck } from '../../src/agents/prices/stale-price-files';
-import { EVENT_SEVERITY } from '@business-ai/adapters';
+import { severityOf } from '@business-ai/adapters';
 import { directoryUnavailableDecision, type StaffPerson } from '@business-ai/core';
 import type { AccessPolicy, ChatMessage, IdempotencyKey } from '@business-ai/core';
 import {
@@ -953,7 +953,7 @@ describe('личный тред без обращения к боту (этап 
     const event = world.logs.find((l) => l.includes('price_stale_files_opened_redirected')) ?? '';
     expect(JSON.parse(event).fields).toMatchObject({ threads: 1, files: 1 });
     expect(event).not.toContain('u-dalmatov');
-    expect(EVENT_SEVERITY['price_stale_files_opened_redirected']).toBe('info');
+    expect(severityOf('price_stale_files_opened_redirected')).toBe('info');
   });
 
   test('сбой отправки в известный тред из реестра бросает, повтор дошлёт', async () => {
@@ -975,6 +975,6 @@ describe('личный тред без обращения к боту (этап 
     expect(textOf(RESPONSIBLE_THREAD)).toContain(DALMATOV_PATH);
     const event = world.logs.find((l) => l.includes('price_file_authorship')) ?? '';
     expect(JSON.parse(event).fields).toMatchObject({ denied: 1, opened: 0, resolved: 0 });
-    expect(EVENT_SEVERITY['price_file_authorship']).toBe('info');
+    expect(severityOf('price_file_authorship')).toBe('info');
   });
 });

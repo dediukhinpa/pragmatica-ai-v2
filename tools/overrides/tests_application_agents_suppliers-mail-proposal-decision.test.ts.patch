@@ -1,0 +1,11 @@
+--- tests/application/agents/suppliers-mail-proposal-decision.test.ts
++++ tests/application/agents/suppliers-mail-proposal-decision.test.ts
+@@ -199,7 +199,7 @@
+ 
+   test('не ход сотрудника (плановый запуск): запись запрещена', async () => {
+     await proposeThree();
+-    const { createToolContext } = await import('../../../src/application/index.shim');
++    const { createToolContext } = await import('@business-ai/core');
+     const scheduled = createToolContext({
+       threadId: threadOf(EMPLOYEE_A),
+       agentId: ADDRESSEE_AGENT,

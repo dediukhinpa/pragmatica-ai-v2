@@ -1,4 +1,4 @@
-// Сгенерировано sync-agents: платформенные имена + проектные файлы черновика.
+// Сгенерировано sync-agents: платформенные имена + проектные файлы.
 export {
   AccessPolicyLogger,
   AnthropicModelGateway,
@@ -374,6 +374,45 @@ export {
   xmlCodeNeedsOperator,
 } from '@business-ai/adapters';
 export {
+  DEFAULT_CONTRACT_TIMEOUT_MS,
+  HttpContractAmender,
+  HttpContractAmenderOptions,
+} from './http/http-contract-amender';
+export { HttpPriceFileEditor, HttpPriceFileEditorOptions } from './http/http-price-file-editor';
+export {
+  DEFAULT_TELEGRAM_SEARCH_TIMEOUT_MS,
+  HttpTelegramChannelSource,
+  HttpTelegramChannelSourceOptions,
+  TELEGRAM_SEARCH_ROUTE,
+} from './http/http-telegram-channel-source';
+export {
+  ModelPriceFileDateFallback,
+  PRICE_FILE_DATE_THREAD_ID,
+} from './litellm/price-file-date-model-fallback';
+export {
+  ModelPriceMailAssessor,
+  PRICE_MAIL_ASSESS_INVALID_ANSWER,
+  PRICE_MAIL_ASSESS_THREAD_ID,
+} from './litellm/price-mail-model-assessor';
+export {
+  ModelPriceRelevanceChecker,
+  PRICE_RELEVANCE_THREAD_ID,
+} from './litellm/price-relevance-model';
+export {
+  ModelShortlistComparer,
+  SHORTLIST_COMPARE_THREAD_ID,
+} from './litellm/shortlist-model-comparer';
+export {
+  ModelSiteTextEditor,
+  SITE_TEXT_EDIT_INVALID_ANSWER,
+  SITE_TEXT_EDIT_NO_THREAD,
+} from './litellm/site-text-model-editor';
+export {
+  ModelSupplierMailClassifier,
+  SUPPLIER_MAIL_CLASSIFY_INVALID_ANSWER,
+  SUPPLIER_MAIL_CLASSIFY_THREAD_ID,
+} from './litellm/supplier-mail-model-classifier';
+export {
   ModelSupplierRater,
   SUPPLIER_RATING_INVALID_ANSWER,
   SUPPLIER_RATING_THREAD_ID,
@@ -442,6 +481,9 @@ export {
   MemoryWebHitClassifier,
   MemoryWebQueryPlanner,
 } from './memory/web-candidate-model';
+export { PostgresContractNumbering } from './postgres/contract-numbering';
+export { PostgresImportStaging } from './postgres/import-staging';
+export { PostgresOwnLegalEntityRepository } from './postgres/own-legal-entity-repository';
 export {
   FillPriceEmbeddingsOptions,
   PRICE_EMBED_BATCH_ROWS,
@@ -459,3 +501,9 @@ export {
   PostgresPriceRepository,
   PriceRepositoryOptions,
 } from './postgres/price-repository';
+export { PostgresPriceTableIndex, knowledgeTextChars } from './postgres/price-table-index';
+export { PostgresPurchaseRequestRepository } from './postgres/purchase-request-repository';
+export { PostgresSupplierPriceScripts } from './postgres/supplier-price-scripts';
+export { PostgresSupplierQuoteRepository } from './postgres/supplier-quote-repository';
+export { PostgresSupplierRatingCache } from './postgres/supplier-rating-cache';
+export { PostgresSupplierRepository } from './postgres/supplier-repository';

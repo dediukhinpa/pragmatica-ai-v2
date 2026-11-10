@@ -217,7 +217,7 @@ describe('«нет» и неясный ответ', () => {
 
   test('не ход сотрудника (плановый запуск): запись запрещена', async () => {
     await proposeThree();
-    const { createToolContext } = await import('../../src/kit/application/index.shim');
+    const { createToolContext } = await import('@business-ai/core');
     const scheduled = createToolContext({
       threadId: threadOf(EMPLOYEE_A),
       agentId: ADDRESSEE_AGENT,

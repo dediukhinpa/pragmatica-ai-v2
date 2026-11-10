@@ -1,4 +1,4 @@
-// Сгенерировано sync-agents: платформенные имена + проектные файлы черновика.
+// Сгенерировано sync-agents: платформенные имена + проектные файлы.
 export {
   ACTION_SEND_EMAIL_DRAFT,
   AUDIO_EXTENSIONS,
@@ -189,6 +189,7 @@ export {
   ContractAmendRefusal,
   ContractAmendRefusedError,
   NewerPriceVersionError,
+  OWN_SIGNATORY_REFUSALS,
   OwnSignatoryRefusal,
   OwnSignatoryRefusedError,
   PriceBaseChangedError,
@@ -861,6 +862,7 @@ export {
 export { DAY_MS, HOUR_MS, SUPPLIER_REPLY_WAIT_HOURS, hoursToMs } from './time';
 export { normalizeUnit, piecesInUnit, sameUnit, splitUnitText, unitSuffix } from './units';
 export {
+  PRICE_JUMP_THRESHOLD,
   validateDocumentFields,
   validateOutreachRecipients,
   validatePriceImport,

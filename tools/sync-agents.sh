@@ -20,7 +20,10 @@ COMMIT="$(git -C "$SRC_REPO" rev-parse --verify "$REF^{commit}")"
 if ! git -C "$SRC_REPO" merge-base --is-ancestor "$COMMIT" origin/prod 2>/dev/null; then
   echo "sync-agents: ВНИМАНИЕ: $COMMIT не входит в origin/prod старого репо" >&2
 fi
-[ -d "$REPO/node_modules/@business-ai/core" ] || { echo "нет node_modules: bun install" >&2; exit 1; }
+[ -d "$REPO/node_modules/@business-ai/core" ] || {
+  echo "нет node_modules: bun install" >&2
+  exit 1
+}
 
 SCRATCH="${SYNC_SCRATCH:-$(mktemp -d "${TMPDIR:-/tmp}/sync-agents.XXXXXX")}"
 [ "${KEEP_SCRATCH:-0}" = "1" ] || trap 'rm -rf "${SCRATCH:?}"' EXIT
@@ -43,7 +46,7 @@ PLATFORM_VERSION="$(python3 -I -c \
 # 3. Копирование и переписывание импортов (раскладка старого репо).
 L1="$SCRATCH/l1"
 python3 -I "$HERE/sync_agents.py" --src "$SCRATCH/src" --platform "$PLAT" --out "$L1" \
-  --owned "$HERE/owned-symbols.txt" --renames "$HERE/renames.txt"
+  --owned "$HERE/owned-symbols.txt" --renames "$HERE/renames.txt" --seeds "$HERE/sync-seeds.txt"
 for pair in "${SYNC_EXTRA[@]}"; do
   mkdir -p "$L1/$(dirname "$pair")"
   cp "$SCRATCH/src/$pair" "$L1/$pair"

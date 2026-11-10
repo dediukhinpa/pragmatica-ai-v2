@@ -6,7 +6,8 @@ import {
   priceTierSchema,
   type PriceItem,
 } from '../../domain/models';
-import { isoTimestamp, numeric } from '@business-ai/adapters';
+import type { PgRow } from '@business-ai/adapters';
+import { isoTimestamp, numeric, parseRows } from '@business-ai/adapters';
 
 /** Поля позиции цены, общие для `price_items` и `import_staging_items` (без поставщика). */
 const priceFields = {
@@ -47,6 +48,8 @@ function mapPriceFields(
     ...(row.price_vat == null ? {} : { priceVat: row.price_vat }),
   };
 }
+/** Строка позиции без поставщика (поставщик известен из заголовка загрузки). */
+export const priceItemRow = z.object(priceFields).transform(mapPriceFields);
 /** Строка позиции цены `price_items` с поставщиком. */
 export const priceRow = z
   .object({
@@ -65,3 +68,8 @@ export const priceRow = z
       ...(row.created_at == null ? {} : { createdAt: row.created_at }),
     }),
   );
+const countRow = z.object({ total: numeric });
+/** Значение `total` из результата `SELECT count(*) AS total ...`; пустой результат -> 0. */
+export function parseCount(rows: PgRow[]): number {
+  return parseRows(countRow, rows)[0]?.total ?? 0;
+}
