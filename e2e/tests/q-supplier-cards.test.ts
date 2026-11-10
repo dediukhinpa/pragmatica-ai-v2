@@ -27,6 +27,7 @@ import type { PurchaseRequest } from '../../src/kit/domain/models';
 import type { SupplierCard } from '../../src/kit/domain/supplier-card';
 import { DualLlmStub, firstToken, stepInTurn, type DualHandler } from '@business-ai/testing/e2e';
 import { buildApp, e2eEnv, openDb } from '../lib/project-env';
+import { projectServiceOptions } from '../lib/project-env';
 import {
   E2E_SHUTDOWN_MS,
   E2E_WORKER_INTERVAL_MS,
@@ -462,6 +463,7 @@ async function start(rules: string): Promise<Running> {
     chatBots: config.service.chatBots,
     chatGreetingEnabled: config.service.chatGreetingEnabled,
     chatTurnTimeoutMs: config.service.chatTurnTimeoutMs,
+    ...projectServiceOptions(config),
     workerIntervalMs: E2E_WORKER_INTERVAL_MS,
     shutdownTimeoutMs: E2E_SHUTDOWN_MS,
     log: () => undefined,
@@ -1299,7 +1301,7 @@ describe('сценарий q7: поиск в базе знаний ограни�
     ];
     for (const [documentId, supplierId, content] of rows) {
       await db.query(
-        'INSERT INTO knowledge_chunks (document_id, chunk_index, content, source, supplier_id) ' +
+        'INSERT INTO knowledge_chunks (document_id, chunk_index, content, source, scope) ' +
           'VALUES ($1, 0, $2, $1, $3)',
         [documentId, content, supplierId],
       );
@@ -1362,7 +1364,7 @@ describe('сценарий q8: повторный прогон миграций 
     expect(card?.contacts).toHaveLength(1);
     expect(card?.notes.map((note) => note.text)).toEqual(['Заметка до миграции']);
     const versions = await db.query(
-      "SELECT count(*)::int AS n FROM schema_migrations WHERE version = '018_supplier_cards'",
+      "SELECT count(*)::int AS n FROM schema_migrations WHERE version = 'app/007_supplier_cards'",
     );
     expect(Number(versions[0]?.['n'])).toBe(1);
   });

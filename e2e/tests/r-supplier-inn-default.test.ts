@@ -12,6 +12,7 @@ import { PRICES_AGENT_ID } from '../../src/agents/prices/deps';
 import { createService, type ProductionApp, type Service } from '@business-ai/core/compose';
 import { DualLlmStub, firstToken, stepInTurn, type DualHandler } from '@business-ai/testing/e2e';
 import { buildApp, e2eEnv, openDb } from '../lib/project-env';
+import { projectServiceOptions } from '../lib/project-env';
 import {
   E2E_SHUTDOWN_MS,
   E2E_WORKER_INTERVAL_MS,
@@ -148,6 +149,7 @@ async function start(): Promise<Running> {
     chatBots: config.service.chatBots,
     chatGreetingEnabled: config.service.chatGreetingEnabled,
     chatTurnTimeoutMs: config.service.chatTurnTimeoutMs,
+    ...projectServiceOptions(config),
     workerIntervalMs: E2E_WORKER_INTERVAL_MS,
     shutdownTimeoutMs: E2E_SHUTDOWN_MS,
     log: () => undefined,

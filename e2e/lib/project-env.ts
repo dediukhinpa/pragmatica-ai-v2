@@ -12,12 +12,16 @@ import {
   MemoryCrm,
   type PgClient,
 } from '@business-ai/adapters';
-import type {
-  DepartmentHeadDirectory,
-  MailboxDirectory,
-  StaffDirectory,
+import {
+  chatHooksOf,
+  effectiveSchedules,
+  lifecycleOf,
+  type DepartmentHeadDirectory,
+  type MailboxDirectory,
+  type StaffDirectory,
 } from '@business-ai/core';
 import type {
+  createService,
   ExternalPorts,
   ProductionApp,
   ProductionConfig,
@@ -112,6 +116,28 @@ export function e2eConfig(overrides: Record<string, string> = {}): TestConfig {
     ...E2E_MODELS,
     ...overrides,
   });
+}
+
+/** Параметры службы, которые в бою берутся из манифеста проекта (`main.ts` платформы). */
+export type ProjectServiceOptions = Pick<
+  Parameters<typeof createService>[0],
+  'operatorThreadId' | 'schedules' | 'chatHooks' | 'lifecycle'
+>;
+
+/**
+ * Плановые задачи, обработчики чата и жизненный цикл манифеста для `createService`: без них
+ * служба e2e не запускает мониторинг и не знает кнопок, файлов и сценариев проекта.
+ */
+export function projectServiceOptions(config: TestConfig): ProjectServiceOptions {
+  return {
+    operatorThreadId: config.agents.ownerThreadId,
+    schedules: effectiveSchedules(
+      pragmatikaProject.schedules,
+      config as unknown as ProductionConfig<PragmatikaConfig>,
+    ),
+    chatHooks: chatHooksOf(pragmatikaProject),
+    lifecycle: lifecycleOf(pragmatikaProject),
+  };
 }
 
 /**

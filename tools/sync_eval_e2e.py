@@ -142,6 +142,19 @@ TEXT_RULES: list[tuple[str, str, str, bool]] = [
      "registerPragmatikaEval();\n", True),
     # Пакет zod у проекта один, а не из node_modules старого ядра.
     (r"e2e/**/*.ts", r"'(?:\.\./)+core/node_modules/zod'", "'zod'", False),
+    # Служба e2e собирается так же, как `main.ts` платформы: плановые задачи, обработчики чата и
+    # жизненный цикл идут из манифеста проекта (иначе нет мониторинга, кнопок и файлов проекта).
+    (r"e2e/**/*.ts",
+     r"(?ms)\A(?=.*\bcreateService\()(.*?^import [^\n]*from '((?:\.\./lib/)|\./)project-env';\n)",
+     "\\1import { projectServiceOptions } from '\\2project-env';\n", False),
+    (r"e2e/**/*.ts", r"(?m)^( *)(workerIntervalMs: )",
+     "\\1...projectServiceOptions(config),\n\\1\\2", False),
+    # Схема v2: столбец привязки фрагментов называется scope (миграция app/026), а версии
+    # миграций записаны с потоком (карта старых версий - db/app/legacy-map.tsv).
+    (r"e2e/tests/q-supplier-cards.test.ts", r"content, source, supplier_id\) '",
+     "content, source, scope) '", True),
+    (r"e2e/tests/q-supplier-cards.test.ts", r"version = '018_supplier_cards'",
+     "version = 'app/007_supplier_cards'", True),
     # Профиля LABOPS_PII_PROFILE у библиотеки маскирования платформы нет (с ним она не стартует):
     # настройки второго pseudonymizer (с маскированием юрлица) задаются явно, ключ и токен API
     # приходят из окружения прогона.

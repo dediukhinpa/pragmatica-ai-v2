@@ -19,6 +19,7 @@ import { createService, type ProductionApp, type Service } from '@business-ai/co
 import { buildDocx } from '@business-ai/testing';
 import { DualLlmStub, type DualHandler } from '@business-ai/testing/e2e';
 import { buildApp, e2eEnv, openDb } from '../lib/project-env';
+import { projectServiceOptions } from '../lib/project-env';
 import {
   E2E_SHUTDOWN_MS,
   E2E_WORKER_INTERVAL_MS,
@@ -220,6 +221,7 @@ async function start(startAt: Date, staff?: MemoryStaffDirectory): Promise<Runni
     healthPort: 0,
     chatAgentId: config.service.chatAgentId,
     chatTurnTimeoutMs: config.service.chatTurnTimeoutMs,
+    ...projectServiceOptions(config),
     workerIntervalMs: E2E_WORKER_INTERVAL_MS,
     shutdownTimeoutMs: E2E_SHUTDOWN_MS,
     log: (event, fields) => {

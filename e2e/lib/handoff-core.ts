@@ -5,21 +5,10 @@ import {
   SystemIdGenerator,
   type PgClient,
 } from '@business-ai/adapters';
-import {
-  chatHooksOf,
-  effectiveSchedules,
-  handoffRecordSchema,
-  lifecycleOf,
-  type HandoffRecord,
-} from '@business-ai/core';
-import { pragmatikaProject, type PragmatikaConfig } from '../../src';
+import { handoffRecordSchema, type HandoffRecord } from '@business-ai/core';
 import { composeProduction, type StopReport } from './project-env';
-import {
-  createService,
-  type ProductionApp,
-  type ProductionConfig,
-  type Service,
-} from '@business-ai/core/compose';
+import { projectServiceOptions } from './project-env';
+import { createService, type ProductionApp, type Service } from '@business-ai/core/compose';
 import { firstToken } from '@business-ai/testing/e2e';
 import { e2eConfig, e2eEnv } from './project-env';
 import type { StubReply } from '@business-ai/testing/e2e';
@@ -132,14 +121,7 @@ export async function startCore(options: CoreOptions): Promise<Core> {
     chatAgentId: config.service.chatAgentId,
     chatTurnTimeoutMs: config.service.chatTurnTimeoutMs,
     chatTurnJournalEnabled: config.service.chatTurnJournalEnabled,
-    // Как в `main.ts` платформы: задачи, обработчики чата и жизненный цикл идут из манифеста.
-    operatorThreadId: config.agents.ownerThreadId,
-    schedules: effectiveSchedules(
-      pragmatikaProject.schedules,
-      config as unknown as ProductionConfig<PragmatikaConfig>,
-    ),
-    chatHooks: chatHooksOf(pragmatikaProject),
-    lifecycle: lifecycleOf(pragmatikaProject),
+    ...projectServiceOptions(config),
     workerIntervalMs: options.workerIntervalMs ?? E2E_WORKER_INTERVAL_MS,
     shutdownTimeoutMs: E2E_SHUTDOWN_MS,
     log: (event, fields) => {
