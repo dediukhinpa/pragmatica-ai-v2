@@ -109,13 +109,19 @@ class EnvExampleTest(unittest.TestCase):
         self.assertEqual("", active_values().get("PII_ALLOWED_WORDS"))
 
     def test_line_length(self) -> None:
-        """Строки образца не длиннее 100 символов (кроме JSON-значений ботов)."""
+        """Строки образца не длиннее 100 символов.
+
+        Исключения: JSON-значения ботов и перечень шаблонов договоров - его построчно сверяет
+        тест агентов с реестром имён файлов (`tests/agents/documents-contract-templates`).
+        """
         long_lines = [
             number
             for number, line in enumerate(
                 loader.ENV_EXAMPLE_FILE.read_text(encoding="utf-8").splitlines(), start=1
             )
-            if len(line) > 100 and "BITRIX24_BOTS" not in line
+            if len(line) > 100
+            and "BITRIX24_BOTS" not in line
+            and not line.startswith("#DOCUMENT_TEMPLATE_ALLOWLIST=")
         ]
         self.assertEqual([], long_lines)
 
