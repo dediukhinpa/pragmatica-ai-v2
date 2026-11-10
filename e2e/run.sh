@@ -22,11 +22,11 @@ PLATFORM_DIR="${BAI_PLATFORM_DIR:-$HOME/wt-bai-modular}"
 # Порты сквозного прогона проекта (локальный диапазон 20600-20649, только 127.0.0.1).
 PORT_PG=20600
 PORT_PSEUDO=20610
-PORT_DOCS=20611
-PORT_EMBED=20612
-PORT_GUARD=20613
-PORT_LLM=20614
-PORT_VISION=20615
+PORT_DOCS=20620
+PORT_EMBED=20621
+PORT_GUARD=20622
+PORT_LLM=20623
+PORT_VISION=20624
 # Порог ресурсов хоста: сервисы и Postgres тяжёлые, при нехватке прогон не начинаем.
 MIN_DISK_GIB="${E2E_MIN_DISK_GIB:-8}"
 MIN_RAM_MIB="${E2E_MIN_RAM_MIB:-3072}"
