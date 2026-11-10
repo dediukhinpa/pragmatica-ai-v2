@@ -1,6 +1,7 @@
 import { HttpEmbedder, PostgresPairNoteStore, type PgClient } from '@business-ai/adapters';
 import type { PairNoteStore } from '@business-ai/core';
 import type { ProductionConfig } from '@business-ai/core/compose';
+import { ProjectKnowledgeSearch } from './adapters/knowledge-search';
 import { PostgresContractNumbering } from './kit/adapters/postgres/contract-numbering';
 import { PostgresImportStaging } from './kit/adapters/postgres/import-staging';
 import {
@@ -15,6 +16,7 @@ import { PostgresSupplierPriceScripts } from './kit/adapters/postgres/supplier-p
 import { PostgresSupplierQuoteRepository } from './kit/adapters/postgres/supplier-quote-repository';
 import { PostgresSupplierRatingCache } from './kit/adapters/postgres/supplier-rating-cache';
 import { PostgresSupplierRepository } from './kit/adapters/postgres/supplier-repository';
+import type { KnowledgeSearch } from './kit/ports/knowledge-search.owned';
 import type { ContractNumbering } from './kit/ports/contract-numbering';
 import type { ImportStaging } from './kit/ports/import-staging';
 import type { OwnLegalEntityRepository } from './kit/ports/own-legal-entities';
@@ -49,6 +51,8 @@ export interface PragmatikaPorts {
   readonly ratingCache: SupplierRatingCache;
   /** Личные заметки карточек: нужны карточкам и при выключенном `PAIR_NOTES_ENABLED`. */
   readonly pairNotes: PairNoteStore;
+  /** Поиск по базе знаний с областью проекта (раздел поставщиков, один поставщик). */
+  readonly knowledge: KnowledgeSearch;
 }
 
 /** Что нужно сборке портов от платформы: пул БД и платформенная часть конфигурации. */
@@ -86,6 +90,7 @@ export function buildPragmatikaPorts(env: PragmatikaPortsEnv): PragmatikaPorts {
     priceScripts: new PostgresSupplierPriceScripts(db),
     ratingCache: new PostgresSupplierRatingCache(db),
     pairNotes: new PostgresPairNoteStore(db),
+    knowledge: new ProjectKnowledgeSearch(db, embedder),
   };
 }
 

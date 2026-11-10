@@ -145,7 +145,7 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     requests: own.requests,
     suppliers: own.suppliers,
     prices: own.prices,
-    knowledge: services.knowledge,
+    knowledge: own.knowledge,
     web: services.webSearch,
     webSearchLimiter,
     webFetchLimiter: services.webFetchLimiter,
@@ -165,7 +165,7 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
   };
   const siteExport: SiteExportDeps = {
     prices: own.prices,
-    knowledge: services.knowledge,
+    knowledge: own.knowledge,
     state,
     // Формат выгрузки заказчика порт платформы не даёт: временный шаблон и строка в сводке.
     template: PLACEHOLDER_EXPORT_TEMPLATE,
@@ -263,7 +263,7 @@ function buildDocumentsDeps(
     ...(project.CONTRACT_REGISTRY_PATH === undefined
       ? {}
       : { contractRegistryPath: project.CONTRACT_REGISTRY_PATH }),
-    knowledge: services.knowledge,
+    knowledge: own.knowledge,
     renderer: services.renderer,
     suppliers: own.suppliers,
     chat: services.chat,
