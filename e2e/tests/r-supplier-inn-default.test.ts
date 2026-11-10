@@ -134,6 +134,7 @@ async function start(): Promise<Running> {
       CHAT_BOTS: JSON.stringify({ [BOT]: PRICES_AGENT_ID }),
       ACCESS_POLICY_FILE: rules,
       SUPPLIER_CARDS_ENABLED: 'true',
+      PAIR_NOTES_ENABLED: 'true',
       SUPPLIER_TEMPLATE_PATH: supplierTemplatePath(),
     },
     { heads },

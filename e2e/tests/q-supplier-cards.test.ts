@@ -447,6 +447,7 @@ async function start(rules: string): Promise<Running> {
       CHAT_GREETING_ENABLED: 'true',
       ACCESS_POLICY_FILE: rules,
       SUPPLIER_CARDS_ENABLED: 'true',
+      PAIR_NOTES_ENABLED: 'true',
       SUPPLIER_TEMPLATE_PATH: templatePath(),
       PSEUDONYMIZER_URL: maskingPseudonymizerUrl,
     },

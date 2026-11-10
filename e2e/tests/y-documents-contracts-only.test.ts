@@ -109,6 +109,7 @@ beforeAll(async () => {
   ctx = buildApp(new Map(), {
     DOCUMENTS_ENABLED_KINDS: 'contract',
     SUPPLIER_CARDS_ENABLED: 'true',
+    PAIR_NOTES_ENABLED: 'true',
     SUPPLIER_TEMPLATE_PATH: `${process.env['E2E_PROJECT_ROOT'] ?? ''}/${SUPPLIER_TEMPLATE_RELATIVE}`,
   });
 });

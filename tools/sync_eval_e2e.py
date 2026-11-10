@@ -155,6 +155,10 @@ TEXT_RULES: list[tuple[str, str, str, bool]] = [
      "content, source, scope) '", True),
     (r"e2e/tests/q-supplier-cards.test.ts", r"version = '018_supplier_cards'",
      "version = 'app/007_supplier_cards'", True),
+    # Личные заметки в насосе чата платформа включает своим флагом; у проекта они шли вместе с
+    # карточками поставщиков (в deploy/compat.env флаг берётся из SUPPLIER_CARDS_ENABLED).
+    (r"e2e/**/*.ts", r"(?m)^( *)SUPPLIER_CARDS_ENABLED: 'true',\n",
+     "\\1SUPPLIER_CARDS_ENABLED: 'true',\n\\1PAIR_NOTES_ENABLED: 'true',\n", False),
     # Профиля LABOPS_PII_PROFILE у библиотеки маскирования платформы нет (с ним она не стартует):
     # настройки второго pseudonymizer (с маскированием юрлица) задаются явно, ключ и токен API
     # приходят из окружения прогона.
