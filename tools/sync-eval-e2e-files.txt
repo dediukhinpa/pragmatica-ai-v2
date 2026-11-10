@@ -1,0 +1,72 @@
+# Выбор файлов sync-eval-e2e: шаблоны путей СТАРОГО репозитория (`**` - любое число каталогов),
+# `!` в начале - исключение, `#` - комментарий. Остальные файлы eval и e2e (раннер, схема кейса,
+# CLI, миры сквозных сценариев) даёт платформа: пакеты @business-ai/eval и @business-ai/testing.
+# Разбивка по стадии 5 (coverage.tsv): сюда попадает то, что помечено b/domain-stays и
+# b/project-tests.
+
+# --- eval: данные Прагматики (кейсы, записи, отчёт, примерные тарифы) ---
+eval/cases/**
+eval/recordings/**
+eval/reports/**
+eval/prices.example.json
+
+# --- eval: окружения агентов, синтетические сценарии, скрипты записей ---
+eval/src/environments/documents.ts
+eval/src/environments/order-calc.ts
+eval/src/environments/prices.ts
+eval/src/environments/site-export.ts
+eval/src/environments/handoff.ts
+eval/src/synthetic/scenarios.ts
+eval/src/synthetic/handoff-scenarios.ts
+eval/scripts/make-synthetic-recordings.ts
+eval/scripts/make-handoff-recordings.ts
+
+# --- eval: тесты, привязанные к агентам и данным Прагматики ---
+eval/tests/case-schema.test.ts
+eval/tests/checks.test.ts
+eval/tests/report.test.ts
+eval/tests/order-calc-follow-up.test.ts
+eval/tests/handoff-suite.test.ts
+eval/tests/replay-synthetic.test.ts
+
+# --- e2e: проектные миры и фикстуры ---
+e2e/fixtures/make_fixtures.py
+e2e/fixtures/make_disk_price.py
+e2e/fixtures/make_form_price.py
+e2e/fixtures/make_table_price.py
+e2e/lib/bitrix24-world.ts
+e2e/lib/employee.ts
+e2e/lib/handoff-core.ts
+e2e/lib/prices-flow.ts
+e2e/lib/script-flow.ts
+e2e/lib/script-forms.ts
+e2e/lib/supplier-xlsx.ts
+e2e/lib/table-price.ts
+e2e/lib/time.ts
+e2e/lib/xlsx-read.ts
+e2e/load/peak-10-users.ts
+
+# --- e2e: проектные сценарии (в платформе их нет) ---
+e2e/tests/a-prices.test.ts
+e2e/tests/b-documents-employee-requisites.test.ts
+e2e/tests/b-documents.test.ts
+e2e/tests/k-handoff-restart.test.ts
+e2e/tests/l-handoff-ask.test.ts
+e2e/tests/m-agent-call.test.ts
+e2e/tests/n-handoff-access-expiry.test.ts
+e2e/tests/p-monitoring.test.ts
+e2e/tests/q-supplier-cards.test.ts
+e2e/tests/r-order-to-digest.test.ts
+e2e/tests/r-stale-price-and-mail-trigger.test.ts
+e2e/tests/r-supplier-cards-bitrix24.test.ts
+e2e/tests/r-supplier-inn-default.test.ts
+e2e/tests/s111-script-employee.test.ts
+e2e/tests/s111-script-forms.test.ts
+e2e/tests/v-order-other-form.test.ts
+e2e/tests/v-price-initial-import.test.ts
+e2e/tests/v-shortlist-web-averages.test.ts
+e2e/tests/w-order-no-mail.test.ts
+e2e/tests/x-shortlist-draft.test.ts
+e2e/tests/y-documents-contracts-only.test.ts
+e2e/tests/z-order-tatyana-search-quality.test.ts
+e2e/tests/z-price-variants-tiers-names.test.ts

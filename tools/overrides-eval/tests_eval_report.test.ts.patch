@@ -1,0 +1,10 @@
+--- tests/eval/report.test.ts
++++ tests/eval/report.test.ts
+@@ -19,7 +19,6 @@
+     toolNames: [],
+     leaks: [],
+     leakChecked: false,
+-    managerChoice: null,
+     synthetic: false,
+     staleRecording: false,
+     ...overrides,

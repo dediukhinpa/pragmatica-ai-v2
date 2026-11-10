@@ -1,0 +1,36 @@
+# Проектные символы, объявленные внутри файлов eval/e2e, у которых есть двойник в платформе.
+# Формат как у owned-symbols.txt. Оверлей строится по файлу старого репо:
+#   eval/src/case-schema.ts -> eval/state.ts, eval/src/constants.ts -> eval/constants.ts,
+#   eval/src/environments/common.ts -> eval/environments/common.ts.
+
+# case-schema.ts: схемы начального состояния агентов Прагматики
+priceRowSchema
+fileSchema
+mailboxSchema
+chatPhotoSchema
+pricesStateSchema
+documentsStateSchema
+orderCalcStateSchema
+siteExportStateSchema
+
+# constants.ts
+MANAGER_THREAD
+DEFAULT_CURRENCY
+DEFAULT_OWN_COMPANY
+
+# environments/common.ts
+seedSuppliers
+seedPrices
+seedFiles
+chatFileContainsCount
+buildMailboxes
+draftsShownCount
+requestTextsShownCount
+chatTextContainsCount
+RecordingWebSearch
+mailSentCount
+
+# e2e/lib/*: проектные константы в файлах, у которых есть двойник в платформе
+BUYER_PII
+PRICE_FILE_PII
+OWN_COMPANY

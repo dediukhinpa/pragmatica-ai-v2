@@ -1,0 +1,5 @@
+# Нейтральные имена платформы вместо прежних имён eval (импорт `новое as старое`).
+PriceFile TariffFile
+loadPriceFile loadTariffFile
+PRICE_NOTE_MARKER TARIFF_NOTE_MARKER
+TOKENS_PER_PRICE_UNIT TOKENS_PER_TARIFF_UNIT

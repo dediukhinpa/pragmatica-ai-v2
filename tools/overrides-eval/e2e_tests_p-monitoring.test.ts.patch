@@ -1,0 +1,16 @@
+--- e2e/tests/p-monitoring.test.ts
++++ e2e/tests/p-monitoring.test.ts
+@@ -190,7 +190,12 @@
+     { mailboxes, ...(staff === undefined ? {} : { staff }) },
+   );
+   // Предел «открытых» заказов сводки - по умолчанию 14 дней (ORDER_DIGEST_OPEN_MAX_DAYS).
+-  expect(app.monitoring).toEqual({
++  // В ProductionApp платформы поля `monitoring` нет: настройки читаются из конфигурации.
++  expect({
++    enabled: config.agents.monitoringEnabled,
++    timezone: config.project['BUSINESS_TIMEZONE'],
++    orderDigestOpenMaxDays: config.project['ORDER_DIGEST_OPEN_MAX_DAYS'],
++  }).toEqual({
+     enabled: true,
+     timezone: TIMEZONE,
+     orderDigestOpenMaxDays: ORDER_DIGEST_OPEN_MAX_DAYS_DEFAULT,

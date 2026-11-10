@@ -1,0 +1,38 @@
+--- e2e/lib/bitrix24-world.ts
++++ e2e/lib/bitrix24-world.ts
+@@ -1,6 +1,7 @@
+ import {
+   Bitrix24ChatChannel,
+   FixedClock,
++  MemoryCrm,
+   SystemClock,
+   type FetchFn,
+   SystemIdGenerator,
+@@ -93,7 +94,7 @@
+ /** Порты, которые можно подставить снаружи (канал и CRM собирает сам мир). */
+ export type WorldExternalPorts = Omit<
+   ExternalPorts,
+-  'chat' | 'crm' | 'mailboxes' | 'directory' | 'tasks' | 'links'
++  'chat' | 'crm' | 'mailboxes' | 'directory' | 'tasks' | 'portalLinks' | 'dealSearch' | 'staff'
+ >;
+ 
+ /** Параметры запуска мира. */
+@@ -542,12 +543,15 @@
+     config,
+     {
+       chat: integrations.chat,
+-      crm: integrations.crm,
++      // CRM платформы: заметки и поиск сделок; разбор заявки по сделке не перенесён (пробел).
++      crm: new MemoryCrm(new Map()),
+       directory: integrations.directory,
+-      // Как в `core/src/main.ts`: руководителей отделов читает тот же каталог портала.
++      // Как в `main.ts` платформы: сотрудников и руководителей читает тот же каталог портала.
++      staff: integrations.directory,
+       heads: integrations.directory,
+       tasks: integrations.tasks,
+-      links: integrations.links,
++      dealSearch: integrations.deals,
++      ...(integrations.links === undefined ? {} : { portalLinks: integrations.links }),
+       ...(options.flags?.attachments === true ? { attachments: integrations.attachments } : {}),
+       ...(options.mailboxes === undefined ? {} : { mailboxes: options.mailboxes }),
+       ...(options.external ?? {}),

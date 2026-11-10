@@ -1,0 +1,19 @@
+--- tests/eval/order-calc-follow-up.test.ts
++++ tests/eval/order-calc-follow-up.test.ts
+@@ -1,6 +1,6 @@
+ import { describe, expect, test } from 'bun:test';
+ import { pickButtonId, pickDoneButtonId } from '../../src/agents/order-calc/choice-confirmation';
+-import type { OrderCalcCase } from '../../eval/cases';
++import { toOrderCalcCase, type OrderCalcCase } from '../../eval/cases';
+ import { loadCases } from '@business-ai/eval';
+ import { DEFAULT_CASES_DIR, DEFAULT_RECORDINGS_DIR } from '../../eval/paths';
+ import {
+@@ -50,7 +50,7 @@
+ describe('кейс order-calc-shortlist-pick: выбор ответом менеджера', () => {
+   const found = loadCases(DEFAULT_CASES_DIR).find((c) => c.id === 'order-calc-shortlist-pick');
+   if (found === undefined || found.agent !== 'order-calc') throw new Error('нет кейса');
+-  const testCase: OrderCalcCase = found;
++  const testCase: OrderCalcCase = toOrderCalcCase(found);
+   const sessions = replaySessions(DEFAULT_RECORDINGS_DIR);
+ 
+   async function runModelA(turned: OrderCalcCase) {

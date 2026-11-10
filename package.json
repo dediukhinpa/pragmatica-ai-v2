@@ -6,10 +6,17 @@
   "license": "UNLICENSED",
   "description": "Прагматика v2: тонкий проект на платформе @business-ai/*",
   "scripts": {
-    "test": "bun test",
+    "test": "bun test ./src ./tests ./eval",
     "typecheck": "tsc --noEmit",
     "start": "bun run src/main.ts",
-    "sync-agents": "bash tools/sync-agents.sh"
+    "sync-agents": "bash tools/sync-agents.sh",
+    "eval": "bun run eval/cli.ts",
+    "eval:handoff": "bun run eval/handoff-cli.ts",
+    "synthetic": "bun run eval/scripts/make-synthetic-recordings.ts",
+    "synthetic:handoff": "bun run eval/scripts/make-handoff-recordings.ts",
+    "sync-eval-e2e": "bash tools/sync-eval-e2e.sh",
+    "e2e": "bash e2e/run.sh",
+    "e2e:names": "bun tools/e2e-test-names.ts e2e/tests"
   },
   "dependencies": {
     "@business-ai/adapters": "0.1.0-dev.0b172b9f",
