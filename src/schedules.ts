@@ -10,7 +10,9 @@ import {
 } from '@business-ai/core/compose';
 import type { ProjectSchedule } from '@business-ai/core';
 import { HOUR_MS } from './kit/domain/time';
+import { ORDER_CALC_AGENT_ID, type OrderCalcDeps } from './agents/order-calc';
 import { runOrdersDigest } from './agents/order-calc/orders-digest';
+import { PRICES_AGENT_ID, type PricesDeps } from './agents/prices';
 import { runPriceRetryTick } from './agents/prices/disk-sync-retry';
 import { PRICE_DISK_SYNC_INTERVAL_MS, runPriceDiskSync } from './agents/prices/price-disk-sync';
 import { runPriceMailTriggers } from './agents/prices/price-mail-triggers';
@@ -36,11 +38,25 @@ function projectOf(config: ProductionConfig): Partial<PragmatikaConfig> {
   return (config.project ?? {}) as Partial<PragmatikaConfig>;
 }
 
+/**
+ * Зависимости агентов для задач: те, что получила служба (`options.app.agentDeps`), иначе
+ * снимок из сборки. В бою это один и тот же объект; тесты подменяют часы именно в службе.
+ */
+function orderCalcDepsOf(options: DefaultJobsOptions, fallback: OrderCalcDeps): OrderCalcDeps {
+  return (options.app.agentDeps?.[ORDER_CALC_AGENT_ID] as OrderCalcDeps | undefined) ?? fallback;
+}
+
+function pricesDepsOf(options: DefaultJobsOptions, fallback: PricesDeps): PricesDeps {
+  return (options.app.agentDeps?.[PRICES_AGENT_ID] as PricesDeps | undefined) ?? fallback;
+}
+
 /** Обязанности тика мониторинга: сводка по заказам и две проверки прайсов. */
 function duties(options: DefaultJobsOptions, now: Date): readonly MonitoringDutySpec[] {
   const runtime = pragmatikaRuntime();
   if (runtime === undefined) return [];
   const { timezone } = runtime;
+  const orderCalc = orderCalcDepsOf(options, runtime.orderCalc);
+  const prices = pricesDepsOf(options, runtime.prices);
   const log = options.log ?? ((): void => undefined);
   const alert =
     options.chat === undefined || options.operatorThreadId === undefined
@@ -52,7 +68,7 @@ function duties(options: DefaultJobsOptions, now: Date): readonly MonitoringDuty
       name: 'orders_digest',
       run: async () =>
         (
-          await runOrdersDigest(runtime.orderCalc, {
+          await runOrdersDigest(orderCalc, {
             timezone,
             openMaxDays: runtime.orderDigestOpenMaxDays,
           })
@@ -60,14 +76,14 @@ function duties(options: DefaultJobsOptions, now: Date): readonly MonitoringDuty
     },
     {
       name: 'stale_price_files',
-      run: async () => (await runStalePriceFilesCheck(runtime.prices, { timezone })).status,
+      run: async () => (await runStalePriceFilesCheck(prices, { timezone })).status,
     },
     {
       name: 'price_mail_triggers',
       run: async () => {
-        const run = await runPriceMailTriggers(runtime.prices, {
+        const run = await runPriceMailTriggers(prices, {
           timezone,
-          supplierAttachmentMaxPerRun: runtime.prices.supplierAttachmentMaxPerRun,
+          supplierAttachmentMaxPerRun: prices.supplierAttachmentMaxPerRun,
         });
         // Итог просмотра - всегда, даже нулевой: молчание слота должно быть видно. Только счётчики.
         if (run.status === 'done') {
@@ -135,13 +151,14 @@ function priceDiskSyncHandler(options: DefaultJobsOptions): JobHandler {
   return async () => {
     const runtime = pragmatikaRuntime();
     if (runtime === undefined || !runtime.priceDiskSyncEnabled) return;
-    if (runtime.prices.state === undefined) return;
+    const prices = pricesDepsOf(options, runtime.prices);
+    if (prices.state === undefined) return;
     const { scheduler } = options.app;
-    const result = await runPriceDiskSync(runtime.prices, scheduler, {
+    const result = await runPriceDiskSync(prices, scheduler, {
       initialImport: runtime.priceDiskInitialImportEnabled,
     });
     // Догрузка отложенных файлов (если владелец её запустил): своя очередь и свой лимит за тик.
-    const retry = await runPriceRetryTick(runtime.prices, scheduler);
+    const retry = await runPriceRetryTick(prices, scheduler);
     options.log?.('price_disk_sync', {
       ...(retry.enqueued + retry.skippedWritten + retry.remaining === 0 && !retry.summarySent
         ? {}
