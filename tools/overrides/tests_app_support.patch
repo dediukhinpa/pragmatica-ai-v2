@@ -1,0 +1,26 @@
+--- tests/app/support.ts
++++ tests/app/support.ts
+@@ -2,7 +2,7 @@
+ import { MemoryCrm } from '../../src/adapters/memory/crm.owned';
+ import { MemoryImportStaging } from '../../src/adapters/memory/import-staging';
+ import { createAgentRegistry, toRunSpec, type AgentDeclaration, type AgentRegistry } from '@business-ai/core';
+-import { ChatPump, JobWorker, composeProduction, createJobHandlerRegistry, loadProductionConfig, type ChatPumpOptions, type JobFailure, type JobHandler, type JobWorkerOptions, type ServiceApp } from '@business-ai/core/compose';
++import { ChatPump, JobWorker, createJobHandlerRegistry, type ChatPumpOptions, type JobFailure, type JobHandler, type JobWorkerOptions, type ServiceApp } from '@business-ai/core/compose';
+ import type { ChatEvent, Scheduler } from '@business-ai/core';
+ 
+ export const CHAT_AGENT = 'buyer';
+@@ -166,14 +166,3 @@
+   };
+   return client;
+ }
+-
+-/** Боевая сборка на заглушках: окружение по умолчанию плюс `extra`. */
+-export function buildProduction(extra: Record<string, string> = {}) {
+-  const config = loadProductionConfig(productionEnv(extra));
+-  const app = composeProduction(
+-    config,
+-    { chat: new MemoryChatChannel(), crm: new MemoryCrm(new Map()) },
+-    { db: nullDb() },
+-  );
+-  return { config, app };
+-}

@@ -1,0 +1,20 @@
+--- src/application/agents/prices/price-sources.ts
++++ src/application/agents/prices/price-sources.ts
+@@ -180,6 +180,7 @@
+   if (mail !== null) return openMailSource(deps, path, mail.messageId, mail.index, access);
+   if (isIntakePath(path)) {
+     const intake = requirePort(deps.intake, 'файлы от сотрудников');
++    const openFile = intake.openFile?.bind(intake);
+     const name = intakeFileName(path);
+     return {
+       path,
+@@ -187,7 +188,8 @@
+       hash: intakeHash(path),
+       kind: 'intake',
+       read: () => intake.read(threadId, path),
+-      disk: () => intake.openFile(threadId, path),
++      // Открытие файла на диске есть не у каждого хранилища приёма (порт его не требует).
++      ...(openFile === undefined ? {} : { disk: () => openFile(threadId, path) }),
+       meta: { source: 'intake', fileName: name, notes: [] },
+     };
+   }

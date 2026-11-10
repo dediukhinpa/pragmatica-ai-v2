@@ -1,0 +1,58 @@
+--- tests/application/agents/suppliers-declaration.test.ts
++++ tests/application/agents/suppliers-declaration.test.ts
+@@ -3,7 +3,7 @@
+ import { PRICES_PROMPT } from '../../../src/application/agents/prices/prompt';
+ import { SUPPLIER_BATCH_MAX_ROWS } from '../../../src/application/agents/suppliers/deps';
+ import { SUPPLIER_CARDS_PROMPT, SUPPLIER_CARDS_PROMPT_WITHOUT_ENRICH, SUPPLIER_HELP_TEXT } from '../../../src/application/agents/suppliers/prompt';
+-import { assertDeclarationValid, findDigitSeries, type AgentDeclaration, type GreetingButtonAction, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
++import { assertDeclarationValid, defineProject, findDigitSeries, type AgentDeclaration, type GreetingButtonAction, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
+ import { createDocumentsAgent } from '../../../src/application/agents/documents/declaration';
+ import { createOrderCalcAgent } from '../../../src/application/agents/order-calc/declaration';
+ import { createSiteExportAgent } from '../../../src/application/agents/site-export/declaration';
+@@ -100,17 +100,43 @@
+   const declaration = (): AgentDeclaration =>
+     createPricesAgent({ model: MODEL, supplierCards: {} });
+ 
++  /**
++   * Манифест проекта с приветствием агента прайсов и обработчиками действий Прагматики. Набор
++   * действий замыкает манифест (`chat.greetingActions`), а не декларация: платформа проверяет в
++   * декларации только вид имени.
++   */
++  const projectWith = (greeting: NonNullable<AgentDeclaration['greeting']>) => {
++    const handler = async (): Promise<string | null> => 'ok';
++    return defineProject({
++      id: 'pragmatika',
++      models: { prices: 'PRICES_MODEL' },
++      chat: {
++        defaultAgentId: 'prices',
++        greetings: { prices: greeting },
++        greetingActions: { 'supplier-help': handler, 'supplier-template': handler },
++      },
++      agents: () => ({ declarations: [], deps: {} }),
++    });
++  };
++
+   test('неизвестное действие кнопки отклоняется', () => {
+     const base = declaration();
+     const greeting = base.greeting;
+     if (greeting === undefined) throw new Error('нет приветствия');
++    expect(() => projectWith(greeting)).not.toThrow();
+     const buttons = [
+       ...greeting.buttons.slice(0, -1),
+       { id: 'bad', label: 'Плохая', prompt: 'х', action: 'launch-missiles' as never },
+     ];
+-    expect(() => assertDeclarationValid({ ...base, greeting: { ...greeting, buttons } })).toThrow(
+-      /неизвестное действие/,
+-    );
++    expect(() => projectWith({ ...greeting, buttons })).toThrow(/launch-missiles/);
++    // Имя не вида «латиница, цифры, дефис» отклоняет уже декларация.
++    const malformed = [
++      ...greeting.buttons.slice(0, -1),
++      { id: 'bad', label: 'Плохая', prompt: 'х', action: 'Launch Missiles' as never },
++    ];
++    expect(() =>
++      assertDeclarationValid({ ...base, greeting: { ...greeting, buttons: malformed } }),
++    ).toThrow(/имя действия/);
+   });
+ 
+   test('седьмая кнопка отклоняется', () => {

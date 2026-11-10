@@ -1,0 +1,11 @@
+--- tests/application/agents/suppliers-extract.test.ts
++++ tests/application/agents/suppliers-extract.test.ts
+@@ -75,7 +75,7 @@
+ });
+ 
+ describe('файл шаблона в репозитории', () => {
+-  const file = join(import.meta.dir, '../../../../docs/templates/supplier-template.xlsx');
++  const file = join(import.meta.dir, '../../../docs/templates/supplier-template.xlsx');
+ 
+   test('файл есть, это xlsx (zip), заголовки листа совпадают с колонками шаблона', async () => {
+     expect(existsSync(file)).toBe(true);

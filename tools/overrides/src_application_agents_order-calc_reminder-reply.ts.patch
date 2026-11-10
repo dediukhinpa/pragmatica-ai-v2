@@ -1,0 +1,12 @@
+--- src/application/agents/order-calc/reminder-reply.ts
++++ src/application/agents/order-calc/reminder-reply.ts
+@@ -310,7 +310,8 @@
+   // входит всегда (справка и вопросы у каждого треда свои), номер реплики - у clarify: второй
+   // уточняющий вопрос в другой реплике того же треда - новый показ, а не повтор первого.
+   idempotencyPredecessor: async (input, deps, threadId, turn) => {
+-    const turnNumber = turn?.turnNumber;
++    // Платформа передаёт номер реплики числом (объекта хода с исполнителем она не даёт).
++    const turnNumber: number | undefined = typeof turn === 'number' ? turn : undefined;
+     const requestId = input.requestId;
+     const snooze =
+       requestId === undefined

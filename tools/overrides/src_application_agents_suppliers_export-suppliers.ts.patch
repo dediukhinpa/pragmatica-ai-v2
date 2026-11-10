@@ -1,0 +1,32 @@
+--- src/application/agents/suppliers/export-suppliers.ts
++++ src/application/agents/suppliers/export-suppliers.ts
+@@ -274,11 +274,18 @@
+ }
+ 
+ /** Исполнитель в ключе повтора: сотрудник либо вид инициатора. */
+-function whoOf(turn: OperationTurn | undefined): string {
+-  if (turn === undefined) return 'unknown';
++function whoOf(turn: OperationTurn | number | undefined): string {
++  // Платформа передаёт в предшественника только номер реплики: исполнитель неизвестен.
++  if (turn === undefined || typeof turn === 'number') return 'unknown';
+   return turn.initiator.kind === 'user' ? turn.initiator.userId : turn.initiator.kind;
+ }
+ 
++/** Номер реплики из объекта хода либо числа (форма вызова платформы). */
++function turnNumberOf(turn: OperationTurn | number | undefined): number {
++  if (turn === undefined) return 0;
++  return typeof turn === 'number' ? turn : turn.turnNumber;
++}
++
+ /** Выгрузить базу поставщиков в xlsx и отправить сотруднику в чат. */
+ export const exportSuppliers = defineTool<ExportInput, ExportOutput, SupplierCardsHost>({
+   name: EXPORT_SUPPLIERS_TOOL,
+@@ -299,7 +306,7 @@
+   // получает тот же ключ в любой момент и не шлёт дубль, новая реплика - свежая выгрузка,
+   // потому что база между репликами менялась.
+   idempotencyPredecessor: async (_input, _host, threadId, turn) =>
+-    `${threadId}:${whoOf(turn)}:${turn?.turnNumber ?? 0}`,
++    `${threadId}:${whoOf(turn)}:${turnNumberOf(turn)}`,
+   async execute(input, host, context) {
+     const deps = requirePort(host.supplierCards, MODULE_NAME);
+     const filters = FILTER_KEYS.filter((key) => (input[key] ?? '') !== '');

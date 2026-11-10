@@ -1,0 +1,13 @@
+--- tests/application/agents/site-template-support.ts
++++ tests/application/agents/site-template-support.ts
+@@ -171,7 +171,9 @@
+   world.deps = {
+     ...base,
+     clock,
+-    workbook: new MemoryTemplateWorkbook(),
++    // Колонки названия и артикула в шаблоне заказчика называются «Название…» и «Артикул…»;
++    // заглушка платформы по умолчанию ищет `name` и `code`.
++    workbook: new MemoryTemplateWorkbook({ nameHeader: 'название', codeHeader: 'артикул' }),
+     templateFiles: disk,
+     siteTemplatePath: TEMPLATE_PATH,
+     employeeIdentity: identity,

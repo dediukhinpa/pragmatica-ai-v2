@@ -1,0 +1,32 @@
+--- src/app/chat-pump.owned.ts
++++ src/app/chat-pump.owned.ts
+@@ -1,3 +1,5 @@
++import type { ChatButtonHandler } from '@business-ai/core/compose';
++
+ 
+ /**
+  * Ответ на кнопку снятого подтверждения прайса (`pjump:`) из ранее отправленных сообщений:
+@@ -6,3 +8,23 @@
+ export const CHAT_JUMP_NOT_REQUIRED_TEXT =
+   'Подтверждение прайса больше не требуется: цены в базу вносятся только с сетевого диска, ' +
+   'остальное приходит вам файлом изменений.';
++
++/** Префикс кнопок снятого подтверждения прайса (`pjump:<ok|no>:<токен>`). */
++export const RETIRED_JUMP_BUTTON_PREFIX = 'pjump';
++/** Код результата для аудита: кнопка получила короткий ответ. */
++export const CHAT_RESULT_JUMP_NOT_REQUIRED = 'price_jump_not_required';
++
++/**
++ * Обработчик кнопок снятого подтверждения прайса для `buttonHandlers` насоса платформы (манифест
++ * `chat.buttons`): короткий ответ, ничего не записывается, модель не вызывается. Работает без
++ * общего состояния, как прежняя ветка насоса Прагматики.
++ */
++export const retiredPriceJumpButton: ChatButtonHandler = {
++  prefix: RETIRED_JUMP_BUTTON_PREFIX,
++  // Ответ идемпотентный текст: после сбоя хода повтор автоматический (как в таблице насоса).
++  replay: 'auto',
++  async handle(_buttonId, context) {
++    await context.say(CHAT_JUMP_NOT_REQUIRED_TEXT);
++    return CHAT_RESULT_JUMP_NOT_REQUIRED;
++  },
++};

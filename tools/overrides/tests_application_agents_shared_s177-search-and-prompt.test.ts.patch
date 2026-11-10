@@ -1,0 +1,22 @@
+--- tests/application/agents/shared/s177-search-and-prompt.test.ts
++++ tests/application/agents/shared/s177-search-and-prompt.test.ts
+@@ -24,7 +24,7 @@
+   test('поиск выполняется, предупреждение в ответе', async () => {
+     const page = { title: 'Арматура', url: 'https://example.test/a', snippet: 'цена' };
+     const web = new MemoryWebSearch([page]);
+-    const host: WebSearchHost = { web, webSearchQueryPiiAllowed: true };
++    const host: WebSearchHost = { web, webSearchQueryPiiAllowed: true, webSearchLimitWarnings: true };
+     const context = createToolContext({
+       threadId: 'th',
+       agentId: 'documents',
+@@ -37,7 +37,9 @@
+   });
+ 
+   test('withFeedbackTool добавляет блок предупреждений в промпт', () => {
+-    const declared = withFeedbackTool({ prompt: 'База', tools: [] } as unknown as AgentDeclaration);
++    const declared = withFeedbackTool({ prompt: 'База', tools: [] } as unknown as AgentDeclaration, {
++      limitWarnings: true,
++    });
+     expect(declared.prompt).toContain(WARNINGS_PROMPT);
+   });
+ });

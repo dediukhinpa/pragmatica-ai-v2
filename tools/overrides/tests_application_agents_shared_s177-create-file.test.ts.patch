@@ -1,0 +1,10 @@
+--- tests/application/agents/shared/s177-create-file.test.ts
++++ tests/application/agents/shared/s177-create-file.test.ts
+@@ -1,6 +1,6 @@
+ import { describe, expect, test } from 'bun:test';
+ import { MemoryChatChannel, MemoryTableExporter } from '@business-ai/adapters';
+-import { FILE_MAX_CELL_CHARS, FILE_MAX_COLUMNS, FILE_MAX_ROWS, createFileTool, createToolContext, type CreateFileHost } from '@business-ai/core';
++import { FILE_MAX_CELL_CHARS, FILE_MAX_COLUMNS, FILE_MAX_ROWS, createFileWarningsTool as createFileTool, createToolContext, type CreateFileHost } from '@business-ai/core';
+ 
+ // Этап 177: пределы createFile не отказ, а обрезка с предупреждением.
+ const context = createToolContext({

@@ -1,0 +1,48 @@
+# Проектные символы, которые Прагматика объявляет внутри платформенных файлов (тип b).
+# Формат: по одному имени в строке. Платформа их не получает, черновик вырезает их в оверлей.
+SupplierRepository
+PriceRepository
+PurchaseRequestRepository
+SupplierProductSearchOptions
+SaveImportOptions
+MemorySupplierRepository
+MemoryPriceRepository
+MemoryPurchaseRequestRepository
+NewerPriceVersionError
+PriceBaseChangedError
+UnsupportedPriceFormatError
+isUnsupportedPriceFormatError
+validatePriceImport
+validateOutreachRecipients
+validateDocumentFields
+ACTION_CONFIRM_SUPPLIER_CARD
+priceRow
+SaveCardOptions
+SupplierAddressMatch
+SupplierCardQuery
+# Проектные порты и тексты (b): платформа даёт общую часть, проект держит свою версию.
+CHAT_JUMP_NOT_REQUIRED_TEXT
+KnowledgeSearch
+KnowledgeScope
+MemoryKnowledgeDocument
+PairKey
+TEMPLATE_DEFAULT_HEADER_ROW
+workingDaysUntil
+askPricesKit
+workSubject
+Crm
+MemoryCrm
+MemoryKnowledgeSearch
+# Добавлено при синхронизации 5ea7f2d3: проектные символы в платформенных файлах доступа и ошибок.
+ACTION_EXPORT_SUPPLIERS
+ACTION_UPDATE_OWN_REQUISITES
+CONTRACT_AMEND_REFUSALS
+ContractAmendRefusal
+ContractAmendRefusedError
+OwnSignatoryRefusal
+OwnSignatoryRefusedError
+PriceFileTooLargeError
+PriceFileTooLargeReason
+isPriceFileTooLargeError
+FILE_MAX_BYTES
+OperationTurn

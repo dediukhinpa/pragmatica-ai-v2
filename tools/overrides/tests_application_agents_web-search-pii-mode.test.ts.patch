@@ -1,0 +1,36 @@
+--- tests/application/agents/web-search-pii-mode.test.ts
++++ tests/application/agents/web-search-pii-mode.test.ts
+@@ -4,2 +4,5 @@
+ import { searchWeb } from '../../../src/application/agents/order-calc/search-sources';
++import { PROJECT_EXTERNAL_TEXT_TOOL_NAMES } from '../../../src/application/agents/shared/external-text-tools.owned';
++import { draftDescription } from '../../../src/application/agents/site-export/draft-description';
++import { gatherItemData } from '../../../src/application/agents/site-export/gather-item-data';
+ import { EXTERNAL_TEXT_TOOL_NAMES, PII_ALLOWED_EXTERNAL_TOOL_NAMES, WEB_SEARCH_SUMMARY_MAX_CHARS, assertPiiAllowedExternalQuery } from '@business-ai/core';
+@@ -21,2 +24,12 @@
+ 
++describe('перечень внешних текстовых инструментов проекта', () => {
++  test('имена совпадают с name инструментов, поиск в интернете среди них', () => {
++    const names = [searchInternet.name, searchWeb.name, gatherItemData.name, draftDescription.name];
++    expect([...PROJECT_EXTERNAL_TEXT_TOOL_NAMES].sort()).toEqual(names.sort());
++    for (const name of EXTERNAL_TEXT_TOOL_NAMES) {
++      expect(PROJECT_EXTERNAL_TEXT_TOOL_NAMES.has(name)).toBe(true);
++    }
++  });
++});
++
+ describe('набор PII_ALLOWED_EXTERNAL_TOOL_NAMES', () => {
+@@ -41,3 +54,3 @@
+       undefined,
+-      undefined,
++      PROJECT_EXTERNAL_TEXT_TOOL_NAMES,
+       allowed,
+@@ -87,4 +100,7 @@
+     expect(() => assertPiiAllowedExternalQuery('[ORG_1] арматура')).toThrow('токен');
+-    // Этап 177: длина больше не отказ (сокращение — в fitPiiAllowedExternalQuery).
+-    expect(() => assertPiiAllowedExternalQuery('а'.repeat(500))).not.toThrow();
++    // Этап 177: длина больше не отказ (сокращение — в fitPiiAllowedExternalQuery). Платформа
++    // включает это выбором `skipLengthCheck`; режим предупреждений поиска делает так же.
++    expect(() =>
++      assertPiiAllowedExternalQuery('а'.repeat(500), { skipLengthCheck: true }),
++    ).not.toThrow();
+     expect(() => assertPiiAllowedExternalQuery(`ИНН ${INN}`)).not.toThrow();

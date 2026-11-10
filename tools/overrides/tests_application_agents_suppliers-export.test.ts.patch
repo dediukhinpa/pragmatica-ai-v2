@@ -1,0 +1,67 @@
+--- tests/application/agents/suppliers-export.test.ts
++++ tests/application/agents/suppliers-export.test.ts
+@@ -6,7 +6,7 @@
+ import { cardCellValue } from '../../../src/application/agents/suppliers/card-cells';
+ import { createOrderCalcAgent } from '../../../src/application/agents/order-calc/declaration';
+ import { findSupplierTable } from '../../../src/application/agents/suppliers/import-suppliers-file';
+-import { resolveOperationKey } from '@business-ai/core';
++import { PLATFORM_ACCESS_ACTIONS, resolveOperationKey } from '@business-ai/core';
+ import { supplierExportTools } from '../../../src/application/agents/suppliers/tools';
+ import { type SupplierCardsHost } from '../../../src/application/agents/suppliers/deps';
+ import { ACTION_EXPORT_SUPPLIERS } from '../../../src/domain/access.owned';
+@@ -233,7 +233,13 @@
+         version: 1,
+         bots: { [BOT]: { allow: { users: [USER] } } },
+       });
+-      return new RulesAccessPolicy(rules, new MemoryDirectoryService(), { heads });
++      // Право на выгрузку - только руководителям: платформа получает это через `accessRestrictions`.
++      return new RulesAccessPolicy(
++        rules,
++        new MemoryDirectoryService(),
++        [...PLATFORM_ACCESS_ACTIONS, ACTION_EXPORT_SUPPLIERS],
++        { heads, restrictions: { headOnlyActions: [ACTION_EXPORT_SUPPLIERS] } },
++      );
+     }
+ 
+     test('руководитель получает файл', async () => {
+@@ -493,20 +499,15 @@
+     expect(file?.threadId).toBe(THREAD);
+   });
+ 
+-  test('ключ зависит от сотрудника и реплики, даже если тред один', async () => {
++  // Платформа передаёт предшественнику только номер реплики, без исполнителя: проверка ключа по
++  // сотруднику ждёт правки платформы (объект хода {initiator, turnNumber}), см. «Решения
++  // владельца» этапа 6. Номер реплики и повтор проверяются здесь.
++  test('ключ зависит от реплики, а повтор той же реплики даёт тот же ключ', async () => {
+     const input = { fields: ['инн'] };
+-    const keyOf = (userId: string, turnNumber: number) =>
+-      resolveOperationKey(
+-        exportSuppliers,
+-        input,
+-        host,
+-        THREAD,
+-        '',
+-        { initiator: { kind: 'user', userId }, turnNumber },
+-      );
+-    expect(await keyOf('u-100', 1)).not.toBe(await keyOf('u-200', 1));
+-    expect(await keyOf('u-100', 1)).not.toBe(await keyOf('u-100', 2));
+-    expect(await keyOf('u-100', 1)).toBe(await keyOf('u-100', 1));
++    const keyOf = (turnNumber: number) =>
++      resolveOperationKey(exportSuppliers, input, host, THREAD, '', turnNumber);
++    expect(await keyOf(1)).not.toBe(await keyOf(2));
++    expect(await keyOf(1)).toBe(await keyOf(1));
+   });
+ 
+   test('успешный результат одного сотрудника не отдаётся другому в том же треде', async () => {
+@@ -570,10 +571,7 @@
+     const input = { fields: ['инн'] };
+     const keyAt = async (clock: FixedClock) => {
+       world.deps.clock = clock;
+-      return resolveOperationKey(exportSuppliers, input, host, THREAD, '', {
+-        initiator: { kind: 'user', userId: USER },
+-        turnNumber: 1,
+-      });
++      return resolveOperationKey(exportSuppliers, input, host, THREAD, '', 1);
+     };
+     const early = await keyAt(new FixedClock(new Date('2026-05-04T09:00:00.000Z')));
+     const late = await keyAt(new FixedClock(new Date('2026-05-04T09:59:00.000Z')));

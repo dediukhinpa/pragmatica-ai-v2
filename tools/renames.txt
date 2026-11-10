@@ -1,0 +1,3 @@
+# Нейтральные имена платформы вместо прежних имён Прагматики (импорт `новое as старое`).
+PriceItemsHandler ScriptResultKindHandler
+PRICE_ITEMS_SAMPLE_SIZE SCRIPT_RESULT_SAMPLE_SIZE

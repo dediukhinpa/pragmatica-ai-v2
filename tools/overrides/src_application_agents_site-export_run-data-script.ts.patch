@@ -1,0 +1,16 @@
+--- src/application/agents/site-export/run-data-script.ts
++++ src/application/agents/site-export/run-data-script.ts
+@@ -1,4 +1,5 @@
+ import { createRunDataScriptTool, openIntakeDataSource } from '@business-ai/core';
++import { priceItemsSummaryKind } from '../shared/price-items-kind.owned';
+ import type { SiteExportDeps } from './deps';
+ 
+ /**
+@@ -6,4 +7,6 @@
+  * данные), поэтому источник один: вложение текущего диалога из хранилища приёма (оно читается
+  * только в пределах треда вызова). Без вложения инструмент отвечает отказом «данных нет».
+  */
+-export const runDataScript = createRunDataScriptTool<SiteExportDeps>(openIntakeDataSource);
++export const runDataScript = createRunDataScriptTool<SiteExportDeps>(openIntakeDataSource, {
++  resultKinds: [priceItemsSummaryKind<SiteExportDeps>()],
++});

@@ -1,0 +1,19 @@
+--- src/application/agents/site-export/declaration.ts
++++ src/application/agents/site-export/declaration.ts
+@@ -1,5 +1,5 @@
+ import { SESSION_SUMMARY_PROMPT } from '@business-ai/core';
+-import { FILE_TOOL_PROMPT, createFileTool } from '@business-ai/core';
++import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
+ import type { AgentDeclaration } from '@business-ai/core';
+ import { readChatAttachments } from '../order-calc/read-chat-attachments';
+ import { ATTACHMENT_ONLY_SCRIPT_PROMPT, DATA_SCRIPT_PROMPT } from '@business-ai/core';
+@@ -63,7 +63,8 @@
+       reportExportToManager,
+       searchInternet,
+       searchConversationHistory,
+-      createFileTool,
++      // Режим предупреждений: пределы файла - обрезка с замечаниями, а не отказ (этап 177).
++      createFileWarningsTool,
+       ...(options.dataScript === true ? [runDataScript] : []),
+       // Этап 182: поиск поставщика по базе нужен всегда; без supplierCards в deps он вернёт
+       // unavailable, и работа продолжается.
