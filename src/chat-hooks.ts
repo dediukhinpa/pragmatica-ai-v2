@@ -1,5 +1,11 @@
 import { readFile } from 'node:fs/promises';
-import type { ChatFile, SystemContextBlock, WorkflowStateStore } from '@business-ai/core';
+import {
+  parseBindingThread,
+  recordEmployeeContact,
+  type ChatFile,
+  type SystemContextBlock,
+  type WorkflowStateStore,
+} from '@business-ai/core';
 import {
   chatButtonHandler,
   type ChatButtonHandler,
@@ -512,14 +518,40 @@ export const PROJECT_GREETING_ACTIONS: Readonly<Record<string, GreetingActionHan
 };
 
 /**
+ * Реестр обращений: кто из сотрудников пишет какому агенту (нужен плановому мониторингу, у
+ * которого нет списка сотрудников бота). Раньше запись вёл насос чата проекта; насос платформы
+ * её не ведёт, поэтому запись делается здесь, на каждом ходе агента. Только идентификаторы;
+ * запись не чаще раза в сутки. Сбой реестра ход не ломает.
+ */
+async function noteEmployeeContact(
+  runtime: PragmatikaRuntime,
+  threadId: string,
+  agentId: string,
+): Promise<void> {
+  const binding = parseBindingThread(threadId);
+  if (binding === null) return;
+  try {
+    await recordEmployeeContact(
+      runtime.state,
+      runtime.clock,
+      { threadId, userId: binding.userId, botId: binding.botId },
+      agentId,
+    );
+  } catch {
+    // Реестр вторичен: ход агента важнее записи о нём.
+  }
+}
+
+/**
  * Блоки состояния хода агента «Поиск поставщика»: активная заявка треда и открытое предложение
  * завести карточки по письмам. Блоки независимы: сбой одного (в журнал - только код) не отнимает
  * другой. У остальных агентов блоков нет.
  */
 export const projectStateBlock: ChatStateBlock = async (threadId, agentId) => {
-  if (agentId !== ORDER_CALC_AGENT_ID) return null;
   const runtime = pragmatikaRuntime();
   if (runtime === undefined) return null;
+  await noteEmployeeContact(runtime, threadId, agentId);
+  if (agentId !== ORDER_CALC_AGENT_ID) return null;
   const active = await activeRequestBlocks(runtime.orderCalc, threadId);
   const blocks: SystemContextBlock[] = [...active];
   if (runtime.mailProposals !== undefined) {

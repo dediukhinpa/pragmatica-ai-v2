@@ -1,5 +1,7 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type { ChatHookContext } from '@business-ai/core/compose';
+import { MemoryWorkflowStateStore } from '@business-ai/adapters';
+import { listEmployees } from '@business-ai/core';
 import { removeTempDirs } from '@business-ai/testing';
 import { pickButtonId } from '../../src/agents/order-calc/choice-confirmation';
 import { supplierCardButtonId } from '../../src/agents/suppliers/card-request';
@@ -16,7 +18,11 @@ import {
   projectStateBlock,
   supplierFileHandler,
 } from '../../src/chat-hooks';
-import { clearPragmatikaRuntime } from '../../src/runtime';
+import {
+  clearPragmatikaRuntime,
+  pragmatikaRuntime,
+  setPragmatikaRuntime,
+} from '../../src/runtime';
 import { pragmatikaProject } from '../../src/project';
 import { buildPragmatika } from './support';
 
@@ -220,5 +226,25 @@ describe('карточки поставщиков включены', () => {
     const { context } = fakeContext();
     expect(typeof PROJECT_GREETING_ACTIONS['supplier-template']).toBe('function');
     expect(await PROJECT_GREETING_ACTIONS['supplier-help']?.(context)).toBe('supplier_help');
+  });
+});
+
+describe('реестр обращений', () => {
+  afterEach(() => {
+    clearPragmatikaRuntime();
+  });
+
+  test('ход агента записывает сотрудника из треда связки, чужой тред не пишется', async () => {
+    buildPragmatika();
+    const built = pragmatikaRuntime();
+    if (built === undefined) throw new Error('состояние не собрано');
+    // Заглушка БД ничего не хранит: реестр проверяется на хранилище в памяти.
+    const state = new MemoryWorkflowStateStore();
+    setPragmatikaRuntime({ ...built, state });
+    await projectStateBlock('prices/emp-1', 'prices');
+    await projectStateBlock('thread-without-binding', 'prices');
+    const contacts = await listEmployees(state, 'prices');
+    expect(contacts.map((contact) => contact.userId)).toEqual(['emp-1']);
+    expect(contacts[0]?.threadId).toBe('prices/emp-1');
   });
 });
