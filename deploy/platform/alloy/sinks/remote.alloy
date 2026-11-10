@@ -1,0 +1,22 @@
+// Режим TELEMETRY_TARGETS=remote: только наш приёмник (TELEMETRY_REMOTE_URL, токен компании).
+// Экспортирует списки получателей, которые подставляет config.alloy.
+
+import.file "lib" {
+  filename = "/etc/alloy/sinks/lib.alloy"
+}
+
+declare "out" {
+  lib.remote_sink "r" {}
+
+  export "metrics" {
+    value = [lib.remote_sink.r.metrics]
+  }
+
+  export "logs" {
+    value = [lib.remote_sink.r.logs]
+  }
+
+  export "traces" {
+    value = [lib.remote_sink.r.traces]
+  }
+}

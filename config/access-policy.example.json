@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "bots": {
+    "documents": {
+      "allow": {
+        "departments": ["12", "15"],
+        "workgroups": ["7"],
+        "users": ["employee-id-1"]
+      },
+      "deny": {
+        "departments": ["40"],
+        "users": []
+      },
+      "actions": {
+        "chat.file": {
+          "deny": {
+            "departments": ["15"]
+          }
+        },
+        "documents.update_own_requisites": {
+          "allow": {
+            "users": ["employee-id-1"]
+          }
+        }
+      }
+    },
+    "prices": {
+      "allow": {
+        "departments": ["12"]
+      },
+      "actions": {
+        "chat.message": {
+          "allow": {
+            "departments": ["12"]
+          }
+        },
+        "prices.confirm_jump": {
+          "allow": {
+            "workgroups": ["9"],
+            "users": ["employee-id-1"]
+          },
+          "deny": {
+            "users": ["employee-id-2"]
+          }
+        },
+        "mail.send_draft": {
+          "allow": {
+            "workgroups": ["9"]
+          }
+        }
+      }
+    },
+    "order-calc": {
+      "allow": {
+        "departments": ["12"]
+      },
+      "actions": {
+        "chat.button": {
+          "allow": {
+            "departments": ["12"]
+          }
+        },
+        "orders.confirm_selection": {
+          "allow": {
+            "workgroups": ["9"]
+          }
+        },
+        "orders.route_mail": {
+          "allow": {
+            "workgroups": ["9"]
+          }
+        },
+        "mail.send_draft": {
+          "allow": {
+            "workgroups": ["9"]
+          }
+        },
+        "suppliers.confirm_card": {
+          "allow": {
+            "workgroups": ["9"],
+            "users": ["employee-id-1"]
+          }
+        },
+        "suppliers.export": {
+          "allow": {
+            "workgroups": ["9"]
+          },
+          "deny": {
+            "users": ["employee-id-2"]
+          }
+        }
+      }
+    },
+    "site-export": {
+      "allow": {
+        "departments": ["12"]
+      },
+      "actions": {
+        "site.confirm_publish": {
+          "allow": {
+            "users": ["employee-id-1"]
+          }
+        }
+      }
+    }
+  }
+}

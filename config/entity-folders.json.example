@@ -1,0 +1,9 @@
+{
+  "root_name": "Поставщики",
+  "ignored_words": ["ооо", "оао", "зао", "пао", "ао", "ип", "тоо"],
+  "directory_query": "SELECT id, name FROM suppliers",
+  "notes_query": "SELECT n.supplier_id, s.name, n.text FROM supplier_notes n JOIN suppliers s ON s.id = n.supplier_id ORDER BY n.supplier_id, n.created_at, n.id",
+  "notes_document_prefix": "entity-note:",
+  "notes_source": "entity-note",
+  "notes_title": "Заметки: {name}"
+}

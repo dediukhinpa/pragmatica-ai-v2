@@ -1,0 +1,22 @@
+// Режим TELEMETRY_TARGETS=local: только локальный стек рядом с компанией (TELEMETRY_LOCAL_URL).
+// Экспортирует списки получателей, которые подставляет config.alloy.
+
+import.file "lib" {
+  filename = "/etc/alloy/sinks/lib.alloy"
+}
+
+declare "out" {
+  lib.local_sink "l" {}
+
+  export "metrics" {
+    value = [lib.local_sink.l.metrics]
+  }
+
+  export "logs" {
+    value = [lib.local_sink.l.logs]
+  }
+
+  export "traces" {
+    value = [lib.local_sink.l.traces]
+  }
+}

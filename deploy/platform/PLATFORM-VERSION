@@ -1,0 +1,40 @@
+# Закреплённая копия платформы, нужная compose. Править файлы этого каталога нельзя: обновление
+# версии — заменой копии целиком (git show <коммит>:<путь>) и пересчётом строк ниже вместе с
+# версией пакетов в package.json. Проверяет tests/deploy/test_platform_pin.py.
+PLATFORM_PACKAGES_VERSION=0.1.0-dev.0b172b9f
+PLATFORM_COMMIT=0b172b9f862fb4e03473bf7787ec93b26951aa5a
+# Репозиторий-источник: business-ai (ветка feature/platform-sync-pragmatika, голова этапа 5s).
+# Пути источника: deploy/compose.base.yml, deploy/nginx/, deploy/alloy/, db/migrate.sh, db/platform/.
+# Дополнительно: deploy/docker/project-app.Dockerfile(.dockerignore) и deploy/images.lock.example
+# лежат в deploy/docker/ и deploy/ проекта (образцы платформы, правятся проектом).
+#
+# sha256 файлов копии (путь относительно deploy/platform):
+sha256 c8bfbf8b84fe66f6ac2db63ccc1a713e669c1538676bd8e885614125d3a193c1  alloy/config.alloy
+sha256 6eac3eed849b5be6cbb72e9e21b9c829d764cacd4eeaf9b4850e22919fdaf5f7  alloy/sinks/both.alloy
+sha256 ac6e3367eb4b9366ddde1e425777370532c5dde9cdefd6a95caf6585499504f7  alloy/sinks/lib.alloy
+sha256 4b81c40e1f651b040af9a4debfffb566868013439867535804905dd49839ff67  alloy/sinks/local.alloy
+sha256 f93ebed53d46a00e149440c23854ad70ce3cdf3645e172b12c0d409f52f53691  alloy/sinks/remote.alloy
+sha256 64f0dc34a3f7d4d2581c0b072ceae69546e42a736933ebaae863fc563b534085  compose.base.yml
+sha256 6415497e8db458472be0c334ae6c129f59e3ccb8a0de3bfcdf9fab4ee3b6ca3f  db/migrate.sh
+sha256 b50cd1e1cb33f27b03206b303bebe84abc01686b182c8975dab3e246df19eada  db/platform/001_core.sql
+sha256 5db5f3ab4a8ced39a618de6d7936336556d557f247f2098ef48cf487cb5fd2f4  db/platform/002_threads.sql
+sha256 3cebd39f7b7c0d7f059933c4f43e23de7836c01a5280bf09f0fd250b36566905  db/platform/003_knowledge.sql
+sha256 4204e7fff3d7099d56b715cc4e6af1e886be1cdc3ceac48e226150017d28bdc2  db/platform/004_adapter_state.sql
+sha256 68e52719eeba0b0c659583f9ce16497f7d7bce89c8a9e4cc533d4985f27ed38c  db/platform/005_workflow_state.sql
+sha256 6eae06a4674ea7179752d34b08467c87607c15e2880f72c8185dccc0b0370d87  db/platform/006_metrics_feedback.sql
+sha256 f327710e54e72deef8a0af32991be75664fd09febf2839b7a58340b23b85ab39  db/platform/007_workflow_state_retention.sql
+sha256 8974f9d3099098c635c8b9a6d1fe47f47da76c547e497491ad9f8a646cfba6be  db/platform/008_jobs_reliable_queue.sql
+sha256 48c67f0d87bea929545021608d1849ac9870e4beb2cb60117f20fbdfd4fdac69  db/platform/009_threads_retention.sql
+sha256 88d1146a904824274fb5918d22973b750c89af864e52dc29f4a468aac04cd386  db/platform/010_hybrid_search_per_document.sql
+sha256 a60cb0e2975fe7eea5db43708a92f7de41b5199c743942036d6044ef4dd9ae67  db/platform/011_hybrid_search_relevance.sql
+sha256 46d6722b6baca5373bdaad790a1b97c372f1df7f47a57f21f5d5e5bce4b4f856  db/platform/012_hybrid_search_plpgsql.sql
+sha256 b8c461d20cecc3fcf4ca21fc5e2dfe528ebd846be4c4e05c5659712d54b86d62  db/platform/013_agent_pair_notes.sql
+sha256 0e3f04158565bc84220efef4171fd3830ff1248c9d3e3a2a2e4dd7e03740c0f7  db/platform/014_hybrid_search_iterative_scan.sql
+sha256 ea7d97d3a317db48bf84609f1ccabde07ddd890ac6931eea571de89042c75228  db/platform/015_knowledge_fts_query.sql
+sha256 88981a655957ac422a06849c01219b214aeb455c15cd96a62fa12e0bc4435b68  db/platform/016_metrics_cache_tokens.sql
+sha256 ca83e0d9c7d99f21bf5505aaee900fe12a4bbe4eef389e35e79d5c8e1ca92a59  db/platform/017_idempotency_purge_index.sql
+sha256 99a8b3014743d3814d7ed48a471f374b86cb62ce0284390c7b06d85c30a6e4dc  db/platform/018_cost_trace.sql
+sha256 c537132685b5c4ee73e1031edfb6e70768216e3cd3f09c465c830561d84f04a0  db/platform/019_thread_sessions.sql
+sha256 ff6f27c7a02e0ad630365c4a810fcf8b5bfa4e651b8ce681dc22d81dbf54c4d0  db/platform/020_message_search.sql
+sha256 b0b6908e3cb322d2256b7e2cc5f945c766354560584dd97c412f15478ef04a4b  db/platform/legacy-map.tsv
+sha256 685a0aca6614174767107e1dee5acb0c091d7915af3bf88ebc53021db7c9fb91  nginx/mtls-proxy.conf.template

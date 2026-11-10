@@ -1,0 +1,396 @@
+# Дополнения Прагматики к базе платформы (platform/compose.base.yml, версия — platform/PLATFORM-VERSION).
+#
+# Файл подключается вторым в `include` (deploy/compose.yml) и объединяется с базой как
+# `-f base -f override`. Здесь три вида правок:
+#   1) переменные агентов проекта и предметные флаги (модели `*_MODEL`, прайсы, поставщики, ...),
+#      которых база не знает;
+#   2) боевые значения лимитов, путей и имён, где база платформы отличается от боя
+#      (docs/COMPOSE-NAMES.md платформы, раздел «Расхождения»): без них новый стек вёл бы себя
+#      иначе, чем действующий;
+#   3) флаги платформы, которые у Прагматики исторически были включены (в базе они выключены).
+# Платформа не правится: база лежит неизменной копией.
+#
+# ПУТИ. Относительные пути обоих файлов отсчитываются от deploy/platform/ (каталог первого файла
+# `include`). Поэтому корень репозитория — `../..`, миграции проекта — `../../db`.
+#
+# ПОРЯДОК СЛИЯНИЯ. `environment`, `logging.options`: по ключу. `volumes`: по точке монтирования
+# (target); если у сервиса пути внутри контейнера меняются, список заменяется целиком (`!override`),
+# иначе в контейнере остались бы оба варианта монтирования. `command` и `tmpfs` заменяются.
+
+# Тег журнала: имена записей в journald и правила хоста завязаны на «pragmatika/<имя>»; в базе
+# по умолчанию «agentplatform». Один якорь на все сервисы базы с логированием journald.
+x-log-tag: &log_tag
+  logging:
+    options:
+      tag: "${BAI_LOG_TAG:-pragmatika}/{{.Name}}"
+
+services:
+  # ---------------------------------------------------------------------------------------------
+  # Postgres. База: shared_buffers 1536MB, effective_cache_size 2560MB, maintenance_work_mem 768MB,
+  # shm 1g, ошибки подробные. Бой: 1GB / 3GB / 1GB, shm 1536mb, ошибки terse+panic (в подробных
+  # ошибках — значения ключей и запросов, то есть ПДн). Имя пользователя и БД на бою `pragmatika`.
+  # mem_limit 4g совпадает с боем.
+  # ---------------------------------------------------------------------------------------------
+  postgres:
+    <<: *log_tag
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-pragmatika}
+      POSTGRES_DB: ${POSTGRES_DB:-pragmatika}
+    volumes:
+      - type: bind
+        source: ${DATA_DIR:-/var/lib/pragmatika}/pgdata
+        target: /var/lib/postgresql/data
+    shm_size: 1536mb
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - hash_mem_multiplier=1.0
+      - -c
+      - maintenance_work_mem=1GB
+      - -c
+      - autovacuum_work_mem=64MB
+      - -c
+      - temp_buffers=1MB
+      - -c
+      - max_connections=50
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=100
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - max_wal_size=4GB
+      - -c
+      - log_min_duration_statement=2000
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
+      - -c
+      - log_checkpoints=on
+      - -c
+      - log_lock_waits=on
+      - -c
+      - log_error_verbosity=${POSTGRES_LOG_ERROR_VERBOSITY:-terse}
+      - -c
+      - log_min_error_statement=${POSTGRES_LOG_MIN_ERROR_STATEMENT:-panic}
+
+  # ---------------------------------------------------------------------------------------------
+  # Псевдонимизатор (labops-pii v1.0.3 вместо v0.8.0). Значения env — по решениям владельца
+  # (stage-5/pii-owner-decisions.md, пп. 2–5, 8, 20): хранилище sqlite и схема ключей v2 (иначе
+  # тома не читаются), срок 90 суток, организации не маскируются, адреса маскируются (в базе off),
+  # маршрут склонения подписанта включён (нужен ядру при подготовке документов).
+  # Контейнерные пути контактов — как на бою (/etc/pragmatika), чтобы совпали с .env.
+  # ---------------------------------------------------------------------------------------------
+  pseudonymizer:
+    <<: *log_tag
+    environment:
+      PSEUDONYMIZER_ADDRESS_MASK: ${PSEUDONYMIZER_ADDRESS_MASK:-on}
+      PSEUDONYMIZER_ENABLE_INFLECT_SIGNATORY: ${PSEUDONYMIZER_ENABLE_INFLECT_SIGNATORY:-on}
+      PSEUDONYMIZER_CONTACTS_FILE: /etc/pragmatika/contacts.txt
+    volumes: !override
+      # Предметная настройка снаружи (словари, слова-исключения): только чтение; на сервере.
+      - ${BAI_CONFIG_HOST_DIR:-/etc/pragmatika/config}:/config:ro
+      - pseudonymizer-data:/data
+      - type: bind
+        source: ${PSEUDONYMIZER_CONTACTS_HOST_FILE:-/etc/pragmatika/contacts.txt}
+        target: /etc/pragmatika/contacts.txt
+        read_only: true
+        bind:
+          create_host_path: false
+
+  # Сервис mask (профиль mask, на бою выключен): адреса на картинках следуют общему флагу.
+  mask:
+    <<: *log_tag
+    environment:
+      MEDIA_MASKER_ADDRESS_MASK: ${PSEUDONYMIZER_ADDRESS_MASK:-on}
+    volumes:
+      - ${BAI_CONFIG_HOST_DIR:-/etc/pragmatika/config}:/config:ro
+
+  # ---------------------------------------------------------------------------------------------
+  # documents. База рассчитана на пределы 50/64/32 МиБ и mem_limit 3232m; бой: загрузка 100 МиБ,
+  # распаковка 256 МиБ, разметка 48 МиБ, очередь OCR 20 мест и 300 с ожидания, tmpfs /tmp 64m,
+  # mem_limit 4312m (расчёт по этим пределам). Три режима сервиса, которые в старом коде были
+  # включены всегда, в платформе выключены флагами: правка ячеек, шаблоны xlsx, дроби вида 1.1250.
+  # Метка «Категория» собранных документов — прежняя константа (по ней узнаются свои файлы).
+  # ---------------------------------------------------------------------------------------------
+  documents:
+    <<: *log_tag
+    environment:
+      DOCUMENTS_MAX_UPLOAD_BYTES: ${DOCUMENTS_MAX_UPLOAD_BYTES:-104857600}
+      DOCUMENTS_MAX_UNCOMPRESSED_BYTES: ${DOCUMENTS_MAX_UNCOMPRESSED_BYTES:-268435456}
+      DOCUMENTS_MAX_XML_BYTES: ${DOCUMENTS_MAX_XML_BYTES:-50331648}
+      DOCUMENTS_OCR_QUEUE_MAX: ${DOCUMENTS_OCR_QUEUE_MAX:-20}
+      DOCUMENTS_OCR_QUEUE_WAIT_MS: ${DOCUMENTS_OCR_QUEUE_WAIT_MS:-300000}
+      DOCUMENTS_CONTRACT_CONCURRENCY: ${DOCUMENTS_CONTRACT_CONCURRENCY:-1}
+      PSEUDONYMIZER_ADDRESS_MASK: ${PSEUDONYMIZER_ADDRESS_MASK:-on}
+      DOCUMENTS_EDIT_ENDPOINTS: ${DOCUMENTS_EDIT_ENDPOINTS:-true}
+      DOCUMENTS_TEMPLATE_ENDPOINTS: ${DOCUMENTS_TEMPLATE_ENDPOINTS:-true}
+      DOCUMENTS_UNAMBIGUOUS_FRACTIONS: ${DOCUMENTS_UNAMBIGUOUS_FRACTIONS:-true}
+      DOCUMENTS_RENDER_CATEGORY: ${DOCUMENTS_RENDER_CATEGORY:-pragmatika-own-document}
+    mem_limit: 4312m
+    tmpfs: !override
+      - /tmp:size=64m
+    volumes:
+      - ${BAI_CONFIG_HOST_DIR:-/etc/pragmatika/config}:/config:ro
+      - type: bind
+        source: ${DOCUMENTS_HOST_DIR:-/srv/pragmatika/documents}
+        target: /srv/documents
+        read_only: true
+        bind:
+          propagation: rslave
+          create_host_path: false
+
+  # embeddings: лимит и сеть как в базе (1400m); меняются только пути хоста на боевые.
+  embeddings:
+    <<: *log_tag
+    volumes:
+      - ${BAI_CONFIG_HOST_DIR:-/etc/pragmatika/config}:/config:ro
+      - type: bind
+        source: ${MODELS_DIR:-/var/lib/pragmatika/models}
+        target: /models
+        read_only: true
+        bind:
+          create_host_path: false
+
+  # speech (профиль speech, на бою выключен): имя сервиса и том speech-spool прежние.
+  speech:
+    <<: *log_tag
+
+  # ---------------------------------------------------------------------------------------------
+  # indexer. Корневая папка поставщиков и модель расчёта заказа читаются индексатором из env
+  # (в базе их нет). Режим фото с текстом в компоуз-умолчании старого стека — block.
+  # ---------------------------------------------------------------------------------------------
+  indexer:
+    <<: *log_tag
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-pragmatika}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-pragmatika}
+      SUPPLIERS_ROOT_NAME: ${SUPPLIERS_ROOT_NAME:-Поставщики}
+      ORDER_CALC_MODEL: ${ORDER_CALC_MODEL:-}
+      IMAGE_TEXT_MODE: ${IMAGE_TEXT_MODE:-block}
+    volumes:
+      - ${BAI_CONFIG_HOST_DIR:-/etc/pragmatika/config}:/config:ro
+      - type: bind
+        source: ${DOCUMENTS_HOST_DIR:-/srv/pragmatika/documents}
+        target: /srv/documents
+        read_only: true
+        bind:
+          propagation: rslave
+          create_host_path: false
+
+  # sandbox (профиль agent-sandbox, на бою включён): значения базы совпадают с боем (768m, допуск
+  # по памяти SANDBOX_MEMORY_GATE=1).
+  sandbox:
+    <<: *log_tag
+
+  # gateway-mtls: клиентские сертификаты на хосте лежат в /etc/pragmatika/mtls.
+  gateway-mtls:
+    <<: *log_tag
+    volumes:
+      - type: bind
+        source: ${MTLS_DIR:-/etc/pragmatika/mtls}
+        target: /etc/gateway-mtls
+        read_only: true
+        bind:
+          create_host_path: false
+
+  # ---------------------------------------------------------------------------------------------
+  # app: ядро агентов проекта.
+  #   * собирается из корня репозитория по project-app.Dockerfile (поверх базового образа
+  #     платформы BAI_IMAGE_APP_BASE из images.lock); на бою образ берётся по digest из lock;
+  #   * пути внутри контейнера — как на бою (/etc/pragmatika/..., /var/lib/pragmatika/...):
+  #     ACCESS_POLICY_FILE и MAIL_MAILBOXES_FILE в .env заданы именно такими путями;
+  #   * предметные переменные — как в docker-compose.yml старого репозитория.
+  # ---------------------------------------------------------------------------------------------
+  app:
+    <<: *log_tag
+    build:
+      context: ../..
+      dockerfile: deploy/docker/project-app.Dockerfile
+      args:
+        BAI_APP_BASE: ${BAI_IMAGE_APP_BASE:-bai-app-base}
+    environment:
+      # --- пути и подключение: боевые значения вместо платформенных умолчаний ---
+      DATABASE_URL: postgres://${POSTGRES_USER:-pragmatika}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-pragmatika}
+      INTAKE_ROOT: /var/lib/pragmatika/intake
+      FILE_SPOOL_DIR: /var/lib/pragmatika/spool
+      DOCUMENTS_RESULT_DIR: /var/lib/pragmatika/exchange
+      # --- постоянные идентификаторы: прежние значения, иначе разойдутся метки писем и команда
+      #     кнопок, записанная в портале (платформенные умолчания — agentplatform) ---
+      MAIL_TAG_SALT_PREFIX: ${MAIL_TAG_SALT_PREFIX:-pragmatika}
+      BUTTON_COMMAND: ${BUTTON_COMMAND:-labops_btn}
+      TELEMETRY_SERVICE_NAME: ${TELEMETRY_SERVICE_NAME:-pragmatika-core}
+      # --- тред ответственного: на бою называется MANAGER_THREAD_ID, в платформе OWNER_THREAD_ID.
+      #     Базе нужно второе имя (`:?`), оно берётся из первого в compat.env (include env_file),
+      #     так что прежний .env работает без правок; в контейнер уходят оба имени ---
+      MANAGER_THREAD_ID: ${MANAGER_THREAD_ID:-${OWNER_THREAD_ID:-}}
+      # --- флаги платформы, которые у Прагматики были включены всегда ---
+      # Инструмент поиска в интернете: в старом коде был всегда, провайдер disabled даёт заглушку
+      # «не настроено»; без флага инструмента не было бы вовсе, даже при заданном провайдере.
+      WEB_SEARCH_ENABLED: ${WEB_SEARCH_ENABLED:-true}
+      # Чтение привязки задачи к сделке (UF_CRM_TASK) и разбор ссылок портала: в старом коде без флага.
+      B24_TASK_DEAL_LINK: ${B24_TASK_DEAL_LINK:-true}
+      B24_PORTAL_LINKS: ${B24_PORTAL_LINKS:-true}
+      # xlsx-шаблоны через сервис documents (/xlsx/*): использовались всегда.
+      TEMPLATE_WORKBOOK_ENABLED: ${TEMPLATE_WORKBOOK_ENABLED:-true}
+      # В базе true, на бою отправка по кнопке была выключена.
+      EMPLOYEE_MAIL_SEND_ENABLED: ${EMPLOYEE_MAIL_SEND_ENABLED:-false}
+      # --- предметные переменные агентов проекта (как в старом docker-compose.yml) ---
+      DOCUMENTS_CONTRACT_TIMEOUT_MS: ${DOCUMENTS_CONTRACT_TIMEOUT_MS:-600000}
+      BITRIX24_DEAL_FIELD_MAP: ${BITRIX24_DEAL_FIELD_MAP:-}
+      ORDER_CALC_INTAKE_ENABLED: ${ORDER_CALC_INTAKE_ENABLED:-false}
+      ORDER_CALC_COMPLETENESS_ENABLED: ${ORDER_CALC_COMPLETENESS_ENABLED:-false}
+      ORDER_REMINDER_REPLY_ENABLED: ${ORDER_REMINDER_REPLY_ENABLED:-false}
+      DOCUMENTS_COUNTERPARTY_AMEND_ENABLED: ${DOCUMENTS_COUNTERPARTY_AMEND_ENABLED:-false}
+      OWN_REQUISITES_DB_ENABLED: ${OWN_REQUISITES_DB_ENABLED:-false}
+      PRICES_MAILBOX_OWNER_USER_ID: ${PRICES_MAILBOX_OWNER_USER_ID:-}
+      PRICE_FILE_DATE_MODEL_FALLBACK: ${PRICE_FILE_DATE_MODEL_FALLBACK:-false}
+      PRICE_MAIL_ASSESSOR_ENABLED: ${PRICE_MAIL_ASSESSOR_ENABLED:-true}
+      SITE_TEXT_EDITOR_ENABLED: ${SITE_TEXT_EDITOR_ENABLED:-false}
+      PRICE_MAIL_SUPPLIER_ATTACHMENT_MAX_PER_RUN: ${PRICE_MAIL_SUPPLIER_ATTACHMENT_MAX_PER_RUN:-50}
+      INFO_MAILBOX_ENRICH_ADDRESS: ${INFO_MAILBOX_ENRICH_ADDRESS:-}
+      INFO_MAILBOX_ENRICH_MAX_CLASSIFY_PER_RUN: ${INFO_MAILBOX_ENRICH_MAX_CLASSIFY_PER_RUN:-500}
+      INFO_MAILBOX_ENRICH_WINDOW_DAYS: ${INFO_MAILBOX_ENRICH_WINDOW_DAYS:-730}
+      CRM_SUPPLIERS_COMPANY_TYPE: ${CRM_SUPPLIERS_COMPANY_TYPE:-}
+      CRM_SUPPLIERS_CATEGORY_ID: ${CRM_SUPPLIERS_CATEGORY_ID:-}
+      SUPPLIER_MAIL_PROPOSALS_ENABLED: ${SUPPLIER_MAIL_PROPOSALS_ENABLED:-false}
+      SUPPLIER_MAIL_PROPOSALS_AUTO_ENRICH_ENABLED: ${SUPPLIER_MAIL_PROPOSALS_AUTO_ENRICH_ENABLED:-false}
+      SUPPLIER_MAIL_PROPOSALS_INTERVAL_DAYS: ${SUPPLIER_MAIL_PROPOSALS_INTERVAL_DAYS:-3}
+      SUPPLIER_MAIL_PROPOSALS_CHECK_HOUR: ${SUPPLIER_MAIL_PROPOSALS_CHECK_HOUR:-10}
+      SUPPLIER_MAIL_PROPOSALS_WINDOW_DAYS: ${SUPPLIER_MAIL_PROPOSALS_WINDOW_DAYS:-7}
+      SUPPLIER_MAIL_PROPOSALS_MAX_CLASSIFY_PER_RUN: ${SUPPLIER_MAIL_PROPOSALS_MAX_CLASSIFY_PER_RUN:-40}
+      SUPPLIER_RATING_MODEL_ENABLED: ${SUPPLIER_RATING_MODEL_ENABLED:-true}
+      SHORTLIST_ATTACH_ENABLED: ${SHORTLIST_ATTACH_ENABLED:-true}
+      SHORTLIST_XLSX_ENABLED: ${SHORTLIST_XLSX_ENABLED:-true}
+      WEB_SEARCH_MODEL_ENABLED: ${WEB_SEARCH_MODEL_ENABLED:-true}
+      WEB_HIT_CLASSIFY_ENABLED: ${WEB_HIT_CLASSIFY_ENABLED:-true}
+      SUPPLIER_SITE_MODEL_ENABLED: ${SUPPLIER_SITE_MODEL_ENABLED:-true}
+      PRICE_RELEVANCE_ENABLED: ${PRICE_RELEVANCE_ENABLED:-true}
+      PRICE_RELEVANCE_MAX_NAMES: ${PRICE_RELEVANCE_MAX_NAMES:-40}
+      PRICE_SEARCH_MIN_COSINE: ${PRICE_SEARCH_MIN_COSINE:-0.4}
+      WEB_ENRICH_MAX_CANDIDATES: ${WEB_ENRICH_MAX_CANDIDATES:-10}
+      WEB_ENRICH_MAX_QUERIES: ${WEB_ENRICH_MAX_QUERIES:-10}
+      WEB_ENRICH_CONCURRENCY: ${WEB_ENRICH_CONCURRENCY:-3}
+      WEB_ENRICH_SUPPLIERS_ENABLED: ${WEB_ENRICH_SUPPLIERS_ENABLED:-false}
+      WEB_ENRICH_SUPPLIERS_MAX: ${WEB_ENRICH_SUPPLIERS_MAX:-5}
+      WEB_ENRICH_SUPPLIERS_DAILY_MAX: ${WEB_ENRICH_SUPPLIERS_DAILY_MAX:-100}
+      WEB_SEARCH_MAX_PER_TURN: ${WEB_SEARCH_MAX_PER_TURN:-20}
+      TELEGRAM_CHANNEL_SOURCE_ENABLED: ${TELEGRAM_CHANNEL_SOURCE_ENABLED:-false}
+      TELEGRAM_SEARCH_MAX_POSTS: ${TELEGRAM_SEARCH_MAX_POSTS:-20}
+      TELEGRAM_SEARCH_TIMEOUT_MS: ${TELEGRAM_SEARCH_TIMEOUT_MS:-30000}
+      TELEGRAM_READER_BASE_URL: ${TELEGRAM_READER_BASE_URL:-}
+      TELEGRAM_READER_TOKEN: ${TELEGRAM_READER_TOKEN:-}
+      TELEGRAM_CHANNELS: ${TELEGRAM_CHANNELS:-}
+      BUSINESS_TIMEZONE: ${BUSINESS_TIMEZONE:-Europe/Moscow}
+      ORDER_DIGEST_OPEN_MAX_DAYS: ${ORDER_DIGEST_OPEN_MAX_DAYS:-14}
+      SUPPLIER_CARDS_ENABLED: ${SUPPLIER_CARDS_ENABLED:-false}
+      SUPPLIER_TEMPLATE_PATH: ${SUPPLIER_TEMPLATE_PATH:-}
+      SUPPLIER_EXPORT_ENABLED: ${SUPPLIER_EXPORT_ENABLED:-false}
+      AGENT_HANDOFF_ORDER_CALC_TO_PRICES: ${AGENT_HANDOFF_ORDER_CALC_TO_PRICES:-false}
+      AGENT_CALL_ENABLED: ${AGENT_CALL_ENABLED:-false}
+      PRICES_FILES_ROOT: /srv/documents/${PRICES_SUBDIR:-}
+      TEMPLATES_FILES_ROOT: /srv/templates/${TEMPLATES_SUBDIR:-}
+      TEMPLATES_PREFIX: ${TEMPLATES_PREFIX:-}
+      SITE_TEMPLATE_PATH: ${SITE_TEMPLATE_PATH:-}
+      CONTRACT_REGISTRY_PATH: ${CONTRACT_REGISTRY_PATH:-}
+      DOCUMENTS_ENABLED_KINDS: ${DOCUMENTS_ENABLED_KINDS:-}
+      PRICE_RESPONSIBLE_THREAD_ID: ${PRICE_RESPONSIBLE_THREAD_ID:-}
+      PRICE_STAFF_DEPARTMENT: ${PRICE_STAFF_DEPARTMENT:-}
+      PRICE_STAFF_EXTRA_USER_IDS: ${PRICE_STAFF_EXTRA_USER_IDS:-}
+      PRICE_RECIPIENT_OPEN_THREAD: ${PRICE_RECIPIENT_OPEN_THREAD:-false}
+      PRICE_RECIPIENT_EXCLUDE_IDS: ${PRICE_RECIPIENT_EXCLUDE_IDS:-}
+      PRICE_DISK_SYNC_ENABLED: ${PRICE_DISK_SYNC_ENABLED:-false}
+      PRICE_DISK_INITIAL_IMPORT_ENABLED: ${PRICE_DISK_INITIAL_IMPORT_ENABLED:-false}
+      PRICE_STALE_SCAN_PREFIXES: ${PRICE_STALE_SCAN_PREFIXES:-}
+      PRICE_STALE_EXCLUDE_PATTERN: ${PRICE_STALE_EXCLUDE_PATTERN:-}
+      PRICE_STALE_CONTENT_CHECK: ${PRICE_STALE_CONTENT_CHECK:-false}
+      OWN_COMPANY_NAMES: ${OWN_COMPANY_NAMES:?задайте OWN_COMPANY_NAMES}
+      OWN_COMPANY_REQUISITES: ${OWN_COMPANY_REQUISITES:-}
+      # --- модели агентов (алиасы из конфига шлюза): выбор модели — решение владельца ---
+      PRICES_MODEL: ${PRICES_MODEL:?задайте PRICES_MODEL}
+      DOCUMENTS_MODEL: ${DOCUMENTS_MODEL:?задайте DOCUMENTS_MODEL}
+      ORDER_CALC_MODEL: ${ORDER_CALC_MODEL:?задайте ORDER_CALC_MODEL}
+      SITE_EXPORT_MODEL: ${SITE_EXPORT_MODEL:?задайте SITE_EXPORT_MODEL}
+    # Список монтирований заменяется целиком: пути внутри контейнера боевые, шаблоны
+    # (TEMPLATES_HOST_DIR, по умолчанию та же шара) и /opt/pragmatika/local (локальные шаблоны и
+    # правила доступа, лежат только на сервере) в базе отсутствуют.
+    volumes: !override
+      - type: bind
+        source: ${DOCUMENTS_HOST_DIR:-/srv/pragmatika/documents}
+        target: /srv/documents
+        read_only: true
+        bind:
+          propagation: rslave
+          create_host_path: false
+      - type: bind
+        source: ${TEMPLATES_HOST_DIR:-${DOCUMENTS_HOST_DIR:-/srv/pragmatika/documents}}
+        target: /srv/templates
+        read_only: true
+        bind:
+          propagation: rslave
+          create_host_path: false
+      - intake-data:/var/lib/pragmatika/intake
+      - file-spool:/var/lib/pragmatika/spool
+      - documents-exchange:/var/lib/pragmatika/exchange
+      - sandbox-socket:/run/sandbox
+      - type: bind
+        source: ${ACCESS_POLICY_HOST_DIR:-/etc/pragmatika/access}
+        target: /etc/pragmatika/access
+        read_only: true
+      - type: bind
+        source: ${MAIL_HOST_DIR:-/etc/pragmatika/mail}
+        target: /etc/pragmatika/mail
+        read_only: true
+      - ${LOCAL_HOST_DIR:-/opt/pragmatika/local}:/opt/pragmatika/local:ro
+
+  # ---------------------------------------------------------------------------------------------
+  # Телеметрия (профиль telemetry, на бою включён). Метки и пути хоста — боевые: проект compose
+  # для отбора логов, имя хоста, пользователь мониторинга Postgres, каталоги метрик и сертификатов.
+  # Контейнерные пути /var/lib/agentplatform/... остаются платформенными: их читает конфиг alloy
+  # из deploy/platform/alloy (закреплённая копия платформы).
+  # ---------------------------------------------------------------------------------------------
+  docker-socket-proxy:
+    <<: *log_tag
+
+  alloy:
+    <<: *log_tag
+    hostname: ${TELEMETRY_HOST:-pragmatika}
+    environment:
+      ALLOY_COMPOSE_PROJECT: ${ALLOY_COMPOSE_PROJECT:-pragmatika}
+      TELEMETRY_PG_DSN: ${TELEMETRY_PG_DSN:-postgresql://pragmatika_monitor@postgres:5432/${POSTGRES_DB:-pragmatika}?sslmode=disable}
+    volumes:
+      - type: bind
+        source: ${MTLS_DIR:-/etc/pragmatika/mtls}
+        target: /etc/gateway-mtls
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${TEXTFILE_METRICS_DIR:-/var/lib/pragmatika/metrics}
+        target: /var/lib/agentplatform/metrics
+        read_only: true
+        bind:
+          create_host_path: false
+
+  # ---------------------------------------------------------------------------------------------
+  # migrate (профиль tools): два потока — platform (закреплённая копия deploy/platform/db) и app
+  # (db/app проекта, карта старых версий db/legacy-map.tsv). БД и пользователь — боевые.
+  # ---------------------------------------------------------------------------------------------
+  migrate:
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-pragmatika}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-pragmatika}
+      APP_MIGRATIONS_DIR: /app-migrations
+      APP_LEGACY_MAP: /app-legacy-map.tsv
+    volumes:
+      - ${BAI_PLATFORM_DB_DIR:-./db}:/db:ro
+      - ${APP_MIGRATIONS_DIR:-../../db/app}:/app-migrations:ro
+      - ../../db/legacy-map.tsv:/app-legacy-map.tsv:ro

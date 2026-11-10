@@ -1,0 +1,1315 @@
+# Базовый compose платформы: сервисы, тома, сети, healthcheck, лимиты памяти и политики
+# безопасности. Образы берутся по digest из images.lock (BAI_IMAGE_*), исходники не нужны.
+#
+# Проект подключает базу через include и задаёт имя проекта (`name:`) сам; так имена контейнеров,
+# томов и сетей получают префикс проекта. Пример: examples/example/deploy/compose.yml.
+# Ключи сервисов, томов и сетей совпадают с compose действующего боевого развёртывания (docs/COMPOSE-NAMES.md,
+# проверяет deploy/compose-base.test.py); отличия от deploy/docker-compose.yml перечислены там же.
+#
+# Запуск - через CLI `bai` (deploy/bai) или вручную:
+#   docker compose --env-file images.lock --env-file .env -f <compose проекта> up -d
+#
+# Остальной текст шапки унаследован от deploy/docker-compose.yml и остаётся верным.
+# Размеры mem_limit рассчитаны на ВМ 16 ГБ: база (вместе с mask 1536m) 14864 МиБ (~14,5 ГиБ)
+# при пиках, не совпадающих по времени; при включённом профиле telemetry (сборщик alloy 384m
+# и прокси Docker API 64m) сумма 14864 + 448 = 15312 МиБ; лимит - потолок, а не резерв. tmpfs
+# контейнера (/tmp) занимает память САМОГО контейнера, то есть входит в его mem_limit и в сумму
+# не добавляется.
+# Бюджет: ВМ 16384 МиБ минус запас хосту 1024 (ОС, dockerd, файловый кэш) = 15360 МиБ. База +
+# telemetry (15312) укладывается с запасом всего 48 МиБ; превышение бюджета compose-security.test.py
+# считает ошибкой, а check-host.sh отказывает ВМ, на которой не помещается сама сумма лимитов.
+# Реально ВМ «16 ГБ» видит ~15,6 ГиБ (~15974 МиБ): запас хосту при базе ~1110 МиБ, с telemetry
+# ~662 МиБ при целевом 1 ГиБ (check-host.sh в этом случае предупреждает, а не отказывает;
+# профиль из COMPOSE_PROFILES он учитывает).
+# Профиль agent-sandbox (песочница скриптов, 2204m) выключен по умолчанию и в эту сумму не
+# входит: ядро без него работает (инструмента нет). Он считается отдельно и на ВМ «16 ГБ»
+# вместе с остальным стеком не помещается: 14864 + 2204 + 1024 = 18092 МиБ нужно ВМ (с
+# telemetry 18540). Для него нужна ВМ с большей памятью (check-host.sh и compose-security.test.py
+# печатают нужный объём); подробности - RUNBOOK, «Песочница».
+# Лимиты pseudonymizer и embeddings сняты замером пиков (16.10.2026, см. их блоки ниже);
+# compose-security.test.py держит сумму в согласии с check-host.sh.
+# На 8 ГБ ВМ стек не запускать (check-host.sh отказывает).
+
+
+
+x-hardened: &hardened
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  # Логи - в журнал systemd хоста: json-file удаляется вместе с контейнером, и после каждой
+  # пересборки история пропадала. Журнал переживает пересоздание контейнеров, сжимается и
+  # ограничен по размеру и сроку (deploy/journald/agentplatform.conf). `docker logs` и сборщик
+  # alloy (Docker API) читают его как раньше. Тексты в логи сервисы не пишут.
+  logging:
+    driver: journald
+    options:
+      tag: "${BAI_LOG_TAG:-agentplatform}/{{.Name}}"
+
+# Каталог документов владельца — СТРОГО только чтение (точка монтирования SMB-шары).
+# rslave: если шару перемонтируют на хосте, контейнер увидит новое содержимое.
+# create_host_path=false: нет каталога (шара не смонтирована) -> compose падает, а не
+# подставляет пустой каталог.
+x-documents-mount: &documents_mount
+  type: bind
+  source: ${DOCUMENTS_HOST_DIR:-/srv/agentplatform/documents}
+  target: /srv/documents
+  read_only: true
+  bind:
+    propagation: rslave
+    create_host_path: false
+
+networks:
+  # Приватная сеть без выхода наружу: сервисы данных не могут ни принять, ни отправить трафик вовне.
+  backend:
+    driver: bridge
+    internal: true
+  # Исходящая сеть только для тех, кому нужен выход: mTLS-прокси к шлюзу и app (адаптеры fetch).
+  egress:
+    driver: bridge
+  # Отдельная сеть только для пары app <-> pseudonymizer (R4-SEC-3). API псевдонимизатора умеет
+  # восстанавливать токены в исходные ПДн, поэтому postgres, documents, embeddings, indexer и
+  # gateway-mtls его не видят: компрометация любого из них не даёт прямого вызова /restore.
+  # Помимо сети есть Bearer-секрет PSEUDONYMIZER_API_TOKEN (второй рубеж, не заменяет сеть).
+  pseudonymizer-net:
+    driver: bridge
+    internal: true
+  # Выход наружу только для сборщика alloy (профиль telemetry): отдельная сеть вместо общей
+  # egress, чтобы приёмник OTLP не оказался в сети, общей с app и gateway-mtls. Входящих портов
+  # в ней нет (порты не публикуются), в ней состоит один alloy.
+  telemetry-egress:
+    driver: bridge
+  # Только пара docker-socket-proxy <-> alloy: прокси Docker API не виден остальным сервисам.
+  docker-api:
+    driver: bridge
+    internal: true
+
+volumes:
+  # Таблица замен ПДн (SQLite, зашифрована Fernet). Ключ — НЕ здесь, а в файле секретов.
+  pseudonymizer-data:
+  indexer-state:
+  # Файлы, присланные сотрудниками в чат (документы для обработки); права 700 выставляет ядро.
+  intake-data:
+  # Временные файлы больших потоков ядра (скачивание крупных файлов из чата, результат правки):
+  # на диске, не в памяти контейнера. Не копируется в бэкап; остатки после сбоя убирает
+  # обслуживание, предел занятого места - FILE_SPOOL_MAX_BYTES.
+  file-spool:
+  # Временные файлы сервиса documents (TMPDIR=/spool): загрузки до DOCUMENTS_MAX_UPLOAD_BYTES,
+  # копии архивов, результат правки. Данных между запросами нет; в бэкап не входит.
+  documents-spool:
+  # Общий том результатов правки файлов: сервис documents пишет файл ответа в подкаталог
+  # documents-out, ядро (app) проверяет размер и хэш, грузит его потоком и удаляет. Вместо JSON
+  # с base64 в теле ответа: пик памяти ядра не растёт с размером файла. Забытые файлы (падение
+  # ядра) сервис убирает по TTL. В бэкап не входит.
+  documents-exchange:
+  # Временные файлы сервиса speech (исходная запись и PCM декодирования): диск, не память.
+  speech-spool:
+  # Дисковый буфер сборщика (профиль telemetry): WAL remote_write, очередь трасс, позиции логов.
+  # Живёт между перезапусками; при недоступном приёмнике растёт до предела хранения WAL.
+  alloy-data:
+  # Сокет песочницы агентов (профиль agent-sandbox): tmpfs в памяти, root:1000 (1000 = gid
+  # пользователя bun ядра), режим 2770. Сервис создаёт в нём сокет 0660; uid кода агента
+  # (20000+) в группу 1000 не входят и к сокету доступа не имеют. Данных на диске нет.
+  sandbox-socket:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=1m,mode=2770,uid=0,gid=1000"
+
+services:
+  postgres:
+    <<: *hardened
+    # Версия pgvector закреплена: миграция 014 требует >= 0.8 (hnsw.iterative_scan), а тег без
+    # версии (pg16) плавает. Смена образа - только в пределах pg16 (docs/RUNBOOK.md).
+    image: ${POSTGRES_IMAGE:-${BAI_IMAGE_POSTGRES:?нет BAI_IMAGE_POSTGRES, передайте images.lock}}
+    networks: [backend]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-agentplatform}
+      POSTGRES_DB: ${POSTGRES_DB:-agentplatform}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?задайте POSTGRES_PASSWORD (gen-secrets.sh)}
+      # UTF-8 и локаль со знанием кириллицы: от неё зависит lower() в поиске (db/README.md).
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8 --data-checksums"
+    volumes:
+      - ${DATA_DIR:-/var/lib/agentplatform}/pgdata:/var/lib/postgresql/data
+    # Параллельная сборка HNSW кладёт граф в динамическую общую память (/dev/shm) размером до
+    # maintenance_work_mem (768 МБ); при 512mb сборка падала бы с «No space left on device»
+    # (R3-MEM-2). shm_size >= 1,25 x maintenance_work_mem (768 x 1,25 = 960 МБ -> 1g); shm входит
+    # в mem_limit, поэтому shared_buffers + shm_size должны уместься в него (2,5 ГБ из 4, остаток
+    # 1,5 ГБ - backend-процессы и страничный кэш). Обе проверки делает verify-restore.sh
+    # (check_postgres_shm), согласованность держит compose-security.test.py; менять значения
+    # вместе.
+    shm_size: 1g
+    mem_limit: 4g
+    # Остановка Postgres = shutdown-checkpoint: сброс до shared_buffers (1,5 ГБ) грязных страниц
+    # на SATA SSD. Штатные 10 с не хватало бы, SIGKILL посреди него даёт восстановление WAL при
+    # старте и долгий простой (R4-RES-9). 60 с с запасом; цепочка остановки стека
+    # (app 75 с, затем postgres 60 с) укладывается в TimeoutStopSec=180 юнита стека.
+    stop_grace_period: 60s
+    # Тюнинг под ВМ 16 ГБ / 4 vCPU / SATA SSD (план: HNSW должен целиком лежать в памяти).
+    #  shared_buffers 1536MB    — индекс HNSW (~1 ГБ на 200 тыс. чанков) целиком не помещается
+    #                             при ~200 тыс. чанков и более: остальное читается из страничного
+    #                             кэша контейнера, затем с диска (при 5g/2GB было ~300 тыс.);
+    #  effective_cache_size 2560MB — подсказка планировщику: shared_buffers + страничный кэш в
+    #                             пределах cgroup (R5-DB-10). Не 8GB: контейнер ограничен 4g, из
+    #                             них 1,5 ГБ - shared_buffers, до 0,75 ГБ - maintenance_work_mem и
+    #                             backend-процессы, остаётся кэша порядка 1 ГБ, итого ~2,5 ГБ.
+    #                             Завышенное значение склоняло планировщик к индексным сканам
+    #                             по таблицам, которые на деле читаются с диска;
+    #  work_mem 16 МБ           — малое число одновременных запросов, сортировки RRF небольшие;
+    #  maintenance_work_mem 768MB — сборка HNSW быстрее, пока граф влезает в память. Граф ~3,9 КБ
+    #                             на вектор: 768 МБ вмещают ~200 тыс. векторов (при 1 ГБ было
+    #                             ~270 тыс.). Крупнее индекс - PostgreSQL предупреждает «hnsw
+    #                             graph no longer fits into maintenance_work_mem» и достраивает
+    #                             граф с диска: сборка (первая индексация, REINDEX после
+    #                             восстановления) заметно дольше, но не падает;
+    #  max_connections 50       — пулы app/indexer по 4 соединения, запас на обслуживание;
+    #  random_page_cost 1.1     — SSD; wal/checkpoint — реже сбросы, но fsync не отключаем.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1536MB
+      - -c
+      - effective_cache_size=2560MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=768MB
+      - -c
+      - max_connections=50
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=100
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - max_wal_size=4GB
+      # Медленные запросы (>2 с) пишем ради диагностики индекса, но БЕЗ значений параметров
+      # (R4-SEC-4): в параметрах тексты писем, псевдонимы, исходные значения до маскирования.
+      # log_parameter_max_length применяется к журналу медленных запросов, а
+      # ..._on_error — к журналу ошибок; оба 0 = параметры не пишутся (PostgreSQL 13+).
+      - -c
+      - log_min_duration_statement=2000
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
+      - -c
+      - log_checkpoints=on
+      # Ожидания блокировок дольше deadlock_timeout (1 с) попадают в журнал: без этого
+      # причину «зависшего» запроса не найти. Это сообщение журнала, не правка поведения.
+      - -c
+      - log_lock_waits=on
+      # Подробность журнала ошибок задаёт проект через .env. По умолчанию - умолчания postgres
+      # (default, error): ошибка пишется с DETAIL, HINT, CONTEXT и текстом запроса. Проект, чьи
+      # ошибки могут содержать значения ключей или тексты запросов (ПДн), ставит terse и panic:
+      # DETAIL («Key (поле)=(значение) already exists»), HINT, CONTEXT и строка STATEMENT в
+      # журнал не попадают.
+      - -c
+      - log_error_verbosity=${POSTGRES_LOG_ERROR_VERBOSITY:-default}
+      - -c
+      - log_min_error_statement=${POSTGRES_LOG_MIN_ERROR_STATEMENT:-error}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    # Entrypoint образа под root делает chown/chmod каталога данных и /var/run/postgresql и
+    # переходит на postgres через gosu: при cap_drop ALL без этих прав контейнер падает в цикле
+    # «Operation not permitted».
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+
+  pseudonymizer:
+    <<: *hardened
+    image: ${BAI_IMAGE_PSEUDONYMIZER:?нет BAI_IMAGE_PSEUDONYMIZER, передайте images.lock (--env-file images.lock)}
+    # Только отдельная сеть с app: в backend сервиса нет (R4-SEC-3).
+    networks: [pseudonymizer-net]
+    environment:
+      PSEUDONYMIZER_KEY: ${PSEUDONYMIZER_KEY:?задайте PSEUDONYMIZER_KEY (gen-secrets.sh)}
+      # Bearer-секрет клиентов API (app); /health остаётся открытым для healthcheck образа.
+      PSEUDONYMIZER_API_TOKEN: ${PSEUDONYMIZER_API_TOKEN:?задайте токен (gen-secrets.sh)}
+      # Хранилище и схема ключей заданы явно: умолчания библиотеки другие (memory, схемы нет).
+      # v2 — формат уже записанных баз; менять схему при живой базе нельзя (docs/PII-MASKING.md).
+      PSEUDONYMIZER_STORE: ${PSEUDONYMIZER_STORE:-sqlite}
+      PSEUDONYMIZER_KEY_SCHEME: ${PSEUDONYMIZER_KEY_SCHEME:-v2}
+      PSEUDONYMIZER_DB: /data/pseudonymizer.sqlite3
+      # Только названия организаций; ИНН/ОГРН/счета маскируются всегда.
+      PSEUDONYMIZER_MASK_LEGAL_ENTITY: ${PSEUDONYMIZER_MASK_LEGAL_ENTITY:-false}
+      PSEUDONYMIZER_CONTACTS_FILE: /etc/agentplatform/contacts.txt
+      PSEUDONYMIZER_HOST: 0.0.0.0
+      PSEUDONYMIZER_PORT: "8300"
+      # Предел длины текста запроса: худший текст такой длины обрабатывается за 5,6 с в
+      # одиночку. Поднимать только вместе с таймаутом клиента (PSEUDONYMIZER_TIMEOUT_MS).
+      PSEUDONYMIZER_MAX_TEXT_CHARS: ${PSEUDONYMIZER_MAX_TEXT_CHARS:-70000}
+      PSEUDONYMIZER_MAX_RESTORE_TOKENS: ${PSEUDONYMIZER_MAX_RESTORE_TOKENS:-5000}
+      PSEUDONYMIZER_MAX_BATCH_ITEMS: ${PSEUDONYMIZER_MAX_BATCH_ITEMS:-500}
+      # Слотов 2. Запросы сверх слотов сервис отвергает через 4 с (503), поэтому очередь держит
+      # ядро (PSEUDONYMIZER_MAX_INFLIGHT у app, то же число): десять одновременных ходов по шесть
+      # проверок ждут в очереди ядра, а не падают. Слоты не ускоряют (процессор, GIL), а память
+      # растёт линейно: поднимать только вместе с mem_limit и PSEUDONYMIZER_MAX_INFLIGHT.
+      PSEUDONYMIZER_MAX_CONCURRENCY: ${PSEUDONYMIZER_MAX_CONCURRENCY:-2}
+      # Срок хранения таблицы замен треда без обращений, дней (0 = не удалять); R6-04-04.
+      PSEUDONYMIZER_RETENTION_DAYS: ${PSEUDONYMIZER_RETENTION_DAYS:-90}
+      # Умолчание библиотеки для адресов с 1.0.0 - «вкл.»; здесь прежнее поведение шаблона
+      # сохранено явно (адреса не маскируются), маршруты сверх базовых выключены.
+      PSEUDONYMIZER_ADDRESS_MASK: ${PSEUDONYMIZER_ADDRESS_MASK:-off}
+      PSEUDONYMIZER_ENABLE_INFLECT_SIGNATORY: ${PSEUDONYMIZER_ENABLE_INFLECT_SIGNATORY:-off}
+      PSEUDONYMIZER_ENABLE_DELETE_THREADS: ${PSEUDONYMIZER_ENABLE_DELETE_THREADS:-off}
+      PSEUDONYMIZER_ENABLE_EXPOSE_BOOT_ID: ${PSEUDONYMIZER_ENABLE_EXPOSE_BOOT_ID:-off}
+      PSEUDONYMIZER_ENABLE_CASE_LABELS: ${PSEUDONYMIZER_ENABLE_CASE_LABELS:-off}
+      # Слова, которые не считаются именами и не маскируются (через запятую); пусто = нет.
+      PII_ALLOWED_WORDS: ${PII_ALLOWED_WORDS:-}
+      # Крупные буферы numpy (свёртки NER на длинном тексте) glibc выделяет через mmap и
+      # сразу отдаёт системе, а не оставляет в куче: RSS после нагрузки ~415 -> ~265 МиБ, пик
+      # двух худших запросов ~1035 -> 850-985 МиБ (зависит от наложения). Результат не меняется.
+      MALLOC_MMAP_THRESHOLD_: "131072"
+    volumes:
+      # Предметная настройка сервиса снаружи (словари, паттерны, корпуса): только чтение. Пустой
+      # или отсутствующий каталог - поведение как без настройки (docs/SERVICE-CONFIG.md).
+      - ${BAI_CONFIG_HOST_DIR:-/etc/agentplatform/config}:/config:ro
+      - pseudonymizer-data:/data
+      - type: bind
+        source: ${PSEUDONYMIZER_CONTACTS_HOST_FILE:-/etc/agentplatform/contacts.txt}
+        target: /etc/agentplatform/contacts.txt
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    # Размер /tmp задан явно (R5-DB-10): без size tmpfs получает 50% ОЗУ хоста, но память
+    # считается в mem_limit контейнера, и runaway-запись убила бы контейнер по OOM, а не
+    # вернула ENOSPC. Код сервиса в /tmp явно не пишет; запас под побочные файлы (временные
+    # файлы SQLite при сортировке/индексе, буферы рантайма). Входит в mem_limit ниже.
+    tmpfs: ["/tmp:size=64m"]
+    # Один воркер на один SQLite-файл (README сервиса): масштабировать репликами нельзя.
+    # Замер 16.10.2026 (uvicorn, худший текст 70 000 символов из одних инициалов, 2 слота
+    # PSEUDONYMIZER_MAX_CONCURRENCY): пик до 985 МиБ, при полном наложении двух запросов
+    # оценка ~1090 (простой ~150 + 2 x ~470). 1090 x 1,2 + tmpfs 64 = 1372 -> 1400m.
+    # Поднимать вместе с PSEUDONYMIZER_MAX_CONCURRENCY или PSEUDONYMIZER_MAX_TEXT_CHARS.
+    mem_limit: 1400m
+
+  # Распознавание и маскирование текста на картинках (labops_pii.media.mask): нужен режиму
+  # IMAGE_TEXT_MODE=tokens только при IMAGE_TEXT_OCR_IN_DOCUMENTS=false (по умолчанию текст с
+  # фото читает Tesseract в сервисе documents). Профиль mask: в обязательную сумму лимитов не
+  # входит (+1536 МиБ). Включение: COMPOSE_PROFILES=mask, затем IMAGE_TEXT_OCR_IN_DOCUMENTS=false,
+  # MASK_URL=http://mask:8320 и MASK_TOKEN (создаёт gen-secrets.sh) в окружении app и indexer.
+  # Клиенты: app и indexer (оба в сети backend, общий Bearer MASK_TOKEN). В pseudonymizer-net mask
+  # нет, и индексатор псевдонимизатор не видит: текст с фото индексатор хранит как обычный текст
+  # документа, обезличивание делает ядро на границе с моделью.
+  mask:
+    <<: *hardened
+    profiles: [mask]
+    image: ${BAI_IMAGE_MASK:?нет BAI_IMAGE_MASK, передайте images.lock (--env-file images.lock)}
+    networks: [backend]
+    volumes:
+      # Предметная настройка сервиса снаружи (словари, паттерны, корпуса): только чтение. Пустой
+      # или отсутствующий каталог - поведение как без настройки (docs/SERVICE-CONFIG.md).
+      - ${BAI_CONFIG_HOST_DIR:-/etc/agentplatform/config}:/config:ro
+    environment:
+      # Без :? - compose разбирает ВЕСЬ файл, и обязательная переменная выключенного профиля
+      # ломала бы любую команду, когда mask не включён. Пустой токен сервис mask не примет
+      # (проверка при старте), поэтому включая профиль, задайте MASK_TOKEN (gen-secrets.sh).
+      MEDIA_MASKER_API_TOKEN: ${MASK_TOKEN:-}
+      MEDIA_MASKER_HOST: 0.0.0.0
+      MEDIA_MASKER_PORT: "8320"
+      MEDIA_MASKER_OCR_LANGS: rus+eng
+      MEDIA_MASKER_MAX_CONCURRENCY: "2"
+      MEDIA_MASKER_ADDRESS_MASK: ${PSEUDONYMIZER_ADDRESS_MASK:-on}
+      # Крупные буферы numpy/OpenCV возвращаются системе, как у pseudonymizer.
+      MALLOC_MMAP_THRESHOLD_: "131072"
+    read_only: true
+    tmpfs: ["/tmp:size=128m"]
+    # Оценка без замера: 2 слота OCR + детектор ПДн (как pseudonymizer ~470 МиБ на слот).
+    # Заменить замером перед включением профиля в бою и пересчитать бюджет (check-host.sh,
+    # compose-security.test.py, docs/RUNBOOK.md). В обязательную сумму mem_limit не входит.
+    mem_limit: 1536m
+
+  documents:
+    <<: *hardened
+    # PID 1 - init (tini): по таймауту конвертации убивается вся группа процессов LibreOffice, а
+    # осиротевший soffice.bin без init остался бы зомби до перезапуска контейнера.
+    init: true
+    image: ${BAI_IMAGE_DOCUMENTS:?нет BAI_IMAGE_DOCUMENTS, передайте images.lock (--env-file images.lock)}
+    networks: [backend]
+    environment:
+      DOCUMENTS_ROOT: /srv/documents
+      # Временные файлы (загрузки, копии архивов, результат правки) - на томе на диске, не в
+      # памяти контейнера.
+      TMPDIR: /spool
+      # Результат правки файла отдаётся файлом на общем томе, если ядро попросило (заголовок
+      # X-Result-Delivery); невостребованный файл убирается через TTL, секунд.
+      DOCUMENTS_RESULT_DIR: /exchange
+      DOCUMENTS_RESULT_TTL_SECONDS: ${DOCUMENTS_RESULT_TTL_SECONDS:-3600}
+      DOCUMENTS_HOST: 0.0.0.0
+      DOCUMENTS_PORT: "8310"
+      # Детектор текста на картинках берётся из вендоренной библиотеки; её умолчание для адресов
+      # с 1.0.0 - «вкл.», прежнее поведение шаблона сохранено явным значением.
+      PSEUDONYMIZER_ADDRESS_MASK: ${PSEUDONYMIZER_ADDRESS_MASK:-off}
+      DOCUMENTS_MAX_UPLOAD_BYTES: ${DOCUMENTS_MAX_UPLOAD_BYTES:-52428800}
+      # Предел размера файла только для фонового /parse по пути (индексатор): файл читается с
+      # шары и в память/tmpfs не попадает, файлы шары до 1 ГиБ. Загрузка телом (чат) - выше.
+      DOCUMENTS_BACKGROUND_MAX_UPLOAD_BYTES: ${DOCUMENTS_BACKGROUND_MAX_UPLOAD_BYTES:-1073741824}
+      DOCUMENTS_STABLE_SECONDS: ${DOCUMENTS_STABLE_SECONDS:-180}
+      # Бюджет времени одного /scan на хеширование, секунд (меньше таймаута клиента индексатора).
+      DOCUMENTS_SCAN_BUDGET_SECONDS: ${DOCUMENTS_SCAN_BUDGET_SECONDS:-60}
+      # Лимиты разбора (защита от zip-бомб). От них зависит нужная память: умолчания
+      # рассчитаны на mem_limit и tmpfs ниже (правило и замеры: services/documents/README.md,
+      # проверка: тест tests/test_memory_rule.py сервиса). Менять вместе с mem_limit.
+      DOCUMENTS_MAX_UNCOMPRESSED_BYTES: ${DOCUMENTS_MAX_UNCOMPRESSED_BYTES:-67108864}
+      DOCUMENTS_MAX_XML_BYTES: ${DOCUMENTS_MAX_XML_BYTES:-33554432}
+      DOCUMENTS_MAX_XML_NODES: ${DOCUMENTS_MAX_XML_NODES:-2000000}
+      DOCUMENTS_MAX_CELLS: ${DOCUMENTS_MAX_CELLS:-1000000}
+      DOCUMENTS_MAX_COMPRESSION_RATIO: ${DOCUMENTS_MAX_COMPRESSION_RATIO:-100}
+      DOCUMENTS_MAX_ARCHIVE_ENTRIES: ${DOCUMENTS_MAX_ARCHIVE_ENTRIES:-5000}
+      DOCUMENTS_PARSE_CONCURRENCY: ${DOCUMENTS_PARSE_CONCURRENCY:-1}
+      # Крупные буферы возвращаются системе: остаточный RSS между запросами ниже на ~20%
+      # (128-167 против 169-210 МиБ), результат разбора тот же. MALLOC_ARENA_MAX,
+      # MALLOC_TRIM_THRESHOLD_ и jemalloc пик правки 900 тыс. ячеек не меняют и не добавлены.
+      MALLOC_MMAP_THRESHOLD_: "131072"
+      # PDF разбирается отдельным процессом с потолками (R2-S-5); список /render ограничен
+      DOCUMENTS_MAX_PDF_BYTES: ${DOCUMENTS_MAX_PDF_BYTES:-20971520}
+      DOCUMENTS_MAX_PDF_PAGES: ${DOCUMENTS_MAX_PDF_PAGES:-500}
+      DOCUMENTS_MAX_PDF_SECONDS: ${DOCUMENTS_MAX_PDF_SECONDS:-20}
+      DOCUMENTS_MAX_PDF_MEMORY_BYTES: ${DOCUMENTS_MAX_PDF_MEMORY_BYTES:-1073741824}
+      # Фоновый PDF разбирается порциями и на паузе (слот у чата) не прерывается. Общий потолок
+      # с паузами, секунд (413 transient; клиентский таймаут индексатора выше), и предел текста
+      # PDF в символах: на паузе он лежит в памяти, слагаемое входит в расчёт mem_limit.
+      DOCUMENTS_MAX_PDF_TOTAL_SECONDS: ${DOCUMENTS_MAX_PDF_TOTAL_SECONDS:-600}
+      DOCUMENTS_MAX_PDF_TEXT_CHARS: ${DOCUMENTS_MAX_PDF_TEXT_CHARS:-4000000}
+      # Конвертация .doc и RTF в docx (LibreOffice в отдельном процессе, ручка /convert/docx,
+      # выключена DOCUMENTS_OFFICE_CONVERT_ENDPOINTS): потолок времени и памяти процесса. Нужен
+      # образ, собранный с WITH_LIBREOFFICE=1. Задания конвертации идут в СВОЁМ месте
+      # (DOCUMENTS_CONVERT_CONCURRENCY) сверх слота разбора, их память складывается с разбором
+      # (правило mem_limit: services/documents/README.md). DOCUMENTS_CONTRACT_CONCURRENCY - прежнее
+      # имя той же настройки: читается, если новое не задано.
+      DOCUMENTS_CONVERT_CONCURRENCY: ${DOCUMENTS_CONVERT_CONCURRENCY:-}
+      DOCUMENTS_CONTRACT_CONCURRENCY: ${DOCUMENTS_CONTRACT_CONCURRENCY:-}
+      DOCUMENTS_MAX_CONVERT_SECONDS: ${DOCUMENTS_MAX_CONVERT_SECONDS:-180}
+      DOCUMENTS_MAX_CONVERT_INPUT_BYTES: ${DOCUMENTS_MAX_CONVERT_INPUT_BYTES:-20971520}
+      DOCUMENTS_MAX_CONVERT_MEMORY_BYTES: ${DOCUMENTS_MAX_CONVERT_MEMORY_BYTES:-1073741824}
+      # Потолок анонимной памяти LibreOffice (RLIMIT_DATA): превышение даёт отказ
+      # conversion_failed за секунды, а не OOM всего documents.
+      DOCUMENTS_MAX_CONVERT_DATA_BYTES: ${DOCUMENTS_MAX_CONVERT_DATA_BYTES:-469762048}
+      # Кэш результата конвертации на томе спула: срок жизни, секунд (0 = выключен), срок
+      # запоминания детерминированного отказа файла, записей, суммарный размер.
+      DOCUMENTS_CONVERT_CACHE_TTL_SECONDS: ${DOCUMENTS_CONVERT_CACHE_TTL_SECONDS:-600}
+      DOCUMENTS_CONVERT_FAIL_CACHE_TTL_SECONDS: ${DOCUMENTS_CONVERT_FAIL_CACHE_TTL_SECONDS:-120}
+      DOCUMENTS_CONVERT_CACHE_MAX_ENTRIES: ${DOCUMENTS_CONVERT_CACHE_MAX_ENTRIES:-16}
+      DOCUMENTS_CONVERT_CACHE_MAX_BYTES: ${DOCUMENTS_CONVERT_CACHE_MAX_BYTES:-134217728}
+      # xls не сжат, поток книги целиком в памяти (замер: 1,0 x размера); раньше xls делил
+      # предел с разметкой xlsx (32 МиБ)
+      DOCUMENTS_MAX_XLS_BYTES: ${DOCUMENTS_MAX_XLS_BYTES:-251658240}
+      # Повышенные пределы только для фоновых запросов (индексатор, X-Request-Priority:
+      # background): PDF до 1 ГиБ и до 180 с в слоте (пауза в очереди не считается; общий
+      # потолок с паузами DOCUMENTS_MAX_PDF_TOTAL_SECONDS выше), части архива
+      # кроме вложений до 80 МиБ. Вложения OOXML (картинки, видео) не читаются и размером не
+      # считаются (разбор текста их не использует), поэтому предела вложений нет. Чат
+      # (интерактивные запросы) остаётся на пределах выше. Память под них входит в расчёт
+      # mem_limit (слот общий): services/documents/README.md, «Лимиты фоновой индексации».
+      DOCUMENTS_BACKGROUND_MAX_PDF_BYTES: ${DOCUMENTS_BACKGROUND_MAX_PDF_BYTES:-1073741824}
+      DOCUMENTS_BACKGROUND_MAX_PDF_SECONDS: ${DOCUMENTS_BACKGROUND_MAX_PDF_SECONDS:-180}
+      DOCUMENTS_BACKGROUND_MAX_UNCOMPRESSED_BYTES: ${DOCUMENTS_BACKGROUND_MAX_UNCOMPRESSED_BYTES:-83886080}
+      DOCUMENTS_MAX_RENDER_ROWS: ${DOCUMENTS_MAX_RENDER_ROWS:-5000}
+      DOCUMENTS_MAX_JSON_BODY_BYTES: ${DOCUMENTS_MAX_JSON_BODY_BYTES:-8388608}
+      # Картинки: /images/normalize и извлечение из документов (/parse extract_images)
+      DOCUMENTS_IMAGE_MAX_SIDE_PX: ${DOCUMENTS_IMAGE_MAX_SIDE_PX:-1568}
+      DOCUMENTS_IMAGE_MAX_INPUT_BYTES: ${DOCUMENTS_IMAGE_MAX_INPUT_BYTES:-20971520}
+      DOCUMENTS_MAX_IMAGE_BYTES: ${DOCUMENTS_MAX_IMAGE_BYTES:-5242880}
+      DOCUMENTS_MAX_IMAGE_PIXELS: ${DOCUMENTS_MAX_IMAGE_PIXELS:-40000000}
+      DOCUMENTS_MAX_IMAGES_PER_DOCUMENT: ${DOCUMENTS_MAX_IMAGES_PER_DOCUMENT:-20}
+      DOCUMENTS_MAX_IMAGES_TOTAL_BYTES: ${DOCUMENTS_MAX_IMAGES_TOTAL_BYTES:-31457280}
+      DOCUMENTS_MIN_IMAGE_SIDE_PX: ${DOCUMENTS_MIN_IMAGE_SIDE_PX:-80}
+      DOCUMENTS_PDF_RENDER_PAGES: ${DOCUMENTS_PDF_RENDER_PAGES:-20}
+      # Детектор текста на картинке /images/detect-text (Tesseract):
+      # слово = не меньше MIN_WORD_CHARS букв/цифр с уверенностью не ниже MIN_CONF; «text» -
+      # не меньше MIN_WORDS таких слов. Параллелизм и очередь ограничены (переполнение - 503),
+      # процесс убивается по таймауту. Память OCR входит в расчёт mem_limit (см. ниже).
+      DOCUMENTS_OCR_BIN: ${DOCUMENTS_OCR_BIN:-tesseract}
+      DOCUMENTS_OCR_LANGS: ${DOCUMENTS_OCR_LANGS:-rus+eng}
+      DOCUMENTS_OCR_MIN_WORDS: ${DOCUMENTS_OCR_MIN_WORDS:-3}
+      DOCUMENTS_OCR_MIN_CONF: ${DOCUMENTS_OCR_MIN_CONF:-40}
+      DOCUMENTS_OCR_MIN_WORD_CHARS: ${DOCUMENTS_OCR_MIN_WORD_CHARS:-2}
+      DOCUMENTS_OCR_CONCURRENCY: ${DOCUMENTS_OCR_CONCURRENCY:-1}
+      DOCUMENTS_OCR_QUEUE_MAX: ${DOCUMENTS_OCR_QUEUE_MAX:-4}
+      DOCUMENTS_OCR_QUEUE_WAIT_MS: ${DOCUMENTS_OCR_QUEUE_WAIT_MS:-5000}
+      DOCUMENTS_OCR_TIMEOUT_MS: ${DOCUMENTS_OCR_TIMEOUT_MS:-15000}
+      DOCUMENTS_OCR_MAX_PIXELS: ${DOCUMENTS_OCR_MAX_PIXELS:-20000000}
+      # Необязательные режимы (выключены; пусто = взять из documents.json в /config, иначе выкл.):
+      # правка ячеек (/edit-cells), шаблон xlsx (/xlsx/*), дроби с хвостовым нулём (1.1250).
+      # Значение 1/0, true/false, on/off; опечатка останавливает запуск сервиса.
+      DOCUMENTS_EDIT_ENDPOINTS: ${DOCUMENTS_EDIT_ENDPOINTS:-}
+      DOCUMENTS_TEMPLATE_ENDPOINTS: ${DOCUMENTS_TEMPLATE_ENDPOINTS:-}
+      DOCUMENTS_UNAMBIGUOUS_FRACTIONS: ${DOCUMENTS_UNAMBIGUOUS_FRACTIONS:-}
+      # Ручка текста с фото /images/recognize-text (Tesseract): включена, потому что режим фото
+      # tokens читает текст в documents (IMAGE_TEXT_OCR_IN_DOCUMENTS у app, по умолчанию true).
+      # Пусто = documents.json из /config, иначе выключено; false - ручка закрыта (404).
+      DOCUMENTS_IMAGE_TEXT_ENDPOINT: ${DOCUMENTS_IMAGE_TEXT_ENDPOINT:-true}
+      # Ручка /convert/docx (.doc и RTF в docx, LibreOffice): выключена; нужна сборка образа с
+      # WITH_LIBREOFFICE=1, иначе ручка отвечает conversion_unavailable.
+      DOCUMENTS_OFFICE_CONVERT_ENDPOINTS: ${DOCUMENTS_OFFICE_CONVERT_ENDPOINTS:-}
+      # Значение свойства «Категория» собранных документов (docProps/core.xml): метка, по которой
+      # проект узнаёт собственные документы после пересохранения. Пусто = свойство не пишется.
+      DOCUMENTS_RENDER_CATEGORY: ${DOCUMENTS_RENDER_CATEGORY:-}
+      # Разрешённые шаблоны /render через запятую (путь относительно шары или каталог с «/»
+      # на конце), R4-SEC-8. Пусто = список не задан: templatePath необязателен, обход путей
+      # отклоняется. Задан = /render без templatePath из списка получает 400/403.
+      DOCUMENT_TEMPLATE_ALLOWLIST: ${DOCUMENT_TEMPLATE_ALLOWLIST:-}
+    volumes:
+      # Предметная настройка сервиса снаружи (словари, паттерны, корпуса): только чтение. Пустой
+      # или отсутствующий каталог - поведение как без настройки (docs/SERVICE-CONFIG.md).
+      - ${BAI_CONFIG_HOST_DIR:-/etc/agentplatform/config}:/config:ro
+      # Каталог документов владельца, только чтение: см. x-documents-mount.
+      - *documents_mount
+      - documents-spool:/spool
+      - documents-exchange:/exchange
+    read_only: true
+    # Загрузки телом (чат) крупнее 1 МБ лежат во временных файлах. Временный каталог TMPDIR=/spool
+    # - том documents-spool на диске, поэтому до трёх загрузок (одна в разборе, две в очереди),
+    # облегчённая копия архива и результат правки память не занимают. tmpfs /tmp остаётся для
+    # библиотек и входит в расчёт mem_limit ниже (150 МиБ: размер, при котором расчёт сходится и
+    # когда временный каталог переведён обратно на tmpfs). Фоновый /parse индексатора идёт по пути
+    # (файл с шары); временные файлы удаляются после ответа (tests/test_api_spool.py).
+    tmpfs: ["/tmp:size=150m"]
+    # 3232 МиБ (было 3220: добавлен текст PDF на паузе фонового разбора), а не прежние 1500 МБ:
+    # под 1500 МБ бюджет ячеек пришлось бы урезать до 400 тыс., а таблицы на 50-100 тыс. строк
+    # это рабочий случай. К 2 ГиБ добавлено 152 МиБ под тело JSON до 8 МиБ (экспорт и
+    # нормализация идут под тем же семафором). Расчёт (services/documents, limits.py): 160 +
+    # tmpfs 150 + 1,25 x (худшее задание в слоте 1497 МиБ + текст PDF на паузе 4 млн символов
+    # x 4 Б = 15 МиБ + /scan 672 МиБ + OCR 153 МиБ) = 3231 МиБ. Худшее задание - фоновый
+    # разбор xls (ячейки и разметка 981 + поток книги 240 x 2,15); /scan (тело до 96 МиБ x 7)
+    # и OCR идут вне слота, под своими ограничителями, поэтому их пики складываются с заданием
+    # в слоте; вложения OOXML в память не попадают. Прежние 2200m (расчёт 2181 МиБ) скан и OCR
+    # не покрывали.
+    # README сервиса, «Память»; сверка - tests/test_memory_rule.py сервиса.
+    mem_limit: 3232m
+
+  embeddings:
+    <<: *hardened
+    image: ${BAI_IMAGE_EMBEDDINGS:?нет BAI_IMAGE_EMBEDDINGS, передайте images.lock (--env-file images.lock)}
+    networks: [backend]
+    environment:
+      EMBEDDINGS_HOST: 0.0.0.0
+      EMBEDDINGS_PORT: "8320"
+      EMBEDDINGS_MODEL_DIR: /models
+      EMBEDDINGS_MODEL_NAME: multilingual-e5-base
+      EMBEDDINGS_BACKEND: onnx
+      # Тензоры onnxruntime крупнее порога идут через mmap и возвращаются системе: пик
+      # худшего запроса через HTTP 1435 -> 1071 МиБ и не растёт от запроса к запросу (без порога
+      # RSS после запроса 950-1050), векторы те же (меняется только аллокатор).
+      MALLOC_MMAP_THRESHOLD_: "131072"
+    volumes:
+      # Предметная настройка сервиса снаружи (словари, паттерны, корпуса): только чтение. Пустой
+      # или отсутствующий каталог - поведение как без настройки (docs/SERVICE-CONFIG.md).
+      - ${BAI_CONFIG_HOST_DIR:-/etc/agentplatform/config}:/config:ro
+      # Веса (~280 МБ) лежат на хосте и в образ не попадают: deploy/scripts/fetch-embedding-model.sh.
+      - type: bind
+        source: ${MODELS_DIR:-/var/lib/agentplatform/models}
+        target: /models
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    # Размер /tmp задан явно (R5-DB-10): без size tmpfs получает 50% ОЗУ хоста, но память
+    # считается в mem_limit контейнера, и runaway-запись убила бы контейнер по OOM, а не
+    # вернула ENOSPC. Код сервиса в /tmp явно не пишет; запас под побочные файлы (временные
+    # файлы SQLite при сортировке/индексе, буферы рантайма). Входит в mem_limit ниже.
+    tmpfs: ["/tmp:size=64m"]
+    # Замер 16.10.2026: худший запрос (64 текста по 20 000 символов, 512 токенов; инференс
+    # один за раз) - пик 1071 МиБ, простой ~650. 1071 x 1,25 = 1339 + tmpfs 64 -> 1400m.
+    mem_limit: 1400m
+
+  # Локальное распознавание речи для голосовых сообщений: faster-whisper int8 на CPU. Профиль
+  # speech: в обязательную сумму mem_limit не входит и по умолчанию выключен. Включение:
+  # COMPOSE_PROFILES=speech, SPEECH_TO_TEXT_PROVIDER=local (app); без доступного сервиса ядро
+  # отвечает «повторите позже» и не падает. Только сеть backend, порты наружу не публикуются,
+  # выхода наружу у контейнера нет. Веса модели вшиты в образ при сборке (speech.Dockerfile):
+  # при старте и в работе ничего не скачивается.
+  speech:
+    <<: *hardened
+    profiles: [speech]
+    image: ${BAI_IMAGE_SPEECH:?нет BAI_IMAGE_SPEECH, передайте images.lock (--env-file images.lock)}
+    networks: [backend]
+    environment:
+      SPEECH_HOST: 0.0.0.0
+      SPEECH_PORT: "8330"
+      SPEECH_MODEL_DIR: /models
+      SPEECH_MODEL_NAME: ${SPEECH_MODEL_NAME:-small}
+      SPEECH_COMPUTE_TYPE: int8
+      SPEECH_LANGUAGE: ru
+      # beam_size=1: жадное декодирование; замер качества против 5 - services/speech/README.md.
+      SPEECH_BEAM_SIZE: ${SPEECH_BEAM_SIZE:-1}
+      # ВМ - 4 vCPU; контейнеру отдаётся 3 (cpus ниже). Одновременно распознаются
+      # SPEECH_MAX_CONCURRENT_JOBS записей (веса модели общие, один экземпляр), потоков на
+      # запись столько, чтобы их сумма была не больше cpus (3 x 1). Запросы сверх числа ждут
+      # место без отказа, в пределах срока задания ниже.
+      SPEECH_CPU_THREADS: ${SPEECH_CPU_THREADS:-1}
+      SPEECH_MAX_CONCURRENT_JOBS: ${SPEECH_MAX_CONCURRENT_JOBS:-3}
+      # Общий срок задания от приёма запроса (ожидание места + декодирование + распознавание).
+      # Расчёт: запись 300 с занимает до 280 с (300 x худший RTF 0,9 + 10 с); десять таких
+      # записей разом при 3 местах идут четырьмя волнами, десятая заканчивает через
+      # 4 x 280 = 1120 с. Срок 1200 с держит пачку с запасом ~7%. Обязан быть меньше таймаута
+      # ядра SPEECH_LOCAL_TIMEOUT_MS (1260 с, +60 с на отказ с понятным кодом): иначе ядро
+      # оборвёт запрос раньше, чем сервис ответит.
+      SPEECH_JOB_TIMEOUT_SECONDS: ${SPEECH_JOB_TIMEOUT_SECONDS:-1200}
+      # Модель грузится при первом голосовом и выгружается после простоя: в покое сервис
+      # занимает около 110 МиБ (интерпретатор и библиотеки).
+      SPEECH_IDLE_TTL_SECONDS: ${SPEECH_IDLE_TTL_SECONDS:-300}
+      # Пределы входа; те же переменные читает ядро (SPEECH_TO_TEXT_MAX_*), держать согласованными.
+      SPEECH_TO_TEXT_MAX_SECONDS: ${SPEECH_TO_TEXT_MAX_SECONDS:-300}
+      SPEECH_TO_TEXT_MAX_BYTES: ${SPEECH_TO_TEXT_MAX_BYTES:-31457280}
+      SPEECH_WINDOW_SECONDS: ${SPEECH_WINDOW_SECONDS:-120}
+      SPEECH_DECODE_TIMEOUT_SECONDS: ${SPEECH_DECODE_TIMEOUT_SECONDS:-120}
+      SPEECH_REAPER_INTERVAL_SECONDS: "15"
+      SPEECH_FFMPEG_BIN: ffmpeg
+      # faster-whisper; fake - заглушка для стендов без весов (текст фиксированный)
+      SPEECH_BACKEND: faster-whisper
+      SPEECH_SPOOL_DIR: /spool
+      TMPDIR: /spool
+      # Крупные буферы возвращаются системе, арен меньше: пик small на записи 2 мин
+      # 1014 -> 591 МиБ (замер, README сервиса). Без этого лимит пришлось бы считать вдвое выше.
+      MALLOC_MMAP_THRESHOLD_: "131072"
+      MALLOC_ARENA_MAX: "2"
+    volumes:
+      # Исходник и PCM декодирования лежат на диске, а не в памяти контейнера; файлы удаляются
+      # после каждого запроса, остатки прерванной работы - при старте.
+      - speech-spool:/spool
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    # 3 из 4 vCPU ВМ: распознавание не должно отнимать процессор у ходов агента, псевдонимизатора
+    # и postgres (без предела int8-модель держала все ядра до ~3 мин на записи 5 мин).
+    cpus: 3
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; u='http://127.0.0.1:8330/ready'; sys.exit(0 if urllib.request.urlopen(u, timeout=4).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # mem_limit 1152m (расчёт - services/speech/README.md, «Память»): пик процесса с моделью
+    # small, int8 и тремя одновременными записями по 5 мин по замеру 877 МиБ (VmHWM; одна запись
+    # 590, каждая следующая +150: общие веса, свои буферы) + три ffmpeg по ~25 МиБ = ~950 МиБ;
+    # запас 21% на страничный кэш и разброс. Модель medium (пик 1544 МиБ) сюда не помещается.
+    mem_limit: 1152m
+
+  indexer:
+    <<: *hardened
+    image: ${BAI_IMAGE_INDEXER:?нет BAI_IMAGE_INDEXER, передайте images.lock (--env-file images.lock)}
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      documents:
+        condition: service_healthy
+      embeddings:
+        condition: service_healthy
+    environment:
+      DOCUMENTS_ROOT: /srv/documents
+      DATABASE_URL: postgres://${POSTGRES_USER:-agentplatform}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-agentplatform}
+      DOCUMENTS_URL: http://documents:8310
+      EMBEDDINGS_URL: http://embeddings:8320
+      INDEXER_SCAN_PATH: ${INDEXER_SCAN_PATH:-}
+      INDEXER_STATE_PATH: /state/indexer_state.json
+      # Textfile-метрики прохода (indexer.prom) пишутся в том состояния, который сборщик alloy
+      # читает только на чтение. Пустое значение выключает метрики (прежнее поведение).
+      INDEXER_METRICS_DIR: ${INDEXER_METRICS_DIR-/state}
+      INDEXER_INTERVAL_SECONDS: ${INDEXER_INTERVAL_SECONDS:-300}
+      INDEXER_STABLE_SECONDS: ${INDEXER_STABLE_SECONDS:-}
+      INDEXER_MIN_ENTRIES: ${INDEXER_MIN_ENTRIES:-1}
+      INDEXER_DELETE_MAX_FRACTION: ${INDEXER_DELETE_MAX_FRACTION:-0.5}
+      INDEXER_MAX_FILE_BYTES: ${INDEXER_MAX_FILE_BYTES:-1073741824}
+      INDEXER_MAX_ATTEMPTS: ${INDEXER_MAX_ATTEMPTS:-8}
+      INDEXER_PG_STATEMENT_TIMEOUT_MS: ${INDEXER_PG_STATEMENT_TIMEOUT_MS:-300000}
+      INDEXER_PG_LOCK_TIMEOUT_MS: ${INDEXER_PG_LOCK_TIMEOUT_MS:-30000}
+      # Картинки на диске: выключено по умолчанию. Ключ и адрес шлюза нужны только при
+      # включении; пустые значения не мешают запуску (индексатор отключит возможность).
+      VISION_DISK_IMAGES_ENABLED: ${VISION_DISK_IMAGES_ENABLED:-false}
+      VISION_DISK_IMAGES_MAX_BYTES: ${VISION_DISK_IMAGES_MAX_BYTES:-15728640}
+      VISION_DISK_IMAGES_MAX_PER_RUN: ${VISION_DISK_IMAGES_MAX_PER_RUN:-50}
+      VISION_ENABLED: ${VISION_ENABLED:-true}
+      VISION_MODEL_ALIAS: ${VISION_MODEL_ALIAS:-}
+      LITELLM_BASE_URL: http://gateway-mtls:8080
+      # Отдельный ключ шлюза только для индексатора; общий LITELLM_API_KEY сюда не передаём.
+      VISION_INDEXER_API_KEY: ${VISION_INDEXER_API_KEY:-}
+      # Фото с текстом: tokens (по умолчанию) | block | log_only. tokens: текст читает сервис
+      # mask локально и индексатор хранит его как обычный текст документа (обезличивание - на
+      # границе с моделью, в ядре; псевдонимизатор в индексатор не подключается). Сервис mask -
+      # профиль mask: без него (MASK_URL и MASK_TOKEN пусты) индексатор откатывается в block с
+      # предупреждением в журнале. Включая профиль, задайте MASK_URL=http://mask:8320.
+      IMAGE_TEXT_MODE: ${IMAGE_TEXT_MODE:-tokens}
+      MASK_URL: ${MASK_URL:-}
+      MASK_TOKEN: ${MASK_TOKEN:-}
+      MASK_TIMEOUT_MS: ${MASK_TIMEOUT_MS:-30000}
+      DOCUMENTS_OCR_TEXT_MIN_CONF: ${DOCUMENTS_OCR_TEXT_MIN_CONF:-40}
+    volumes:
+      # Предметная настройка сервиса снаружи (словари, паттерны, корпуса): только чтение. Пустой
+      # или отсутствующий каталог - поведение как без настройки (docs/SERVICE-CONFIG.md).
+      - ${BAI_CONFIG_HOST_DIR:-/etc/agentplatform/config}:/config:ro
+      - *documents_mount
+      - indexer-state:/state
+    read_only: true
+    # Размер /tmp задан явно (R5-DB-10): без size tmpfs получает 50% ОЗУ хоста, но память
+    # считается в mem_limit контейнера, и runaway-запись убила бы контейнер по OOM, а не
+    # вернула ENOSPC. Код сервиса в /tmp явно не пишет; запас под побочные файлы (временные
+    # файлы SQLite при сортировке/индексе, буферы рантайма). Входит в mem_limit ниже.
+    tmpfs: ["/tmp:size=128m"]
+    # mem_limit 384m, /tmp 128m. Замер: в состоянии из 4553 файлов пик cgroup 55 МиБ (anon 0 в
+    # простое); худший файл ~170 МиБ + заполненный /tmp 128 + база 55 = 353 <= 384. /tmp принимает
+    # только сброс векторов документа сверх 32 МиБ (SPOOL_MAX_MEMORY_BYTES), 128 МиБ с запасом.
+    # Замер 100 тыс. файлов: ~600 МиБ оценка; при таком числе файлов лимит поднять в
+    # compose.project.yml.
+    mem_limit: 384m
+    # SIGTERM пересылает indexer-loop.sh в python, тот сохраняет состояние прохода (R4-RES-8);
+    # запас на завершение текущего HTTP-запроса к documents/embeddings.
+    stop_grace_period: 30s
+
+  # Песочница скриптов агентов (профиль agent-sandbox): выполняет код разбора таблиц, который
+  # написал агент. Без сети (network_mode: none), доступ только через unix-сокет в томе
+  # sandbox-socket; БД, шары документов, секретов и Docker API в контейнере нет.
+  # Включение: COMPOSE_PROFILES=agent-sandbox И AGENT_SANDBOX_ENABLED=1 в .env; без профиля
+  # сервис не поднимается, с профилем, но без флага процесс ждёт остановки (в журнале
+  # sandbox_disabled), а не перезапускается.
+  # Права: сервис работает от root ради setuid() в дочернем процессе, но все capabilities
+  # сняты, кроме SETUID/SETGID (cap_drop ALL из *hardened + cap_add ниже), корень read-only,
+  # no-new-privileges. Код агента идёт под uid 20000+N (по слоту) без capabilities, в пустом
+  # каталоге tmpfs /work. Схема и пределы: services/sandbox/README.md.
+  # Память: mem_limit 768m и допуск по памяти в самом сервисе (SANDBOX_MEMORY_GATE=1, ниже; код -
+  # services/sandbox/sandbox/memory_gate.py): новый запуск ждёт в очереди, пока memory.current +
+  # оценка запуска (512 МиБ = RLIMIT_AS) не уложатся в 768 минус запас, а MemAvailable хоста не
+  # станет не ниже порога. Состав 768: сервис ~70 МиБ + /work (tmpfs, занято только записанное,
+  # до 192) + один запуск до 512. Один запуск проходит всегда: пустой песочнице допуск
+  # безусловный. Параллельность ограничена памятью, а не SANDBOX_CONCURRENCY. Замер (5 слотов):
+  # успешные запуски 10 x 3,4 МБ xlsx - пик cgroup 337 МиБ; худший резидент (каждый из 5 слотов
+  # удерживает 400 МиБ под RLIMIT_AS 512) - 1709 МиБ без допуска. Прежние 2204m считались как
+  # (2 слота + 2 в очереди) x ~250 МиБ на принятый запрос + 2 x 512 + сервис ~100 + tmpfs;
+  # такой запас остаётся, если выключить допуск (SANDBOX_MEMORY_GATE=0) и поднять mem_limit в
+  # compose.project.yml. Профиль выключен и в сумму check-host.sh входит только при включённом
+  # (профиль + AGENT_SANDBOX_ENABLED).
+  # Перезапуск - unless-stopped из *hardened, как у остальных служб: прежний on-failure:3 после
+  # третьего OOM-kill контейнер не поднимал, а мониторинг этого не видел. Выключенный флаг
+  # AGENT_SANDBOX_ENABLED не даёт цикла перезапусков: процесс ждёт остановки, а healthcheck в
+  # этом состоянии проходит. Проверка compose-security.test.py держит mem_limit по формуле выше.
+  sandbox:
+    <<: *hardened
+    profiles: [agent-sandbox]
+    image: ${BAI_IMAGE_SANDBOX:?нет BAI_IMAGE_SANDBOX, передайте images.lock (--env-file images.lock)}
+    network_mode: none
+    user: "0:0"
+    cap_add: [SETUID, SETGID]
+    environment:
+      AGENT_SANDBOX_ENABLED: ${AGENT_SANDBOX_ENABLED:-0}
+      SANDBOX_SOCKET: /run/sandbox/sandbox.sock
+      SANDBOX_WORK_ROOT: /work
+      # Замер (10 запусков одного агента, скрипт ~4 с): при 2 слотах и воротах «1 слот на агента»
+      # 8 из 10 успевали за 33 с, 2 получали queue_timeout (ожидание 30 с); при 4 слотах на
+      # агента все 10 за 14,5 с. Общих слотов 5: один слот всегда свободен для соседей, агент не
+      # занимает все слоты и очередь. Процессор: 5 скриптов по 10 с CPU на 3 ядрах укладываются
+      # в стенной предел 20 с (5 x 10 / 3 = 17 с), на 2 ядрах - нет (25 с). Ожидание вместо
+      # отказа: 10-й запуск одного агента ждёт две волны по 20 с, поэтому ожидание слота 60 с
+      # (было 30), очередь 16, соединений 16 (limits.py).
+      SANDBOX_CONCURRENCY: "5"
+      SANDBOX_SLOTS_PER_AGENT: "4"
+      SANDBOX_QUEUE_MAX: "16"
+      SANDBOX_QUEUE_WAIT_SECONDS: "60"
+      # Допуск по памяти: значения по умолчанию в services/sandbox/sandbox/memory_gate.py. В
+      # коде допуск выключен; в compose включён, потому что mem_limit 768m рассчитан на него.
+      SANDBOX_MEMORY_GATE: ${SANDBOX_MEMORY_GATE:-1}
+      SANDBOX_MEMORY_RUN_ESTIMATE_MIB: ${SANDBOX_MEMORY_RUN_ESTIMATE_MIB:-512}
+      SANDBOX_MEMORY_RESERVE_MIB: ${SANDBOX_MEMORY_RESERVE_MIB:-64}
+      SANDBOX_MEMORY_HOST_MIN_AVAILABLE_MIB: ${SANDBOX_MEMORY_HOST_MIN_AVAILABLE_MIB:-1536}
+      SANDBOX_MEMORY_RAMP_SECONDS: ${SANDBOX_MEMORY_RAMP_SECONDS:-3}
+      SANDBOX_UID_BASE: "20000"
+      # Без root смены uid нет: лучше не стартовать, чем запускать код под uid сервиса
+      SANDBOX_REQUIRE_UID_SWITCH: "1"
+    volumes:
+      - sandbox-socket:/run/sandbox
+    read_only: true
+    # /dev/shm минимальный (по умолчанию Docker даёт 64 МиБ): общая память не должна быть
+    # местом, где состояние переживает запуск; файлы uid слота дополнительно метёт sweep.py.
+    shm_size: 4m
+    # /work: рабочие каталоги запусков (корень 0711, не листается; внутри 1777 под uid слота);
+    # noexec/nosuid/nodev. Размер входит в mem_limit. /work делят все 5 слотов, а RLIMIT_FSIZE
+    # ограничивает файл (16 МиБ), не каталог слота: при 64 МиБ четыре запуска одного агента
+    # заполняли его целиком, и «всегда свободный» слот соседа получал ENOSPC. 192 МиБ = 5 слотов
+    # x 2 файла по 16 МиБ + запас 32 МиБ (тест services/sandbox/tests/test_compose_isolation.py).
+    tmpfs:
+      - "/work:size=192m,mode=0711,noexec,nosuid,nodev"
+      - "/tmp:size=16m,noexec,nosuid,nodev"
+    healthcheck:
+      test: ["CMD", "python", "-m", "sandbox.healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    pids_limit: 128
+    cpus: 3
+    stop_grace_period: 10s
+    mem_limit: 768m
+
+  # Исходящий mTLS-прокси к зарубежному шлюзу (см. nginx/mtls-proxy.conf.template).
+  gateway-mtls:
+    <<: *hardened
+    image: ${NGINX_IMAGE:-${BAI_IMAGE_NGINX:?нет BAI_IMAGE_NGINX, передайте images.lock}}
+    networks: [backend, egress]
+    environment:
+      NGINX_ENVSUBST_FILTER: GATEWAY_
+      GATEWAY_HOST: ${GATEWAY_HOST:?задайте GATEWAY_HOST}
+      GATEWAY_PORT: ${GATEWAY_PORT:-443}
+      GATEWAY_TLS_NAME: ${GATEWAY_TLS_NAME:?задайте GATEWAY_TLS_NAME}
+    volumes:
+      - ./nginx/mtls-proxy.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - type: bind
+        source: ${MTLS_DIR:-/etc/agentplatform/mtls}
+        target: /etc/gateway-mtls
+        read_only: true
+        bind:
+          create_host_path: false
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    # Привилегий nginx на старте хватает с cap_drop: ALL + эти две (смена uid воркеров).
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+
+  # Ядро агентов (Bun): examples/example/src/main.ts (runMain проекта) — долгоживущая служба
+  # (чат, очередь задач, агенты) со служебным HTTP /health и /ready на 127.0.0.1:${HEALTH_PORT} внутри контейнера (порт не публикуется).
+  app:
+    <<: *hardened
+    image: ${BAI_IMAGE_APP:?нет BAI_IMAGE_APP, передайте images.lock (--env-file images.lock)}
+    # pseudonymizer-net: единственный клиент псевдонимизатора (R4-SEC-3).
+    networks: [backend, egress, pseudonymizer-net]
+    # Имя почтового сервера из его сертификата -> IP внутри контейнера: если сертификат выписан
+    # на имя, которое в DNS ведёт на другую машину, а проверку имени при STARTTLS не отключаем.
+    # Формат MAIL_HOST_ALIAS - "имя:IP"; по умолчанию - заглушка в зоне .invalid, она ни на что
+    # не влияет (пустую строку compose не принимает).
+    extra_hosts: ["${MAIL_HOST_ALIAS:-mail-alias.invalid:127.0.0.1}"]
+    # Шара монтируется с правами root:10001 (0440/0550, R3-SEC-14): ядру (uid bun) для чтения
+    # нужна группа 10001, как у documents и indexer.
+    group_add: ["10001"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pseudonymizer:
+        condition: service_healthy
+      gateway-mtls:
+        condition: service_healthy
+    environment:
+      PSEUDONYMIZER_URL: http://pseudonymizer:8300
+      # Bearer-секрет для API псевдонимизатора (тот же, что у сервера).
+      PSEUDONYMIZER_API_TOKEN: ${PSEUDONYMIZER_API_TOKEN:?задайте токен (gen-secrets.sh)}
+      # Телеметрия Mastra выключена: сервис без выхода к чужим адресам, данные не уходят.
+      MASTRA_TELEMETRY_DISABLED: "1"
+      # 300 с (было 10 с): срок включает очередь процессора псевдонимизатора.
+      PSEUDONYMIZER_TIMEOUT_MS: ${PSEUDONYMIZER_TIMEOUT_MS:-300000}
+      # Предел одновременных запросов к псевдонимизатору в ядре = число слотов сервиса (одно
+      # значение на оба конца); лишние ждут в очереди ядра внутри срока хода, а не получают 503.
+      PSEUDONYMIZER_MAX_INFLIGHT: ${PSEUDONYMIZER_MAX_INFLIGHT:-${PSEUDONYMIZER_MAX_CONCURRENCY:-2}}
+      LITELLM_BASE_URL: http://gateway-mtls:8080
+      LITELLM_API_KEY: ${LITELLM_API_KEY:?задайте LITELLM_API_KEY (ключ агента со шлюза)}
+      MODEL_TIMEOUT_MS: ${MODEL_TIMEOUT_MS:-120000}
+      MODEL_MAX_TOKENS: ${MODEL_MAX_TOKENS:-4096}
+      DATABASE_URL: postgres://${POSTGRES_USER:-agentplatform}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-agentplatform}
+      # Размер пула соединений с БД (1..32) и число одновременных плановых задач (1..8);
+      # по умолчанию 4 и 2, см. .env.example и docs/RUNBOOK.md.
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-4}
+      JOB_WORKER_CONCURRENCY: ${JOB_WORKER_CONCURRENCY:-2}
+      # Срок хранения истории переписки, дней; пусто или 0 = бессрочно (см. .env.example).
+      THREAD_RETENTION_DAYS: ${THREAD_RETENTION_DAYS:-}
+      EMBEDDINGS_URL: http://embeddings:8320
+      DOCUMENTS_URL: http://documents:8310
+      # Таймауты вызовов сервисов, мс (R6-08-05): разбор файла, сборка документа, эмбеддинги.
+      # Значения по умолчанию совпадают с кодом ядра: пустая переменная = прежнее поведение.
+      # 420 с (было 60 с): срок включает ожидание единственного слота разбора при нескольких
+      # одновременных ходах с тяжёлыми файлами и фоновый PDF индексатора, уже занявший слот.
+      DOCUMENTS_PARSE_TIMEOUT_MS: ${DOCUMENTS_PARSE_TIMEOUT_MS:-420000}
+      DOCUMENTS_RENDER_TIMEOUT_MS: ${DOCUMENTS_RENDER_TIMEOUT_MS:-420000}
+      EMBEDDINGS_TIMEOUT_MS: ${EMBEDDINGS_TIMEOUT_MS:-60000}
+      # Служебный HTTP ядра (/health, /ready), слушает только 127.0.0.1 контейнера.
+      HEALTH_PORT: ${HEALTH_PORT:-8088}
+      # Агент, отвечающий сотрудникам в чате (id из реестра ядра). Пусто = example, а при
+      # CHAT_BOTS - агента по умолчанию нет (события без бота отклоняются).
+      CHAT_AGENT_ID: ${CHAT_AGENT_ID:-}
+      # Несколько ботов: JSON «botId -> agentId». Пусто = режим одного бота (CHAT_AGENT_ID).
+      CHAT_BOTS: ${CHAT_BOTS:-}
+      # Предел времени на ход в чате, мс (по умолчанию 10 минут, см. .env.example).
+      CHAT_TURN_TIMEOUT_MS: ${CHAT_TURN_TIMEOUT_MS:-600000}
+      # Сколько за ход можно простоять в очередях сервисов (documents, псевдонимизатор), не тратя
+      # срок хода, мс. Сверх кредита часы хода идут и во время ожидания. 1560 с = 420 + 360 + 360
+      # + 420 (сроки разбора, OCR, проверки и нормализации), округлено до 30 минут.
+      CHAT_TURN_WAIT_CREDIT_MS: ${CHAT_TURN_WAIT_CREDIT_MS:-1800000}
+      # Канал чата Bitrix24: адрес входящего вебхука (секрет в пути), токен ботов и таблица
+      # ботов - либо все три, либо ни одной (частичная настройка = ошибка старта). Пусто = чат
+      # остаётся заглушкой. Значения секретов в журналы и ошибки не попадают.
+      BITRIX24_WEBHOOK_URL: ${BITRIX24_WEBHOOK_URL:-}
+      BITRIX24_BOT_TOKEN: ${BITRIX24_BOT_TOKEN:-}
+      # JSON {"<botId>": {"id": <числовой id бота на портале>, "agent": "<agentId>"}}; при
+      # BITRIX24_BOT_AUTOREGISTER=true id необязателен, добавляются name/description/type/code.
+      BITRIX24_BOTS: ${BITRIX24_BOTS:-}
+      # Автосоздание ботов при старте (по умолчанию выключено: боты заданы вручную).
+      BITRIX24_BOT_AUTOREGISTER: ${BITRIX24_BOT_AUTOREGISTER:-false}
+      # Метка templateId в Chat.Message.send (повтор отправки). По умолчанию включена; false -
+      # выключатель, если портал метку не принимает.
+      BITRIX24_SEND_TEMPLATE_ID: ${BITRIX24_SEND_TEMPLATE_ID:-true}
+      BITRIX24_POLL_INTERVAL_MS: ${BITRIX24_POLL_INTERVAL_MS:-5000}
+      # 100 МБ - и умолчание, и максимум: большой файл идёт через диск (том file-spool), память
+      # ядра от его размера не растёт.
+      BITRIX24_MAX_FILE_BYTES: ${BITRIX24_MAX_FILE_BYTES:-104857600}
+      B24_ATTACHMENT_MAX_BYTES: ${B24_ATTACHMENT_MAX_BYTES:-20971520}
+      B24_ATTACHMENT_MAX_FILES: ${B24_ATTACHMENT_MAX_FILES:-10}
+      B24_ATTACHMENT_TIMEOUT_MS: ${B24_ATTACHMENT_TIMEOUT_MS:-30000}
+      B24_ATTACHMENT_MAX_CHARS: ${B24_ATTACHMENT_MAX_CHARS:-20000}
+      # Поиск в интернете: инструмент (флаг) и адаптер (провайдер anthropic | yandex | disabled).
+      # По умолчанию выключено; без провайдера инструмент отвечает «не настроено».
+      WEB_SEARCH_ENABLED: ${WEB_SEARCH_ENABLED:-false}
+      WEB_SEARCH_PROVIDER: ${WEB_SEARCH_PROVIDER:-disabled}
+      WEB_SEARCH_MAX_USES: ${WEB_SEARCH_MAX_USES:-}
+      WEB_SEARCH_MODEL_ALIAS: ${WEB_SEARCH_MODEL_ALIAS:-}
+      WEB_SEARCH_TIMEOUT_MS: ${WEB_SEARCH_TIMEOUT_MS:-}
+      WEB_SEARCH_API_KEY: ${WEB_SEARCH_API_KEY:-}
+      WEB_SEARCH_ALLOWED_DOMAINS: ${WEB_SEARCH_ALLOWED_DOMAINS:-}
+      WEB_SEARCH_BLOCKED_DOMAINS: ${WEB_SEARCH_BLOCKED_DOMAINS:-}
+      WEB_SEARCH_COUNTRY: ${WEB_SEARCH_COUNTRY:-}
+      WEB_SEARCH_CITY: ${WEB_SEARCH_CITY:-}
+      WEB_SEARCH_TIMEZONE: ${WEB_SEARCH_TIMEZONE:-}
+      # Голосовые сообщения: SPEECH_TO_TEXT_PROVIDER=off|local|yandex, по умолчанию off.
+      SPEECH_TO_TEXT_PROVIDER: ${SPEECH_TO_TEXT_PROVIDER:-off}
+      # local - контейнер speech (профиль speech); адрес внутри сети compose зашит.
+      SPEECH_LOCAL_URL: http://speech:8330
+      # Общий срок запроса ядра к speech; больше срока задания сервиса (SPEECH_JOB_TIMEOUT_SECONDS).
+      SPEECH_LOCAL_TIMEOUT_MS: ${SPEECH_LOCAL_TIMEOUT_MS:-1260000}
+      # Аллокатор Bun (mimalloc) по умолчанию возвращает освобождённые страницы ОС с задержкой, и
+      # при десяти разборах крупных файлов разом они копятся в anon (замер: пик 1525-1731 МиБ
+      # против 1427-1483 с нулевой задержкой). Цена - чаще системные вызовы возврата памяти; на
+      # скорость разбора не влияет.
+      MIMALLOC_PURGE_DELAY: "0"
+      # Yandex SpeechKit (SPEECH_TO_TEXT_PROVIDER=yandex); ключ - секрет, в secrets.env.
+      SPEECHKIT_API_KEY: ${SPEECHKIT_API_KEY:-}
+      SPEECHKIT_FOLDER_ID: ${SPEECHKIT_FOLDER_ID:-}
+      SPEECHKIT_TIMEOUT_MS: ${SPEECHKIT_TIMEOUT_MS:-}
+      # Пределы записи; те же переменные читает контейнер speech. Пусто = умолчание провайдера.
+      SPEECH_TO_TEXT_MAX_SECONDS: ${SPEECH_TO_TEXT_MAX_SECONDS:-}
+      SPEECH_TO_TEXT_MAX_BYTES: ${SPEECH_TO_TEXT_MAX_BYTES:-}
+      SPEECH_TO_TEXT_ECHO: ${SPEECH_TO_TEXT_ECHO:-false}
+      # Окно лимита поиска на сотрудника: N поисков за M минут (скользящее).
+      WEB_SEARCH_USER_MAX_PER_WINDOW: ${WEB_SEARCH_USER_MAX_PER_WINDOW:-60}
+      WEB_SEARCH_USER_WINDOW_MINUTES: ${WEB_SEARCH_USER_WINDOW_MINUTES:-10}
+      # Яндекс Поиск (WEB_SEARCH_PROVIDER=yandex) и собственное чтение страниц.
+      YANDEX_SEARCH_API_KEY: ${YANDEX_SEARCH_API_KEY:-}
+      YANDEX_SEARCH_FOLDER_ID: ${YANDEX_SEARCH_FOLDER_ID:-}
+      YANDEX_SEARCH_TIMEOUT_MS: ${YANDEX_SEARCH_TIMEOUT_MS:-}
+      YANDEX_SEARCH_REGION: ${YANDEX_SEARCH_REGION:-}
+      YANDEX_SEARCH_DAILY_MAX: ${YANDEX_SEARCH_DAILY_MAX:-}
+      WEB_PAGE_FETCH_TIMEOUT_MS: ${WEB_PAGE_FETCH_TIMEOUT_MS:-}
+      WEB_PAGE_FETCH_MAX_BYTES: ${WEB_PAGE_FETCH_MAX_BYTES:-}
+      # Чтение сайтов (инструмент readWebPage).
+      WEB_FETCH_ENABLED: ${WEB_FETCH_ENABLED:-}
+      WEB_FETCH_MAX_USES: ${WEB_FETCH_MAX_USES:-}
+      WEB_FETCH_MAX_CONTENT_TOKENS: ${WEB_FETCH_MAX_CONTENT_TOKENS:-}
+      WEB_FETCH_MAX_PER_TURN: ${WEB_FETCH_MAX_PER_TURN:-}
+      # Очистка текста страниц от ПДн перед моделью (телефоны, почты, ФИО, адреса; город
+      # остаётся): off | log_only (считать и логировать, текст не менять) | enforce.
+      WEB_PAGE_PII_STRIP: ${WEB_PAGE_PII_STRIP:-log_only}
+      # Слова-исключения детектора ПДн при очистке текста страниц (через запятую); пусто = только
+      # слова платформы. Тот же список читает и псевдонимизатор (см. его блок выше).
+      PII_ALLOWED_WORDS: ${PII_ALLOWED_WORDS:-}
+      # Плановый мониторинг проекта (задача из манифеста с enabled по этому флагу).
+      MONITORING_ENABLED: ${MONITORING_ENABLED:-false}
+      # Подсказка модели разобрать файл скриптом после ошибки разбора (нужна песочница скриптов).
+      AGENT_SCRIPT_ERROR_FALLBACK: ${AGENT_SCRIPT_ERROR_FALLBACK:-false}
+      # Отдельный маршрут шлюза /webpage/v1/messages для фактов со страниц сайтов (без
+      # псевдонимизации: публичные данные). Пусто или false = прежний маршрут.
+      WEB_PAGE_MODEL_ROUTE: ${WEB_PAGE_MODEL_ROUTE:-false}
+      # Режимы предупреждений вместо отказов: веб-поиск, черновики писем, блок промпта агентов.
+      WEB_SEARCH_LIMIT_WARNINGS: ${WEB_SEARCH_LIMIT_WARNINGS:-false}
+      EMAIL_DRAFT_LIMIT_WARNINGS: ${EMAIL_DRAFT_LIMIT_WARNINGS:-false}
+      FEEDBACK_LIMIT_WARNINGS: ${FEEDBACK_LIMIT_WARNINGS:-false}
+      # Работа с xlsx-шаблонами через сервис документов (порт для инструментов проекта).
+      TEMPLATE_WORKBOOK_ENABLED: ${TEMPLATE_WORKBOOK_ENABLED:-false}
+      # Bitrix24: читать связь задачи со сделкой; разбирать ссылки на задачи и сделки портала.
+      B24_TASK_DEAL_LINK: ${B24_TASK_DEAL_LINK:-false}
+      B24_PORTAL_LINKS: ${B24_PORTAL_LINKS:-false}
+      # Постоянные идентификаторы: префикс солей меток почты и команда кнопок Bitrix24. Пусто =
+      # значения платформы. Менять у работающей установки нельзя (ключи и метки разойдутся).
+      MAIL_TAG_SALT_PREFIX: ${MAIL_TAG_SALT_PREFIX:-}
+      BUTTON_COMMAND: ${BUTTON_COMMAND:-}
+      VISION_ENABLED: ${VISION_ENABLED:-true}
+      VISION_MAX_IMAGES_PER_TURN: ${VISION_MAX_IMAGES_PER_TURN:-10}
+      VISION_MAX_IMAGES_PER_DOCUMENT: ${VISION_MAX_IMAGES_PER_DOCUMENT:-5}
+      VISION_TIMEOUT_MS: ${VISION_TIMEOUT_MS:-}
+      VISION_MODEL_ALIAS: ${VISION_MODEL_ALIAS:-}
+      IMAGE_TEXT_GATE: ${IMAGE_TEXT_GATE:-log_only}
+      IMAGE_TEXT_GATE_TIMEOUT_MS: ${IMAGE_TEXT_GATE_TIMEOUT_MS:-}
+      # Режим фото с текстом: tokens (по умолчанию) | block | log_only. Пустое значение в .env
+      # равно «не задано» (синтаксис :-), т.е. tokens. По умолчанию текст с фото читает Tesseract в
+      # documents (флаг ниже), картинка с текстом в модель не уходит, затем текст проходит
+      # псевдонимизатор. tokens без IMAGE_TEXT_OCR_IN_DOCUMENTS=true требует MASK_URL и MASK_TOKEN
+      # (сервис mask, профиль mask), иначе app не стартует. Откат на блокировку: IMAGE_TEXT_MODE=block.
+      IMAGE_TEXT_MODE: ${IMAGE_TEXT_MODE:-tokens}
+      MASK_URL: ${MASK_URL:-}
+      MASK_TOKEN: ${MASK_TOKEN:-}
+      MASK_TIMEOUT_MS: ${MASK_TIMEOUT_MS:-}
+      # Фото в режиме tokens: сроки включают очередь documents. Нормализация стоит в очереди
+      # разбора (420 с), распознавание текста - в очереди OCR (300 с + проход + запас, 360 с).
+      # Пусто = эти значения.
+      IMAGE_NORMALIZE_TIMEOUT_MS: ${IMAGE_NORMALIZE_TIMEOUT_MS:-}
+      IMAGE_RECOGNIZE_TIMEOUT_MS: ${IMAGE_RECOGNIZE_TIMEOUT_MS:-}
+      # true: в режиме tokens текст с фото читает Tesseract в documents (/images/recognize-text,
+      # ручка DOCUMENTS_IMAGE_TEXT_ENDPOINT), сервис mask и MASK_URL/MASK_TOKEN не нужны. false -
+      # прежний путь через сервис mask (профиль mask). В коде ядра умолчание false; здесь true,
+      # потому что mask вынесен в профиль.
+      IMAGE_TEXT_OCR_IN_DOCUMENTS: ${IMAGE_TEXT_OCR_IN_DOCUMENTS:-true}
+      # Порог качества текста с фото, 0..100 (по умолчанию 40): ниже - фото не отправляется.
+      DOCUMENTS_OCR_TEXT_MIN_CONF: ${DOCUMENTS_OCR_TEXT_MIN_CONF:-40}
+      # Приветствие при первом сообщении сотрудника (роль, примеры, кнопки): по умолчанию выкл.
+      CHAT_GREETING_ENABLED: ${CHAT_GREETING_ENABLED:-false}
+      # Журнал хода чата: принятое событие записывается в БД до подтверждения источнику, ход после
+      # падения повторяется один раз. По умолчанию выключено (очередь в памяти).
+      CHAT_TURN_JOURNAL_ENABLED: ${CHAT_TURN_JOURNAL_ENABLED:-false}
+      # Адрес входящего вебхука CRM: ядро его пока не читает, нужен вашему CRM-адаптеру.
+      CRM_WEBHOOK_URL: ${CRM_WEBHOOK_URL:-}
+      # Файл правил доступа (путь внутри контейнера, см. том ниже). Пусто = «запрещено всем».
+      ACCESS_POLICY_FILE: ${ACCESS_POLICY_FILE:-}
+      # Id сотрудников, приравненных к руководителям отделов (право «только руководителям»).
+      ACCESS_EXTRA_HEAD_USER_IDS: ${ACCESS_EXTRA_HEAD_USER_IDS:-}
+      # Возобновление дочернего агента ответом инициатора (по умолчанию выключено).
+      HANDOFF_ASK_ENABLED: ${HANDOFF_ASK_ENABLED:-false}
+      # Ящики сотрудников и черновик письма перед отправкой (кнопка «Отправить»): по умолчанию
+      # выключено; без адаптера почты проекта письма не уходят («почта не подключена»).
+      EMPLOYEE_MAILBOX_ENABLED: ${EMPLOYEE_MAILBOX_ENABLED:-false}
+      # Выключатель отправки по кнопке «Отправить» (нужен EMPLOYEE_MAILBOX_ENABLED=true):
+      # по умолчанию включён; false - письма не уходят, сотрудник получает отказ.
+      EMPLOYEE_MAIL_SEND_ENABLED: ${EMPLOYEE_MAIL_SEND_ENABLED:-true}
+      # Почта по IMAP + SMTP. Нужны EMPLOYEE_MAILBOX_ENABLED=true и MAIL_MAILBOXES_FILE (путь
+      # внутри контейнера, см. том ниже); по умолчанию выключено.
+      MAIL_MAILBOXES_FILE: ${MAIL_MAILBOXES_FILE:-}
+      MAIL_IMAP_HOST: ${MAIL_IMAP_HOST:-}
+      MAIL_IMAP_PORT: ${MAIL_IMAP_PORT:-143}
+      MAIL_SMTP_HOST: ${MAIL_SMTP_HOST:-}
+      MAIL_SMTP_PORT: ${MAIL_SMTP_PORT:-25}
+      # Работа без шифрования (сервер без STARTTLS): только явным true.
+      MAIL_ALLOW_PLAINTEXT: ${MAIL_ALLOW_PLAINTEXT:-false}
+      # PEM своего удостоверяющего центра (внутри каталога файла ящиков) для STARTTLS.
+      MAIL_TLS_CA_FILE: ${MAIL_TLS_CA_FILE:-}
+      MAIL_AUTHSERV_ID: ${MAIL_AUTHSERV_ID:-}
+      # Модель доверия к отправителям писем: по умолчанию выключена (false = прежнее поведение).
+      MAIL_SENDER_TRUST_ENABLED: ${MAIL_SENDER_TRUST_ENABLED:-false}
+      MAIL_SENDER_TRUST_WEBSITE_DOMAIN: ${MAIL_SENDER_TRUST_WEBSITE_DOMAIN:-false}
+      MAIL_SENDER_TRUST_REPLY_THREAD: ${MAIL_SENDER_TRUST_REPLY_THREAD:-false}
+      MAIL_ALLOWED_SENDERS: ${MAIL_ALLOWED_SENDERS:-}
+      MAIL_CONNECT_TIMEOUT_MS: ${MAIL_CONNECT_TIMEOUT_MS:-10000}
+      MAIL_COMMAND_TIMEOUT_MS: ${MAIL_COMMAND_TIMEOUT_MS:-30000}
+      MAIL_OPERATION_TIMEOUT_MS: ${MAIL_OPERATION_TIMEOUT_MS:-120000}
+      MAIL_MAX_MESSAGE_BYTES: ${MAIL_MAX_MESSAGE_BYTES:-15000000}
+      MAIL_MAX_PER_PASS: ${MAIL_MAX_PER_PASS:-50}
+      # Личные заметки связки «сотрудник + бот» (миграция 013): по умолчанию выключено.
+      PAIR_NOTES_ENABLED: ${PAIR_NOTES_ENABLED:-false}
+      # Каталог документов агентов: подпапка смонтированной шары (только чтение).
+      FILES_ROOT: /srv/documents/${FILES_SUBDIR:-}
+      # Порог стабильности файла у ядра: тот же DOCUMENTS_STABLE_SECONDS, что у сервиса documents
+      # (одна ручка на оба; прежнее умолчание 180 с). Иначе ядро читало бы недописанный файл.
+      STABLE_SECONDS: ${DOCUMENTS_STABLE_SECONDS:-180}
+      # Список разрешённых шаблонов: тот же, что у сервиса documents (R6-08-03). Запись с «/» на
+      # конце - префикс каталога (R7-12). Пути отсчитываются от корня шары.
+      DOCUMENT_TEMPLATE_ALLOWLIST: ${DOCUMENT_TEMPLATE_ALLOWLIST:-}
+      # Предел шагов агента на один ход (по умолчанию 10, как в коде ядра).
+      AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-10}
+      # Песочница скриптов агентов: инструмент runDataScript у агентов. Тот же флаг включает
+      # сервис sandbox (профиль agent-sandbox); по умолчанию выключено, инструмента нет.
+      AGENT_SANDBOX_ENABLED: ${AGENT_SANDBOX_ENABLED:-0}
+      SANDBOX_SOCKET: /run/sandbox/sandbox.sock
+      # Шаг, после которого работа с файлом получает подсказку «перейди к разбору скриптом».
+      AGENT_SCRIPT_FALLBACK_STEP: ${AGENT_SCRIPT_FALLBACK_STEP:-15}
+      HISTORY_SEARCH_MAX_RESULTS: ${HISTORY_SEARCH_MAX_RESULTS:-5}
+      HISTORY_SEARCH_MAX_CHARS: ${HISTORY_SEARCH_MAX_CHARS:-6000}
+      # Сессии диалога: часы тишины до новой сессии, предел сводки, ожидание сводки на первой
+      # реплике новой сессии (пусто = значение по умолчанию из кода ядра).
+      SESSION_IDLE_HOURS: ${SESSION_IDLE_HOURS:-8}
+      SESSION_SUMMARY_MAX_CHARS: ${SESSION_SUMMARY_MAX_CHARS:-}
+      SESSION_SUMMARY_WAIT_MS: ${SESSION_SUMMARY_WAIT_MS:-}
+      # Кнопка «Новый диалог» под ответом при длинной сессии: не чаще раза за столько ходов.
+      NEW_DIALOG_HINT_EVERY_TURNS: ${NEW_DIALOG_HINT_EVERY_TURNS:-5}
+      # Бюджет токенов контекста хода (пусто = значение по умолчанию из кода ядра).
+      CONTEXT_WINDOW_TOKENS: ${CONTEXT_WINDOW_TOKENS:-}
+      CONTEXT_STEPS_RESERVE_TOKENS: ${CONTEXT_STEPS_RESERVE_TOKENS:-}
+      CONTEXT_SYSTEM_SHARE_PERCENT: ${CONTEXT_SYSTEM_SHARE_PERCENT:-}
+      CONTEXT_WARN_PERCENT: ${CONTEXT_WARN_PERCENT:-}
+      # Файлы от сотрудников из чата: отдельный том, шара остаётся только для чтения.
+      INTAKE_ROOT: /var/lib/agentplatform/intake
+      # Временные файлы больших потоков (том file-spool, не tmpfs) и предел занятого места.
+      FILE_SPOOL_DIR: /var/lib/agentplatform/spool
+      FILE_SPOOL_MAX_BYTES: ${FILE_SPOOL_MAX_BYTES:-2147483648}
+      # Общий с сервисом документов том: результат правки файлом, а не base64 в ответе.
+      DOCUMENTS_RESULT_DIR: /var/lib/agentplatform/exchange
+      # Тред ответственного для отчётов запусков по расписанию.
+      OWNER_THREAD_ID: ${OWNER_THREAD_ID:?задайте OWNER_THREAD_ID}
+      # Переменные агентов проекта (алиасы моделей `<ИМЯ>_MODEL`, отдел для поиска автора файла и
+      # т.п.) база не знает: их добавляет compose проекта вторым файлом include (см. пример
+      # examples/example/deploy/compose.project.yml).
+      # Телеметрия ядра (трассы и метрики по OTLP/HTTP; только коды, числа и хэши, без
+      # текстов и ПДн). По умолчанию выключена: заглушка без таймеров, сети и лишней работы.
+      # Приёмник - сервис alloy профиля telemetry (ниже), стек мониторинга - monitoring/.
+      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
+      TELEMETRY_OTLP_ENDPOINT: ${TELEMETRY_OTLP_ENDPOINT:-}
+      TELEMETRY_OTLP_TOKEN: ${TELEMETRY_OTLP_TOKEN:-}
+      TELEMETRY_HASH_KEY: ${TELEMETRY_HASH_KEY:-}
+      TELEMETRY_SERVICE_NAME: ${TELEMETRY_SERVICE_NAME:-}
+      TELEMETRY_FLUSH_INTERVAL_MS: ${TELEMETRY_FLUSH_INTERVAL_MS:-}
+      # Таблица цен моделей (путь внутри контейнера) и пороги стоимости: пусто = не заданы.
+      MODEL_PRICES_FILE: ${MODEL_PRICES_FILE:-}
+      AGENT_TURN_COST_WARN_USD: ${AGENT_TURN_COST_WARN_USD:-}
+      MODEL_CALL_COST_WARN_USD: ${MODEL_CALL_COST_WARN_USD:-}
+      # Жёсткий стоп хода по стоимости: по умолчанию выключен; включение требует предела.
+      AGENT_TURN_COST_HARD_STOP: ${AGENT_TURN_COST_HARD_STOP:-false}
+      AGENT_TURN_COST_HARD_LIMIT_USD: ${AGENT_TURN_COST_HARD_LIMIT_USD:-}
+    # Образ bun slim без curl/wget: сходить на порт можно только самим bun. /ready проверяет базу.
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:' + (process.env.HEALTH_PORT || 8088) + '/ready').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - *documents_mount
+      - intake-data:/var/lib/agentplatform/intake
+      - file-spool:/var/lib/agentplatform/spool
+      - documents-exchange:/var/lib/agentplatform/exchange
+      # Сокет песочницы скриптов (tmpfs, root:1000, ядро бежит под gid 1000). Без профиля
+      # agent-sandbox том пуст, а флаг AGENT_SANDBOX_ENABLED выключен.
+      - sandbox-socket:/run/sandbox
+      # Правила доступа: каталог хоста с access-policy.json, только чтение (не секрет, но и не код).
+      - type: bind
+        source: ${ACCESS_POLICY_HOST_DIR:-/etc/agentplatform/access}
+        target: /etc/agentplatform/access
+        read_only: true
+      # Файл ящиков почты (логины и пароли приложений): каталог хоста, только чтение. Владелец
+      # root, группа 1000, режим 0640; в образ и репозиторий не попадает.
+      - type: bind
+        source: ${MAIL_HOST_DIR:-/etc/agentplatform/mail}
+        target: /etc/agentplatform/mail
+        read_only: true
+    read_only: true
+    # Размер /tmp задан явно (R5-DB-10): без size tmpfs получает 50% ОЗУ хоста, но память
+    # считается в mem_limit контейнера, и runaway-запись убила бы контейнер по OOM, а не
+    # вернула ENOSPC. Код сервиса в /tmp явно не пишет; запас под побочные файлы (временные
+    # файлы SQLite при сортировке/индексе, буферы рантайма). Входит в mem_limit ниже.
+    tmpfs: ["/tmp:size=256m"]
+    # 1856m = 1483 x 1,25. Замер тяжёлого сценария (10 разборов файлов по ~20 МБ разом, anon
+    # 1427-1483 МиБ; с MIMALLOC_PURGE_DELAY=0 выше). Заполненный tmpfs /tmp (256 МиБ, код в него
+    # не пишет) в расчёт не входит: он съест запас.
+    mem_limit: 1856m
+    # Корректная остановка ядра занимает до 69 с: канал Bitrix24 закрывается за 8 с
+    # (CHANNEL_STOP_DEADLINE_MS в packages/adapters/src/bitrix24/channel.ts), затем service.stop - до
+    # 61 с: 30 с на текущую задачу очереди и ответы в чате (SHUTDOWN_TIMEOUT_MS в
+    # packages/core/src/app/service.ts) + 1 с грации на отмену цепочек чата + до 30 с на фоновую сводку
+    # сессий (sessions.settled); закрытие /health идёт сразу после них и на практике мгновенно.
+    # 8 + 61 = 69 с < 75 с. Docker по умолчанию шлёт SIGKILL через 10 с, поэтому срок задан явно
+    # и с запасом. Если ядро всё же убито, задача не теряется: недоделанная остаётся в jobs со
+    # статусом running и снова исполняется через таймаут видимости очереди (20 мин,
+    # JOB_VISIBILITY_TIMEOUT_MS).
+    stop_grace_period: 75s
+
+  # Прокси Docker API только на чтение для сборщика alloy (профиль telemetry): сам сокет
+  # docker.sock монтируется ТОЛЬКО сюда. Разрешены GET по /containers (список, inspect, логи) и
+  # /networks (его читает discovery.docker), все остальные разделы API и любые не-GET запросы
+  # (POST=0: создать, запустить, остановить, exec) прокси отвечает отказом 403. Остаточный риск:
+  # inspect отдаёт переменные окружения контейнеров (в том числе секреты) любому, кто достучался
+  # до прокси; поэтому прокси стоит в своей internal-сети docker-api вдвоём с alloy.
+  # Запуск от root без capabilities (cap_drop ALL): сокет принадлежит root, DAC не нужен.
+  docker-socket-proxy:
+    <<: *hardened
+    profiles: [telemetry]
+    # Версия закреплена (без latest); переопределяется DOCKER_PROXY_IMAGE при обновлении.
+    image: ${DOCKER_PROXY_IMAGE:-${BAI_IMAGE_DOCKER_PROXY:?нет BAI_IMAGE_DOCKER_PROXY, передайте images.lock}}
+    networks: [docker-api]
+    # Образ 0.3.0 при старте пишет haproxy.cfg рядом с шаблоном, а корневая ФС read_only:
+    # конфиг рендерится в tmpfs /run тем же sed, что в штатном entrypoint (IPv4+IPv6).
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >-
+        sed 's/$${BIND_CONFIG}/[::]:2375 v4v6/g' /usr/local/etc/haproxy/haproxy.cfg.template
+        > /run/haproxy.cfg && exec haproxy -W -db -f /run/haproxy.cfg
+    environment:
+      CONTAINERS: "1"
+      NETWORKS: "1"
+      PING: "1"
+      POST: "0"
+      EVENTS: "0"
+      VERSION: "0"
+      INFO: "0"
+      IMAGES: "0"
+      VOLUMES: "0"
+      EXEC: "0"
+      AUTH: "0"
+      BUILD: "0"
+      COMMIT: "0"
+      CONFIGS: "0"
+      DISTRIBUTION: "0"
+      GRPC: "0"
+      NODES: "0"
+      PLUGINS: "0"
+      SECRETS: "0"
+      SERVICES: "0"
+      SESSION: "0"
+      SWARM: "0"
+      SYSTEM: "0"
+      TASKS: "0"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    read_only: true
+    tmpfs: ["/run:size=8m"]
+    mem_limit: 64m
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2375/_ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # Сборщик телеметрии (профиль telemetry; без него сервиса нет и поведение стека прежнее).
+  # Принимает OTLP ядра, читает логи Docker, снимает метрики хоста и Postgres,
+  # проверяет /health служб и шлюз по mTLS, подхватывает textfile-метрики скриптов (в том числе
+  # метрики контейнеров container-metrics.sh) и индексатора и отправляет всё в стек
+  # мониторинга (TELEMETRY_TARGETS: local | remote | both).
+  # Порты наружу не публикуются: OTLP слушает только сеть backend (internal), а сеть с выходом
+  # наружу (telemetry-egress) у alloy отдельная и без других сервисов. UI Alloy - loopback.
+  # Включение: COMPOSE_PROFILES=telemetry в .env (или --profile telemetry), см. README.md.
+  # Права: НЕ root (473:473, пользователь alloy из образа), cap_drop ALL без добавок, корень
+  # хоста, /proc и /sys - только чтение, docker.sock у сборщика нет (API Docker - через
+  # docker-socket-proxy). /var/lib/docker не монтируется: логи берутся через API, а не из файлов.
+  # Условие работы без root: файлы клиентского ключа mTLS читаются группой 473 (host-шаг в
+  # docs/MONITORING.md, «Права Alloy»); без него прямая проба шлюза (check=mtls) красная.
+  alloy:
+    <<: *hardened
+    profiles: [telemetry]
+    # Версия закреплена (без latest); переопределяется ALLOY_IMAGE при обновлении.
+    image: ${ALLOY_IMAGE:-${BAI_IMAGE_ALLOY:?нет BAI_IMAGE_ALLOY, передайте images.lock}}
+    networks: [backend, telemetry-egress, docker-api]
+    depends_on:
+      docker-socket-proxy:
+        condition: service_started
+    # Метка host в телеметрии берётся из имени хоста контейнера.
+    hostname: ${TELEMETRY_HOST:-agentplatform}
+    # alloy:alloy (473) владеет томом alloy-data (права 770), он же читает ключ mTLS по группе.
+    user: "473:473"
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      # UI и /-/ready только на loopback контейнера (порт не публикуется).
+      - --server.http.listen-addr=127.0.0.1:12345
+      # Не отправлять сведения об использовании за пределы стека мониторинга.
+      - --disable-reporting
+      # Нужны компоненты ниже GA: otelcol.storage.file (диск-буфер трасс, public-preview) и
+      # otelcol.processor.deltatocumulative (delta -> cumulative для метрик ядра, experimental).
+      - --stability.level=experimental
+    environment:
+      # Мягкий предел кучи Go ниже mem_limit, чтобы сборщик не ловил OOM-kill.
+      # mem_limit 320m (на бою 247-254 МиБ сразу после старта), мягкий предел кучи 256MiB = 80%
+      # лимита: остальное - память вне кучи Go (стеки, mmap, буферы).
+      GOMEMLIMIT: 256MiB
+      COMPANY_ID: ${COMPANY_ID:-}
+      # Метка compose-проекта для отбора контейнеров в сборе логов (пусто = agentplatform).
+      ALLOY_COMPOSE_PROJECT: ${ALLOY_COMPOSE_PROJECT:-${COMPOSE_PROJECT_NAME:-}}
+      TELEMETRY_TARGETS: ${TELEMETRY_TARGETS:-remote}
+      # Фрагмент приёмников под выбранный режим (alloy/sinks/<режим>.alloy): в Alloy нет
+      # условных блоков, поэтому режим выбирает путь импортируемого модуля.
+      ALLOY_SINKS_FILE: /etc/alloy/sinks/${TELEMETRY_TARGETS:-remote}.alloy
+      TELEMETRY_LOCAL_URL: ${TELEMETRY_LOCAL_URL:-}
+      TELEMETRY_REMOTE_URL: ${TELEMETRY_REMOTE_URL:-}
+      # Секрет компании: значение кладётся в secrets.env, не в .env и не в git.
+      TELEMETRY_COMPANY_TOKEN: ${TELEMETRY_COMPANY_TOKEN:-}
+      # DSN пользователя ТОЛЬКО ЧТЕНИЕ (роль pg_monitor, README.md); пароль в URL кодируется.
+      # Строка разбита "\" в двойных кавычках YAML: перенос и отступ следующей строки не входят
+      # в значение, смысл прежний.
+      TELEMETRY_PG_DSN: "${TELEMETRY_PG_DSN:-postgresql://agentplatform_monitor@postgres:5432/\
+        ${POSTGRES_DB:-agentplatform}?sslmode=disable}"
+      GATEWAY_HOST: ${GATEWAY_HOST:-}
+      GATEWAY_PORT: ${GATEWAY_PORT:-443}
+      GATEWAY_TLS_NAME: ${GATEWAY_TLS_NAME:-}
+    volumes:
+      - ./alloy:/etc/alloy:ro
+      - alloy-data:/var/lib/alloy/data
+      - type: bind
+        source: /
+        target: /host/root
+        read_only: true
+        bind:
+          propagation: rslave
+      - /proc:/host/proc:ro
+      - /sys:/sys:ro
+      # Клиентский сертификат mTLS - те же файлы, что читает check-host.sh и gateway-mtls.
+      - type: bind
+        source: ${MTLS_DIR:-/etc/agentplatform/mtls}
+        target: /etc/gateway-mtls
+        read_only: true
+        bind:
+          create_host_path: false
+      # Textfile-метрики скриптов deploy/ (TEXTFILE_METRICS_DIR на хосте).
+      - type: bind
+        source: ${TEXTFILE_METRICS_DIR:-/var/lib/agentplatform/metrics}
+        target: /var/lib/agentplatform/metrics
+        read_only: true
+        bind:
+          create_host_path: false
+      # Textfile-метрики индексатора (indexer.prom) из его тома состояния.
+      - indexer-state:/var/lib/agentplatform/indexer:ro
+    read_only: true
+    tmpfs: ["/tmp:size=64m"]
+    mem_limit: 320m
+    # В образе нет curl/wget: /-/ready опрашивается через bash и /dev/tcp.
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/12345 && \
+          printf 'GET /-/ready HTTP/1.0\\r\\n\\r\\n' >&3 && \
+          head -n 1 <&3 | grep -q ' 200 '"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # --- одноразовые задачи (profile tools): docker compose --profile tools run --rm migrate ---
+  migrate:
+    # Тот же образ, что у postgres: psql и проверка версии pgvector в миграции 014.
+    image: ${POSTGRES_IMAGE:-${BAI_IMAGE_POSTGRES:?нет BAI_IMAGE_POSTGRES, передайте images.lock}}
+    profiles: [tools]
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-agentplatform}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:-agentplatform}
+      # Поток app (миграции проекта): путь внутри контейнера задан, только если на хосте
+      # указан APP_MIGRATIONS_DIR. Пусто - применяется один поток platform, как раньше.
+      # Карта старых версий legacy-map.tsv раннер находит рядом с миграциями.
+      APP_MIGRATIONS_DIR: ${APP_MIGRATIONS_DIR:+/app-migrations}
+      # Аварийный флаг: 1 - в учёт пишутся прежние имена версий (db/README.md). По умолчанию 0.
+      MIGRATE_LEGACY_NAMES: ${MIGRATE_LEGACY_NAMES:-0}
+    volumes:
+      - ${BAI_PLATFORM_DB_DIR:-../db}:/db:ro
+      # Без APP_MIGRATIONS_DIR монтируется безвредная заглушка (раннер её не читает).
+      - ${APP_MIGRATIONS_DIR:-${BAI_PLATFORM_DB_DIR:-../db}/testdata}:/app-migrations:ro
+    entrypoint: ["bash", "/db/migrate.sh"]

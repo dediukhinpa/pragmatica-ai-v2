@@ -1,0 +1,260 @@
+"""Эталонные имена боевого стека Прагматики (снимок stage-0/baseline и stage-0/prod).
+
+Список основной: тесты сверяют собранный compose v2 с ним, а внешние файлы эталона
+(BASELINE_DIR, PROD_DIR) используются только как дополнительная проверка самого списка.
+Здесь только имена и числа; значений переменных и секретов нет.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+# Имя compose-проекта и префикс томов и сетей на бою.
+PROJECT_NAME = "pragmatika"
+
+# Пути хоста, которые остаются прежними (контракт с действующим сервером).
+HOST_PATHS: tuple[str, ...] = (
+    "/etc/pragmatika",
+    "/srv/pragmatika",
+    "/opt/pragmatika/local",
+)
+
+
+@dataclass(frozen=True)
+class ServiceFacts:
+    """Факты о сервисе из baseline/config/services.tsv (блок deploy)."""
+
+    mem_limit: str  # "-" = лимит не задан
+    profiles: tuple[str, ...]
+    networks: tuple[str, ...]
+
+
+SERVICES: dict[str, ServiceFacts] = {
+    "alloy": ServiceFacts("320m", ("telemetry",), ("backend", "docker-api", "telemetry-egress")),
+    "app": ServiceFacts("1856m", (), ("backend", "egress", "pseudonymizer-net")),
+    "docker-socket-proxy": ServiceFacts("64m", ("telemetry",), ("docker-api",)),
+    "documents": ServiceFacts("4312m", (), ("backend",)),
+    "embeddings": ServiceFacts("1400m", (), ("backend",)),
+    "gateway-mtls": ServiceFacts("128m", (), ("backend", "egress")),
+    "indexer": ServiceFacts("384m", (), ("backend",)),
+    "mask": ServiceFacts("1536m", ("mask",), ("backend",)),
+    "migrate": ServiceFacts("-", ("tools",), ("backend",)),
+    "postgres": ServiceFacts("4g", (), ("backend",)),
+    "pseudonymizer": ServiceFacts("1400m", (), ("pseudonymizer-net",)),
+    "sandbox": ServiceFacts("768m", ("agent-sandbox",), ()),
+    "speech": ServiceFacts("1152m", ("speech",), ("backend",)),
+}
+
+# Тома верхнего уровня (volumes-networks.tsv). Имена на бою: pragmatika_<имя>.
+VOLUMES: tuple[str, ...] = (
+    "alloy-data",
+    "documents-exchange",
+    "documents-spool",
+    "file-spool",
+    "indexer-state",
+    "intake-data",
+    "pseudonymizer-data",
+    "sandbox-socket",
+    "speech-spool",
+)
+
+# Тома из снимка боевого сервера (stage-0/prod/volumes.txt, 08.11): остальные тома из VOLUMES в
+# снимке не значатся и создаются при первом запуске новой версии.
+PROD_VOLUMES_SNAPSHOT: tuple[str, ...] = (
+    "alloy-data",
+    "indexer-state",
+    "intake-data",
+    "pseudonymizer-data",
+    "sandbox-socket",
+)
+
+# Сети верхнего уровня и признак internal (volumes-networks.tsv).
+NETWORKS: dict[str, bool] = {
+    "backend": True,
+    "docker-api": True,
+    "egress": False,
+    "pseudonymizer-net": True,
+    "telemetry-egress": False,
+}
+
+# Действия доступа, которые знает ядро (access-actions.txt, реестр KNOWN_ACCESS_ACTIONS).
+ACCESS_ACTIONS: tuple[str, ...] = (
+    "chat.button",
+    "chat.file",
+    "chat.message",
+    "documents.update_own_requisites",
+    "mail.send_draft",
+    "orders.confirm_selection",
+    "orders.route_mail",
+    "prices.confirm_jump",
+    "site.confirm_publish",
+    "suppliers.confirm_card",
+    "suppliers.export",
+)
+
+# Имена переменных боевого .env (stage-0/prod, env_names.txt, 163 имени, без значений).
+PROD_ENV_NAMES: tuple[str, ...] = (
+    "ACCESS_POLICY_FILE",
+    "ACCESS_POLICY_HOST_DIR",
+    "AGENT_CALL_ENABLED",
+    "AGENT_HANDOFF_ORDER_CALC_TO_PRICES",
+    "AGENT_MAX_STEPS",
+    "AGENT_SANDBOX_ENABLED",
+    "BACKUP_AGE_RECIPIENT",
+    "BACKUP_CHECKSUM_DIR",
+    "BACKUP_EXCLUDE_KNOWLEDGE",
+    "BACKUP_LOCAL_DIR",
+    "BACKUP_LOCAL_RETENTION_DAYS",
+    "BACKUP_MIN_FREE_GB",
+    "BACKUP_REQUIRE_SEPARATE_FS",
+    "BACKUP_RETENTION_DAYS",
+    "BACKUP_S3_ACCESS_KEY_ID",
+    "BACKUP_S3_BUCKET",
+    "BACKUP_S3_ENDPOINT",
+    "BACKUP_S3_PREFIX",
+    "BACKUP_S3_REGION",
+    "BACKUP_S3_SECRET_ACCESS_KEY",
+    "BACKUP_SIGN_KEY_FILE",
+    "BACKUP_SIGN_PUBLIC_KEY",
+    "BITRIX24_BOT_AUTOREGISTER",
+    "BITRIX24_BOTS",
+    "BITRIX24_DEAL_FIELD_MAP",
+    "BITRIX24_MAX_FILE_BYTES",
+    "BITRIX24_POLL_INTERVAL_MS",
+    "BITRIX24_SEND_TEMPLATE_ID",
+    "BUSINESS_TIMEZONE",
+    "CHAT_AGENT_ID",
+    "CHAT_GREETING_ENABLED",
+    "CHAT_TURN_JOURNAL_ENABLED",
+    "CHAT_TURN_TIMEOUT_MS",
+    "COMPANY_ID",
+    "COMPOSE_PROFILES",
+    "CONTRACT_REGISTRY_PATH",
+    "DATABASE_POOL_SIZE",
+    "DATA_DIR",
+    "DOCUMENTS_ENABLED_KINDS",
+    "DOCUMENTS_HOST_DIR",
+    "DOCUMENTS_MAX_ARCHIVE_ENTRIES",
+    "DOCUMENTS_MAX_CELLS",
+    "DOCUMENTS_MAX_COMPRESSION_RATIO",
+    "DOCUMENTS_MAX_JSON_BODY_BYTES",
+    "DOCUMENTS_MAX_PDF_BYTES",
+    "DOCUMENTS_MAX_PDF_MEMORY_BYTES",
+    "DOCUMENTS_MAX_PDF_PAGES",
+    "DOCUMENTS_MAX_PDF_SECONDS",
+    "DOCUMENTS_MAX_RENDER_ROWS",
+    "DOCUMENTS_MAX_UNCOMPRESSED_BYTES",
+    "DOCUMENTS_MAX_UPLOAD_BYTES",
+    "DOCUMENTS_MAX_XML_BYTES",
+    "DOCUMENTS_MAX_XML_NODES",
+    "DOCUMENTS_MODEL",
+    "DOCUMENTS_PARSE_CONCURRENCY",
+    "DOCUMENTS_PARSE_TIMEOUT_MS",
+    "DOCUMENTS_RENDER_TIMEOUT_MS",
+    "DOCUMENTS_SCAN_BUDGET_SECONDS",
+    "DOCUMENTS_STABLE_SECONDS",
+    "DOCUMENT_TEMPLATE_ALLOWLIST",
+    "EMBEDDINGS_TIMEOUT_MS",
+    "EMPLOYEE_MAILBOX_ENABLED",
+    "EMPLOYEE_MAIL_SEND_ENABLED",
+    "GATEWAY_HOST",
+    "GATEWAY_PORT",
+    "GATEWAY_TLS_NAME",
+    "HANDOFF_ASK_ENABLED",
+    "HEALTH_PORT",
+    "IMAGE_TEXT_GATE",
+    "INDEXER_DELETE_MAX_FRACTION",
+    "INDEXER_INTERVAL_SECONDS",
+    "INDEXER_MAX_ATTEMPTS",
+    "INDEXER_MAX_FILE_BYTES",
+    "INDEXER_MIN_ENTRIES",
+    "INDEXER_PG_LOCK_TIMEOUT_MS",
+    "INDEXER_PG_STATEMENT_TIMEOUT_MS",
+    "INDEXER_SCAN_PATH",
+    "INDEXER_STABLE_SECONDS",
+    "INTAKE_VOLUME",
+    "JOB_WORKER_CONCURRENCY",
+    "MAIL_ALLOW_PLAINTEXT",
+    "MAIL_AUTHSERV_ID",
+    "MAIL_COMMAND_TIMEOUT_MS",
+    "MAIL_CONNECT_TIMEOUT_MS",
+    "MAIL_HOST_ALIAS",
+    "MAIL_HOST_DIR",
+    "MAIL_IMAP_HOST",
+    "MAIL_IMAP_PORT",
+    "MAIL_MAILBOXES_FILE",
+    "MAIL_MAX_MESSAGE_BYTES",
+    "MAIL_MAX_PER_PASS",
+    "MAIL_OPERATION_TIMEOUT_MS",
+    "MAIL_SMTP_HOST",
+    "MAIL_SMTP_PORT",
+    "MAIL_TLS_CA_FILE",
+    "MANAGER_THREAD_ID",
+    "MODEL_MAX_TOKENS",
+    "MODELS_DIR",
+    "MODEL_TIMEOUT_MS",
+    "MONITORING_ENABLED",
+    "MTLS_DIR",
+    "NGINX_IMAGE",
+    "ORDER_CALC_COMPLETENESS_ENABLED",
+    "ORDER_CALC_INTAKE_ENABLED",
+    "ORDER_CALC_MODEL",
+    "OWN_COMPANY_NAMES",
+    "POSTGRES_DB",
+    "POSTGRES_IMAGE",
+    "POSTGRES_USER",
+    "PRICE_DISK_INITIAL_IMPORT_ENABLED",
+    "PRICE_DISK_SYNC_ENABLED",
+    "PRICE_RECIPIENT_EXCLUDE_IDS",
+    "PRICE_RELEVANCE_MAX_NAMES",
+    "PRICE_RESPONSIBLE_THREAD_ID",
+    "PRICE_SEARCH_MIN_COSINE",
+    "PRICES_MAILBOX_OWNER_USER_ID",
+    "PRICES_MODEL",
+    "PRICES_SUBDIR",
+    "PRICE_STALE_CONTENT_CHECK",
+    "PRICE_STALE_SCAN_PREFIXES",
+    "PRICES_UNVERIFIED_SENDER_POLICY",
+    "PSEUDONYMIZER_CONTACTS_HOST_FILE",
+    "PSEUDONYMIZER_MASK_LEGAL_ENTITY",
+    "PSEUDONYMIZER_MAX_BATCH_ITEMS",
+    "PSEUDONYMIZER_MAX_CONCURRENCY",
+    "PSEUDONYMIZER_MAX_RESTORE_TOKENS",
+    "PSEUDONYMIZER_MAX_TEXT_CHARS",
+    "PSEUDONYMIZER_RETENTION_DAYS",
+    "PSEUDONYMIZER_TIMEOUT_MS",
+    "PURGE_RETENTION_DAYS",
+    "SECRETS_DIR",
+    "SITE_EXPORT_MODEL",
+    "SITE_PUBLISH_ENABLED",
+    "SITE_TEMPLATE_PATH",
+    "SUPPLIER_CARDS_ENABLED",
+    "SUPPLIERS_ROOT_NAME",
+    "SUPPLIER_TEMPLATE_PATH",
+    "TELEMETRY_ENABLED",
+    "TELEMETRY_OTLP_ENDPOINT",
+    "TELEMETRY_REMOTE_URL",
+    "TELEMETRY_TARGETS",
+    "TEMPLATES_HOST_DIR",
+    "TEMPLATES_PREFIX",
+    "TEMPLATES_SUBDIR",
+    "TEXTFILE_METRICS_DIR",
+    "VISION_DISK_IMAGES_ENABLED",
+    "VISION_INDEXER_API_KEY",
+    "WEB_ENRICH_SUPPLIERS_ENABLED",
+    "WEB_FETCH_MAX_PER_TURN",
+    "WEB_PAGE_MODEL_ROUTE",
+    "WEB_PAGE_PII_STRIP",
+    "WEB_SEARCH_ALLOWED_DOMAINS",
+    "WEB_SEARCH_API_KEY",
+    "WEB_SEARCH_BLOCKED_DOMAINS",
+    "WEB_SEARCH_CITY",
+    "WEB_SEARCH_COUNTRY",
+    "WEB_SEARCH_MAX_USES",
+    "WEB_SEARCH_MODEL_ALIAS",
+    "WEB_SEARCH_PROVIDER",
+    "WEB_SEARCH_TIMEOUT_MS",
+    "WEB_SEARCH_TIMEZONE",
+    "YANDEX_SEARCH_API_KEY",
+    "YANDEX_SEARCH_FOLDER_ID",
+)
