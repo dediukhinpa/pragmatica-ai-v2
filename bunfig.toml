@@ -7,4 +7,5 @@
 # Общая проверка после каждого теста, проект для тестов платформы и описание eval.
 preload = [
   "@business-ai/testing/setup",
+  "./tests/register-project.ts",
 ]
