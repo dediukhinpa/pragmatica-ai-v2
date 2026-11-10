@@ -1,0 +1,130 @@
+{
+  "id": "order-calc-shortlist-two-averages",
+  "agent": "order-calc",
+  "description": "Этап 104: две средние в шорт-листе без порога числа цен. Веб-кандидаты обогащены со страниц (цена 120 и 150 руб., город, контакты); «по интернету» считается по ним, «по нашей базе» показана отдельно (в базе цены одного поставщика нет: «нет данных»). Фразы «недостаточно цен» нет.",
+  "request": "Заявка req-22, возьми в работу. Нужны кружки с логотипом, ссылка на задачу https://portal.example.test/company/personal/user/7/tasks/task/view/2041/. Ответственный — Анна Рябова, +7 (903) 444-55-66.",
+  "followUps": [],
+  "state": {
+    "requests": [
+      {
+        "id": "req-22",
+        "dealRef": "D-22",
+        "items": [
+          {
+            "name": "Кружка с логотипом",
+            "quantity": 500,
+            "unit": "шт"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      }
+    ],
+    "prices": [],
+    "knowledge": {},
+    "web": [
+      {
+        "title": "КружкиОпт",
+        "url": "https://kruzhki.test",
+        "snippet": "Кружки керамические с логотипом, сублимационная печать, опт от 100 шт, цена 120 руб. за шт, срок 10 дней, +7 495 111-22-33"
+      },
+      {
+        "title": "Печать на кружках",
+        "url": "https://print-mug.test",
+        "snippet": "Сублимационная печать на кружках, тираж от 50 шт, цена 150 руб. за шт"
+      }
+    ],
+    "completeness": true,
+    "webPlan": [
+      "кружки керамические сублимационная печать логотип опт"
+    ],
+    "webFacts": {
+      "https://kruzhki.test": {
+        "city": "Москва",
+        "phone": "+7 495 111-22-33",
+        "price": {
+          "amount": 120,
+          "currency": "RUB",
+          "unit": "шт"
+        },
+        "leadTime": "10 дней"
+      },
+      "https://print-mug.test": {
+        "city": "Казань",
+        "price": {
+          "amount": 150,
+          "currency": "RUB",
+          "unit": "шт"
+        }
+      }
+    }
+  },
+  "expect": {
+    "maxSteps": 7,
+    "requiredTools": [
+      "checkRequestCompleteness",
+      "searchWeb",
+      "buildShortlist",
+      "askManagerToChoose"
+    ],
+    "toolOrder": "ordered",
+    "stateChecks": [
+      {
+        "probe": "chatTextContains",
+        "arg": "Средняя цена по нашей базе:[/B] нет данных",
+        "value": 1
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "Средняя цена по интернету:[/B] ",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "интернету: нет данных",
+        "value": 0
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "недостаточно",
+        "value": 0
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "Казань",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "(2 поставщика",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Рябова",
+      "Анна"
+    ],
+    "phones": [
+      "+7 (903) 444-55-66"
+    ],
+    "emails": []
+  }
+}

@@ -8,4 +8,5 @@
 preload = [
   "@business-ai/testing/setup",
   "./tests/register-project.ts",
+  "./tests/eval/register-eval.ts",
 ]

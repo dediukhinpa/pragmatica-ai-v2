@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "caseId": "prices-price-jump-saved",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-norm",
+          "name": "normalizePriceTable",
+          "arguments": {
+            "path": "price.csv",
+            "supplierId": "s1",
+            "columns": {
+              "name": 0,
+              "price": 1
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6487,
+        "outputTokens": 32
+      },
+      "latencyMs": 400,
+      "requestHash": "2c6de26e8038c1808229c904b1eb4a2cea9d4e04bdde18dfb842625c0aa5369c"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-save",
+          "name": "savePriceImport",
+          "arguments": {
+            "path": "price.csv",
+            "supplierId": "s1",
+            "fileHash": "wjrvzgnxyhxvmypvzwjhvvjwryrympxqykyrsyytwsqjtthwgtprvzjjstrgktxs",
+            "columns": {
+              "name": 0,
+              "price": 1
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6636,
+        "outputTokens": 51
+      },
+      "latencyMs": 400,
+      "requestHash": "de570e3f408f4b624499d0136c23144908f8932b2564ff6ab95d986b5efff296"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-rep",
+          "name": "reportToManager",
+          "arguments": {
+            "kind": "import_done",
+            "path": "price.csv",
+            "fileHash": "h-1",
+            "updated": 1,
+            "needsReview": 1
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6723,
+        "outputTokens": 35
+      },
+      "latencyMs": 400,
+      "requestHash": "8d3c37fab29381f4c4dab34e91921365cac6da6f2d9d1aae14c44b46251ba6f9"
+    },
+    {
+      "content": "Прайс обновлён, скачок цены отмечен на проверку",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6787,
+        "outputTokens": 13
+      },
+      "latencyMs": 400,
+      "requestHash": "3e71fca8bd68fffaa662d9d8c84759fa70d89deec135cc3993c63b6b28f2407f"
+    }
+  ],
+  "synthetic": true
+}

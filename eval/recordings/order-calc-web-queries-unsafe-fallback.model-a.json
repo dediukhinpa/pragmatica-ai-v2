@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "caseId": "order-calc-web-queries-unsafe-fallback",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-check",
+          "name": "checkRequestCompleteness",
+          "arguments": {
+            "requestId": "req-21",
+            "kind": "custom_product",
+            "values": {
+              "product": "кружки керамические белые",
+              "quantity": "500",
+              "production_date": "до 20.11.2026",
+              "budget": "до 150",
+              "dimensions": "диаметр 8, высота 10",
+              "material_color": "керамика, белая",
+              "personalization_tech": "сублимация, 2 цвета",
+              "personalization_size": "6 x 6",
+              "sample": "нет",
+              "task_link": "https://portal.example.test/company/personal/user/7/tasks/task/view/2041/"
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5891,
+        "outputTokens": 120
+      },
+      "latencyMs": 400,
+      "requestHash": "9d90d1baba586c00596041f9a62536c04838edf465af5d8573c6e622acd1b875"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-web",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-21"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6057,
+        "outputTokens": 18
+      },
+      "latencyMs": 400,
+      "requestHash": "8ff095080d6b9afc898a21f64f00783aec964d0b0795244ecb85c50c91a2ec7b"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-21"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6116,
+        "outputTokens": 20
+      },
+      "latencyMs": 400,
+      "requestHash": "49e0bcb66d317c504f95ce8dc1099b37126900e120022fcfdeeb7ec977bb6c35"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-21",
+            "version": "htpyrkwpjmggwvgm"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6315,
+        "outputTokens": 27
+      },
+      "latencyMs": 400,
+      "requestHash": "f6a6ad938fe8f01d73327b20aba39d14df222cf4486c99a1e10f7802284dc3ab"
+    }
+  ],
+  "synthetic": true
+}

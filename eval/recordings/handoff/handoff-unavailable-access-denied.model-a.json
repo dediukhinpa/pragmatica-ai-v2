@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "caseId": "handoff-unavailable-access-denied",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "h-1",
+          "name": "handoffToPrices",
+          "arguments": {
+            "requestId": "req-5",
+            "positions": [
+              "Арматура 12 мм"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3931,
+        "outputTokens": 26
+      },
+      "latencyMs": 400,
+      "requestHash": "dd9a19043c47ab9cb7d745795d0fbd53042040537611c9f6e0794337ac77ccb5"
+    },
+    {
+      "content": "Передать агенту «Актуализация прайса (ИИ агент)» не удалось: у вас нет доступа к этому помощнику.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4063,
+        "outputTokens": 25
+      },
+      "latencyMs": 400,
+      "requestHash": "115ed69daeab8b1f936034bfc144ba4e6cf341340865214f4b9a1f4bf5aca395"
+    }
+  ],
+  "synthetic": true
+}

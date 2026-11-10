@@ -1,0 +1,96 @@
+{
+  "id": "order-calc-empty-search",
+  "agent": "order-calc",
+  "description": "По заявке ничего не нашлось ни в одном источнике: агент не выдумывает поставщиков, спрашивает менеджера и после уточнения ничего не рассылает.",
+  "request": "Заявка req-9, возьми в работу. Ответственный — Анна Рябова, +7 (903) 444-55-66.",
+  "followUps": [
+    "Ищи «металлопрокат»"
+  ],
+  "state": {
+    "requests": [
+      {
+        "id": "req-9",
+        "dealRef": "D-9",
+        "items": [
+          {
+            "name": "Космолёт",
+            "quantity": 1,
+            "unit": "шт"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      },
+      {
+        "id": "s3",
+        "name": "БезКонтакта"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Арматура 12 мм",
+        "price": 50
+      },
+      {
+        "supplierId": "s2",
+        "productName": "Арматура 12 мм",
+        "price": 50
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Арматура: условия поставки"
+    },
+    "web": [
+      {
+        "title": "МеталлТорг",
+        "url": "https://metall.test",
+        "snippet": "Арматура от склада"
+      },
+      {
+        "title": "Арматура-Центр",
+        "url": "https://armatura.test",
+        "snippet": "Арматура и сетка"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 6,
+    "requiredTools": [
+      "buildShortlist",
+      "askManagerToChoose"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "prepareSupplierRequestText",
+      "recordSelection"
+    ],
+    "outputContains": [
+      "поиск"
+    ],
+    "stateChecks": [
+      {
+        "probe": "mailSent",
+        "value": 0
+      },
+      {
+        "probe": "chatMessages",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {"names": ["Рябова", "Анна"], "phones": ["+7 (903) 444-55-66"]}
+}

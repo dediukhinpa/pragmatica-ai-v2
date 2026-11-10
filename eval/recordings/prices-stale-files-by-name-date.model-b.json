@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "caseId": "prices-stale-files-by-name-date",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-stale",
+          "name": "listStalePriceFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6498,
+        "outputTokens": 16
+      },
+      "latencyMs": 650,
+      "requestHash": "11ef3729e18a41e810b1c54e6e1d95a2caad3c9900462c690b49877abd20cc52"
+    },
+    {
+      "content": "Прайсы с датой в названии старше 3 месяцев:\n- produkciya/Кружки/Прайс_Кружки_Сублимация_28.02.2026.xlsx (дата в названии 28.02.2026)",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6590,
+        "outputTokens": 34
+      },
+      "latencyMs": 650,
+      "requestHash": "7087a9df499ac2c778763703183307b13e91e7ff0cf233cf1ebc80962410218a"
+    }
+  ],
+  "synthetic": true
+}

@@ -1,0 +1,27 @@
+{
+  "id": "prices-update-ok",
+  "agent": "prices",
+  "description": "Прайс поставщика обновился: цена Болта выросла, добавилась Гайка. Агент сохраняет импорт и отчитывается менеджеру. В запросе сотрудника есть ПДн.",
+  "request": "Проверь прайсы. Файл прислал Пётр Иванов, его телефон +7 (902) 123-45-67.",
+  "state": {
+    "suppliers": [{ "id": "s1", "name": "МеталлТорг" }],
+    "prices": [{ "supplierId": "s1", "productName": "Болт", "price": 10 }],
+    "files": [{ "path": "price.csv", "text": "Наименование,Цена\nБолт,12\nГайка,5" }]
+  },
+  "expect": {
+    "maxSteps": 6,
+    "requiredTools": ["normalizePriceTable", "savePriceImport", "reportToManager"],
+    "toolOrder": "ordered",
+    "outputContains": ["обновлён"],
+    "stateChecks": [
+      { "probe": "storedPriceCount", "value": 2 },
+      { "probe": "storedPrice", "arg": "s1:Болт", "value": 12 },
+      { "probe": "chatMessages", "value": 1 }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": ["Иванов", "Пётр", "Петр"],
+    "phones": ["+7 (902) 123-45-67"]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "caseId": "documents-template-missing",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "акт сверки"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5508,
+        "outputTokens": 18
+      },
+      "latencyMs": 400,
+      "requestHash": "be6e561fd10574583139aa2a786d558fdfbdf8aa86b4924a393293d89521bb6c"
+    },
+    {
+      "content": "Шаблона «акт сверки» нет. Какой шаблон взять или положить его на диск?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5578,
+        "outputTokens": 18
+      },
+      "latencyMs": 400,
+      "requestHash": "a47fce08dd5a6b1af41e7ed045e4fd0d37e2c7a68f55f96befd57bc5b3863dc0"
+    }
+  ],
+  "synthetic": true
+}

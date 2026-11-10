@@ -1,0 +1,96 @@
+{
+  "id": "handoff-need-explicit",
+  "description": "Сотрудник прямо просит освежить цены через «Актуализация прайса (ИИ агент)» перед расчётом: модель обязана вызвать передачу ровно один раз, не рассылать запросы поставщикам сама и сообщить, что передача поставлена.",
+  "request": "Заявка req-1 по сделке D-1. Цены по арматуре в базе старые: освежи их через помощника «Актуализация прайса (ИИ агент)» перед расчётом. Ответственный — Игорь Козлов, +7 (999) 111-22-33.",
+  "state": {
+    "requests": [
+      {
+        "id": "req-1",
+        "dealRef": "D-1",
+        "items": [
+          {
+            "name": "Арматура",
+            "quantity": 100,
+            "unit": "м"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Арматура 12 мм",
+        "price": 50,
+        "date": "2025-01-10T00:00:00.000Z"
+      },
+      {
+        "supplierId": "s2",
+        "productName": "Арматура 12 мм",
+        "price": 52,
+        "date": "2025-01-10T00:00:00.000Z"
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Арматура: условия поставки"
+    },
+    "web": [
+      {
+        "title": "МеталлТорг",
+        "url": "https://metall.test",
+        "snippet": "Арматура от склада"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 4,
+    "requiredTools": [
+      "handoffToPrices"
+    ],
+    "forbiddenTools": [
+      "prepareSupplierRequestText",
+      "recordSelection"
+    ],
+    "outputMatches": [
+      "передан|передал|поставлен"
+    ],
+    "stateChecks": [
+      {
+        "probe": "handoffsQueued",
+        "value": 1
+      },
+      {
+        "probe": "mailSent",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Козлов",
+      "Игорь"
+    ],
+    "phones": [
+      "+7 (999) 111-22-33"
+    ]
+  },
+  "handoff": {
+    "category": "need",
+    "access": "allowed",
+    "allowedHandoffCalls": 1
+  }
+}

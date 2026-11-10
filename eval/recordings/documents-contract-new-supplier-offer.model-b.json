@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "caseId": "documents-contract-new-supplier-offer",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "Договор"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7120,
+        "outputTokens": 17
+      },
+      "latencyMs": 650,
+      "requestHash": "44e23a682691804395b2ea87c1ebd4eec032d6ab3162b69797fc1843ac429289"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "lookupSupplierInBase",
+          "arguments": {
+            "name": "Новый Поставщик",
+            "documentKind": "contract"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7312,
+        "outputTokens": 27
+      },
+      "latencyMs": 650,
+      "requestHash": "4924b0f174863f27c115f1e1de5e626a67b8f99071f1d9245637203c883993d8"
+    },
+    {
+      "content": "Договор подготовлен по данным из запроса, пропуски отмечены маркерами. Поставщика «Новый Поставщик» нет в базе. Добавить в базу?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7416,
+        "outputTokens": 33
+      },
+      "latencyMs": 650,
+      "requestHash": "1bd746a854585eca75780bfcfb81e576d99cb132ae79a9418d6d86f2404d1534"
+    }
+  ],
+  "synthetic": true
+}

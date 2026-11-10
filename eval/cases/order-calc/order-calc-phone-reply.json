@@ -1,0 +1,181 @@
+{
+  "id": "order-calc-phone-reply",
+  "agent": "order-calc",
+  "description": "Поставщик ответил по телефону (этап 105): почта сотрудников не подключена. После выбора менеджера и текстов запросов сотрудник сообщает ответ МеталлТорга по телефону; recordSupplierReply сначала показывает запись (ничего не пишет), после «да» отдельной репликой записывает её в хранилище ответов с каналом phone. recordQuote принимает replyId этого ответа как sourceRef, orderStatus показывает по данным системы: МеталлТорг ответил (телефон), КП записано; Болтик без ответа. Метка: менеджер выбрал бы s1 (МеталлТорг).",
+  "request": "Заявка req-1 по сделке D-1, возьми в работу. Менеджер по продажам — Игорь Козлов, +7 (999) 111-22-33.",
+  "followUps": [
+    "Берём МеталлТорг и Болтик",
+    "МеталлТорг ответил по телефону: арматура в наличии, 48 рублей за метр, срок три дня",
+    "да, записывай",
+    "Запиши КП по этому ответу",
+    "Покажи статус заказа"
+  ],
+  "state": {
+    "requests": [
+      {
+        "id": "req-1",
+        "dealRef": "D-1",
+        "items": [
+          {
+            "name": "Арматура",
+            "quantity": 100,
+            "unit": "м"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      },
+      {
+        "id": "s3",
+        "name": "БезКонтакта"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Арматура 12 мм",
+        "price": 50
+      },
+      {
+        "supplierId": "s2",
+        "productName": "Арматура 12 мм",
+        "price": 50
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Арматура: условия поставки"
+    },
+    "web": [
+      {
+        "title": "МеталлТорг",
+        "url": "https://metall.test",
+        "snippet": "Арматура от склада"
+      },
+      {
+        "title": "Арматура-Центр",
+        "url": "https://armatura.test",
+        "snippet": "Арматура и сетка"
+      }
+    ],
+    "expectedManagerChoice": "s1"
+  },
+  "expect": {
+    "maxSteps": 20,
+    "requiredTools": [
+      "searchKnowledgeSuppliers",
+      "buildShortlist",
+      "askManagerToChoose",
+      "recordManagerChoice",
+      "recordSelection",
+      "prepareSupplierRequestText",
+      "recordSupplierReply",
+      "recordQuote",
+      "orderStatus"
+    ],
+    "toolOrder": "ordered",
+    "outputContains": [
+      "Статус заказа"
+    ],
+    "stateChecks": [
+      {
+        "probe": "selectedSupplierCount",
+        "value": 2
+      },
+      {
+        "probe": "preparedSupplierCount",
+        "value": 2
+      },
+      {
+        "probe": "mailSent",
+        "value": 0
+      },
+      {
+        "probe": "storedReplyCount",
+        "value": 1
+      },
+      {
+        "probe": "storedReplyCount",
+        "arg": "phone",
+        "value": 1
+      },
+      {
+        "probe": "storedReplyCount",
+        "arg": "email",
+        "value": 0
+      },
+      {
+        "probe": "storedQuoteCount",
+        "value": 1
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "ответил (телефон",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "Болтик: запрос подготовлен",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "turnChecks": [
+      {
+        "turn": 2,
+        "probe": "storedReplyCount",
+        "value": 0
+      },
+      {
+        "turn": 3,
+        "probe": "storedReplyCount",
+        "value": 1
+      },
+      {
+        "turn": 3,
+        "probe": "storedQuoteCount",
+        "value": 0
+      },
+      {
+        "turn": 4,
+        "probe": "storedQuoteCount",
+        "value": 1
+      },
+      {
+        "turn": 2,
+        "probe": "mailSent",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true,
+    "forbiddenTools": [
+      "readSupplierReplies",
+      "routeSupplierMail"
+    ]
+  },
+  "pii": {
+    "names": [
+      "Козлов",
+      "Игорь"
+    ],
+    "phones": [
+      "+7 (999) 111-22-33"
+    ],
+    "emails": [
+      "zakaz-metall@metall.test",
+      "zakaz-boltik@boltik.test"
+    ]
+  }
+}

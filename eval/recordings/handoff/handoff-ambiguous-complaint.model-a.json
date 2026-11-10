@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "caseId": "handoff-ambiguous-complaint",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "Что именно сделать с ценами: освежить их или сравнить?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 3918,
+        "outputTokens": 14
+      },
+      "latencyMs": 400,
+      "requestHash": "fa6979c0c3433e4e19fdf8978c32f794c2b3c959736a13f68fcb379d5dda9211"
+    }
+  ],
+  "synthetic": true
+}

@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "caseId": "documents-employee-requisite",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "Договор"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5543,
+        "outputTokens": 17
+      },
+      "latencyMs": 400,
+      "requestHash": "08de7a4195a729415528608ca1b24c7f3bb6d24b20cc45930785aeb4b039fd3b"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "handoffForReview",
+          "arguments": {
+            "templatePath": "templates/Договор поставки.docx",
+            "document": {
+              "id": "doc-5",
+              "kind": "contract",
+              "number": "Д-1",
+              "buyer": "ООО Прагматика",
+              "seller": "МеталлТорг",
+              "supplierId": "s1",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-05T00:00:00.000Z",
+              "requisites": {
+                "inn": "7707083893",
+                "kpp": "773601001",
+                "ogrn": "1027700132195",
+                "legalAddress": "г. Москва, ул. Вавилова, 19",
+                "bankName": "ПАО Сбербанк",
+                "bik": "044525225",
+                "settlementAccount": "40702810200000000001",
+                "correspondentAccount": "30101810400000000225",
+                "directorName": "Сидоров Сергей Петрович"
+              },
+              "fieldSources": {
+                "buyer": "employee",
+                "seller": "knowledge",
+                "lines": "employee",
+                "total": "employee",
+                "requisites": "knowledge",
+                "requisites.directorName": "employee"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5735,
+        "outputTokens": 201
+      },
+      "latencyMs": 400,
+      "requestHash": "1e320d77726cf19c33363950f7487d7829ff1b1bc012ae0de3fe8639f5a7ee8e"
+    },
+    {
+      "content": "Договор передан на проверку; подписант вписан с ваших слов, сверьте его с документами",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6864,
+        "outputTokens": 22
+      },
+      "latencyMs": 400,
+      "requestHash": "9e3447adc3eaab841b16d91dd7549405312c0b87fa3daacdf9c459f4d154403f"
+    }
+  ],
+  "synthetic": true
+}

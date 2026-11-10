@@ -1,0 +1,82 @@
+{
+  "id": "order-calc-business-card-photo",
+  "agent": "order-calc",
+  "description": "Фото визитки + «заведи поставщика» (этап 224, IMAGE_TEXT_MODE=tokens): фото читается как текст с фото (imageReads), поставщика нет в базе - карточка создаётся без вопросов (createSupplierFromAttachment, sourceText - распознанный текст), prepareSupplierCard и подтверждение не нужны. Проверяется состояние (карточка с контактом и сайтом), а не текст ответа; ПДн визитки (человек, телефон, почта) в запросах к модели только токенами.",
+  "request": "Заведи поставщика по фото визитки, которое я прислал.",
+  "state": {
+    "requests": [
+      {
+        "id": "req-1",
+        "dealRef": "D-1",
+        "items": [
+          {
+            "name": "Арматура",
+            "quantity": 100,
+            "unit": "м"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "supplierCards": true,
+    "chatPhotos": [
+      {
+        "name": "визитка.jpg",
+        "text": "Текст с фото: ООО «Бета Трейд»\nОрлов Игорь Павлович\nКоммерческий директор\nТел. +7 (495) 013-57-91\norlov@beta-trade.example\nwww.beta-trade.example"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 6,
+    "requiredTools": [
+      "readChatAttachments",
+      "findSupplierCard",
+      "createSupplierFromAttachment"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "prepareSupplierCard",
+      "confirmSupplierRequest"
+    ],
+    "outputContains": [
+      "карточк"
+    ],
+    "stateChecks": [
+      {
+        "probe": "supplierCardCount",
+        "value": 2
+      },
+      {
+        "probe": "supplierCardNamedFieldFilled",
+        "arg": "Бета Трейд:contacts",
+        "value": 1
+      },
+      {
+        "probe": "supplierCardNamedFieldFilled",
+        "arg": "Бета Трейд:website",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Орлов",
+      "Игорь",
+      "Павлович"
+    ],
+    "phones": [
+      "+7 (495) 013-57-91"
+    ],
+    "emails": [
+      "orlov@beta-trade.example"
+    ]
+  }
+}

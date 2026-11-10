@@ -1,0 +1,58 @@
+{
+  "id": "prices-group-header",
+  "agent": "prices",
+  "description": "Название только в строке-заголовке группы, у строк вариантов оно пусто: агент передаёт groupHeaderRows и variantColumns, код подставляет название группы.",
+  "request": "Проверь прайсы. Ответственный — Тимур Лаптев, +7 (917) 666-77-88.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "prices": [],
+    "files": [
+      {
+        "path": "groups.csv",
+        "text": "Наименование,Объём,Цена\nКружка керамическая,,\n,300 мл,100\n,450 мл,140"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 6,
+    "requiredTools": [
+      "normalizePriceTable",
+      "savePriceImport",
+      "reportToManager"
+    ],
+    "toolOrder": "ordered",
+    "outputContains": [
+      "обновлён"
+    ],
+    "stateChecks": [
+      {
+        "probe": "storedPriceCount",
+        "value": 2
+      },
+      {
+        "probe": "storedPrice",
+        "arg": "s1:Кружка керамическая 450 мл",
+        "value": 140
+      },
+      {
+        "probe": "chatMessages",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Лаптев",
+      "Тимур"
+    ],
+    "phones": [
+      "+7 (917) 666-77-88"
+    ]
+  }
+}

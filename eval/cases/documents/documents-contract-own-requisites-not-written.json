@@ -1,0 +1,63 @@
+{
+  "id": "documents-contract-own-requisites-not-written",
+  "agent": "documents",
+  "description": "Договор с поставщиком из базы (этап 219): в сообщении есть адреса и нашей компании, и поставщика. Модель передаёт в enrichSupplierCard юридический адрес нашей компании. Проверяется состояние карточки: сайт поставщика записан, адрес нашей компании не записан (код отбрасывает его по OWN_COMPANY_REQUISITES).",
+  "request": "Подготовь договор поставки с МеталлТорг (сайт https://metalltorg.example). Наша компания ООО Заказчик, юридический адрес: г. Свой, ул. Наша, 5. Ответственный — Ольга Белова, +7 (916) 222-33-44.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "files": [
+      {
+        "path": "templates/Договор поставки.docx",
+        "text": "tpl"
+      }
+    ],
+    "supplierCards": true,
+    "ownCompanyRequisites": [
+      "г. Свой, ул. Наша, 5"
+    ]
+  },
+  "expect": {
+    "maxSteps": 6,
+    "requiredTools": [
+      "lookupSupplierInBase",
+      "prepareSupplierDocument",
+      "enrichSupplierCard"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "recordSupplierLookupDecision",
+      "createSupplierFromAttachment"
+    ],
+    "stateChecks": [
+      {
+        "probe": "supplierCardFieldFilled",
+        "arg": "s1:website",
+        "value": 1
+      },
+      {
+        "probe": "supplierCardFieldFilled",
+        "arg": "s1:legalAddress",
+        "value": 0
+      },
+      {
+        "probe": "supplierCardCount",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Белова",
+      "Ольга"
+    ],
+    "phones": [
+      "+7 (916) 222-33-44"
+    ]
+  }
+}

@@ -1,0 +1,278 @@
+{
+  "version": 1,
+  "caseId": "order-calc-phone-reply",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "search-0",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        },
+        {
+          "id": "search-1",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3819,
+        "outputTokens": 40
+      },
+      "latencyMs": 400,
+      "requestHash": "a7fdbbe5b9d40e5c14e9a0de76286e565fb6733088c6021c75399f8167e39602"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3949,
+        "outputTokens": 19
+      },
+      "latencyMs": 400,
+      "requestHash": "aed78c871d3bb75b31928af21dbb41b621f76c17df9069971f86e929e06284fb"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-1",
+            "version": "sjgjqhhhprrhkxjt"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4194,
+        "outputTokens": 27
+      },
+      "latencyMs": 400,
+      "requestHash": "fbf22f75f1c71d7f698340fc838b19a965c6253ad78ec77921854fcb1e0b42d7"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-choice",
+          "name": "recordManagerChoice",
+          "arguments": {
+            "requestId": "req-1",
+            "decision": "picked",
+            "picks": [
+              "МеталлТорг",
+              "Болтик"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4127,
+        "outputTokens": 34
+      },
+      "latencyMs": 400,
+      "requestHash": "e9d47fe993c7dcf58a9a92b9f83672564fae14174ff6ac2fb3b16af36b3f39fb"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-select",
+          "name": "recordSelection",
+          "arguments": {
+            "requestId": "req-1",
+            "supplierIds": [
+              "s1",
+              "s2"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4202,
+        "outputTokens": 26
+      },
+      "latencyMs": 400,
+      "requestHash": "0e7bf2c8b96fe4fa30366736d90d1cea6cb6ed3f8ad1b6bd1948f129fef6e020"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-text",
+          "name": "prepareSupplierRequestText",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4268,
+        "outputTokens": 22
+      },
+      "latencyMs": 400,
+      "requestHash": "b6cbdf41c9dc1c7e57ddb736219acb53d9adbfed9f41c4e83d98f3e50fb76309"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-reply-show",
+          "name": "recordSupplierReply",
+          "arguments": {
+            "requestId": "req-1",
+            "supplierId": "s1",
+            "channel": "phone",
+            "summary": "Арматура в наличии, 48 рублей за метр, срок три дня"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4708,
+        "outputTokens": 47
+      },
+      "latencyMs": 400,
+      "requestHash": "13a8267bd85ccf94f537b82152250a9bfff2ad3fa9fdc559d6856b33d4639c38"
+    },
+    {
+      "content": "Запись ответа показана, жду подтверждения",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4822,
+        "outputTokens": 11
+      },
+      "latencyMs": 400,
+      "requestHash": "b04a76e44593af73739a2e21cd2b2a074f0ea093f6394ef7de7595bef8a9ab45"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-reply-yes",
+          "name": "recordSupplierReply",
+          "arguments": {
+            "requestId": "req-1",
+            "supplierId": "s1",
+            "channel": "phone",
+            "summary": "Арматура в наличии, 48 рублей за метр, срок три дня",
+            "confirmed": true
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4737,
+        "outputTokens": 51
+      },
+      "latencyMs": 400,
+      "requestHash": "bf3317a4ca659a7198817bf05bb3e7ca661fb36c6fb54372b5fa11ec64e54634"
+    },
+    {
+      "content": "Ответ записан",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4863,
+        "outputTokens": 4
+      },
+      "latencyMs": 400,
+      "requestHash": "b2e73b2a3db68b8e4b29ccdcfdcbdfd913dcf038dd37ef310098e48d0eb4ae2f"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-quote",
+          "name": "recordQuote",
+          "arguments": {
+            "requestId": "req-1",
+            "supplierId": "s1",
+            "sourceRef": "manual:3124bd96dbb575b8",
+            "currency": "RUB",
+            "lines": [
+              {
+                "productName": "Арматура",
+                "unitPrice": 48,
+                "quantity": 100,
+                "unit": "м"
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4762,
+        "outputTokens": 56
+      },
+      "latencyMs": 400,
+      "requestHash": "850e0d2a88889c9e343fca04ff2ca7727476cc259e38fa10148fbd96e86a784c"
+    },
+    {
+      "content": "КП записано по ответу, полученному по телефону",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4878,
+        "outputTokens": 12
+      },
+      "latencyMs": 400,
+      "requestHash": "39aa8c8231023da627372780dd070af5f6562f008f3571a8ead452069d37f585"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-status",
+          "name": "orderStatus",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4795,
+        "outputTokens": 19
+      },
+      "latencyMs": 400,
+      "requestHash": "2980c9d2355f36eaa036ef32b7c4045774f28df878f239df9fa25c5032a4feb2"
+    },
+    {
+      "content": "Статус заказа показан",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4974,
+        "outputTokens": 6
+      },
+      "latencyMs": 400,
+      "requestHash": "0ef4c252633ae3253fdd9b448822ca3a840be5d00c1ea7c2276702af1d1ff085"
+    }
+  ],
+  "synthetic": true
+}

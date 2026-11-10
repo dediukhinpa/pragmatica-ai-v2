@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "caseId": "handoff-need-stale-prices",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "Считаю по тем ценам, что есть в базе.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 3935,
+        "outputTokens": 10
+      },
+      "latencyMs": 650,
+      "requestHash": "12413248fe25c59aa7cc11fd6601f78d1a65b44ef502e387a5c21eabdfb67354"
+    }
+  ],
+  "synthetic": true
+}

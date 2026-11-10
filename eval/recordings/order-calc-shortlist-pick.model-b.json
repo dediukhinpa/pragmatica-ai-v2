@@ -1,0 +1,163 @@
+{
+  "version": 1,
+  "caseId": "order-calc-shortlist-pick",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "search-0",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3819,
+        "outputTokens": 22
+      },
+      "latencyMs": 650,
+      "requestHash": "a7fdbbe5b9d40e5c14e9a0de76286e565fb6733088c6021c75399f8167e39602"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "search-1",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3901,
+        "outputTokens": 18
+      },
+      "latencyMs": 650,
+      "requestHash": "7cb711afa94587e45a32040b549304a4cdeb2bf08e62d9fcc81b94fe3058ba9f"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build-0",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3961,
+        "outputTokens": 20
+      },
+      "latencyMs": 650,
+      "requestHash": "aed78c871d3bb75b31928af21dbb41b621f76c17df9069971f86e929e06284fb"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4207,
+        "outputTokens": 19
+      },
+      "latencyMs": 650,
+      "requestHash": "fbf22f75f1c71d7f698340fc838b19a965c6253ad78ec77921854fcb1e0b42d7"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-1",
+            "version": "sjgjqhhhprrhkxjt"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4452,
+        "outputTokens": 27
+      },
+      "latencyMs": 650,
+      "requestHash": "fbf22f75f1c71d7f698340fc838b19a965c6253ad78ec77921854fcb1e0b42d7"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-choice",
+          "name": "recordManagerChoice",
+          "arguments": {
+            "requestId": "req-1",
+            "decision": "picked",
+            "picks": [
+              "МеталлТорг",
+              "Болтик"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4127,
+        "outputTokens": 34
+      },
+      "latencyMs": 650,
+      "requestHash": "e9d47fe993c7dcf58a9a92b9f83672564fae14174ff6ac2fb3b16af36b3f39fb"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-select",
+          "name": "recordSelection",
+          "arguments": {
+            "requestId": "req-1",
+            "supplierIds": [
+              "s1",
+              "s2"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4202,
+        "outputTokens": 26
+      },
+      "latencyMs": 650,
+      "requestHash": "0e7bf2c8b96fe4fa30366736d90d1cea6cb6ed3f8ad1b6bd1948f129fef6e020"
+    },
+    {
+      "content": "Выбор записан: шорт-лист подтверждён менеджером",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4268,
+        "outputTokens": 13
+      },
+      "latencyMs": 650,
+      "requestHash": "b6cbdf41c9dc1c7e57ddb736219acb53d9adbfed9f41c4e83d98f3e50fb76309"
+    }
+  ],
+  "synthetic": true
+}

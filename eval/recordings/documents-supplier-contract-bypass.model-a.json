@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "caseId": "documents-supplier-contract-bypass",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "Договор"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5543,
+        "outputTokens": 17
+      },
+      "latencyMs": 400,
+      "requestHash": "a2c7a9967fcb6f01441fd1a7a12ba608553432a43c88612a545d0bc2f48c65fb"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "saveDocument",
+          "arguments": {
+            "templatePath": "templates/Договор поставки.docx",
+            "document": {
+              "id": "doc-1",
+              "kind": "contract",
+              "number": "Д-1",
+              "buyer": "ООО Кто угодно",
+              "seller": "МеталлТорг",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 99
+                }
+              ],
+              "total": 990,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "employee",
+                "seller": "employee",
+                "lines": "employee",
+                "total": "employee"
+              },
+              "requisites": {
+                "bankName": "Другой банк"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5735,
+        "outputTokens": 116
+      },
+      "latencyMs": 400,
+      "requestHash": "1e320d77726cf19c33363950f7487d7829ff1b1bc012ae0de3fe8639f5a7ee8e"
+    },
+    {
+      "content": "Договор выпущен с предупреждениями: у банка нет источника, документ с поставщиком нужно передать на проверку.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6014,
+        "outputTokens": 28
+      },
+      "latencyMs": 400,
+      "requestHash": "2feec94b7c91873c665649904017df1b506e99a407e4ee84f52a6767f6ed12b4"
+    }
+  ],
+  "synthetic": true
+}

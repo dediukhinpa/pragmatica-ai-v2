@@ -1,0 +1,92 @@
+{
+  "id": "order-calc-shortlist-base-claims",
+  "agent": "order-calc",
+  "description": "Этап 108: итоговое сообщение не противоречит шорт-листу. В базе есть только документ-подсказка без поставщика и цен: шорт-лист пишет «по нашей базе нет данных», агент повторяет это и не говорит «в базе нашлись прайс/презентация».",
+  "request": "Заявка req-26, возьми в работу. Нужны мёд в банках, ссылка на задачу https://portal.example.test/company/personal/user/7/tasks/task/view/2041/. Ответственный — Анна Рябова, +7 (903) 444-55-66.",
+  "followUps": [],
+  "state": {
+    "requests": [
+      {
+        "id": "req-26",
+        "dealRef": "D-26",
+        "items": [
+          {
+            "name": "Мёд в банках",
+            "quantity": 30,
+            "unit": "шт"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      }
+    ],
+    "prices": [],
+    "knowledge": {
+      "kb-honey": "Презентация Медовый дом: мёд липовый в банках, условия поставки"
+    },
+    "web": [
+      {
+        "title": "МёдОпт",
+        "url": "https://honey.test",
+        "snippet": "Мёд в банках оптом"
+      }
+    ],
+    "completeness": true,
+    "webPlan": [
+      "мёд в банках оптом"
+    ],
+    "webFacts": {}
+  },
+  "expect": {
+    "maxSteps": 7,
+    "requiredTools": [
+      "checkRequestCompleteness",
+      "searchWeb",
+      "buildShortlist",
+      "askManagerToChoose"
+    ],
+    "toolOrder": "ordered",
+    "stateChecks": [
+      {
+        "probe": "chatTextContains",
+        "arg": "Средняя цена по нашей базе:[/B] нет данных",
+        "value": 1
+      },
+      {
+        "probe": "mailSent",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true,
+    "outputContains": [
+      "нет данных"
+    ],
+    "outputNotContains": [
+      "в базе нашлись",
+      "нашлись прайс",
+      "нашлась презентация"
+    ]
+  },
+  "pii": {
+    "names": [
+      "Рябова",
+      "Анна"
+    ],
+    "phones": [
+      "+7 (903) 444-55-66"
+    ],
+    "emails": []
+  }
+}

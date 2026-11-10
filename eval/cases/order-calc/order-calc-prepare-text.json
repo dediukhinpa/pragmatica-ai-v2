@@ -1,0 +1,173 @@
+{
+  "id": "order-calc-prepare-text",
+  "agent": "order-calc",
+  "description": "Режим почты сотрудников: после выбора менеджера текстом (recordManagerChoice) агент вызывает prepareSupplierRequestText (только requestId). Код сам показывает в чате текст запроса по шаблону ТЗ, по одному сообщению на поставщика; письмо агент не отправляет, кнопок отправки нет, ящики пусты. Учёт запроса записан как подготовленный, агент ставит напоминание (scheduleReminder заканчивает ход сам, итоговой реплики модели нет: проверяются вызов и одна отложенная задача). Метка: менеджер выбрал бы s1 (МеталлТорг).",
+  "request": "Заявка req-1 по сделке D-1, возьми в работу. Менеджер по продажам — Игорь Козлов, +7 (999) 111-22-33.",
+  "followUps": [
+    "Берём МеталлТорг и Болтик"
+  ],
+  "state": {
+    "requests": [
+      {
+        "id": "req-1",
+        "dealRef": "D-1",
+        "items": [
+          {
+            "name": "Арматура",
+            "quantity": 100,
+            "unit": "м"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      },
+      {
+        "id": "s3",
+        "name": "БезКонтакта"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Арматура 12 мм",
+        "price": 50
+      },
+      {
+        "supplierId": "s2",
+        "productName": "Арматура 12 мм",
+        "price": 50
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Арматура: условия поставки"
+    },
+    "web": [
+      {
+        "title": "МеталлТорг",
+        "url": "https://metall.test",
+        "snippet": "Арматура от склада"
+      },
+      {
+        "title": "Арматура-Центр",
+        "url": "https://armatura.test",
+        "snippet": "Арматура и сетка"
+      }
+    ],
+    "mailboxes": [
+      {
+        "userId": "eval-manager",
+        "address": "zakupki@pragmatika-company.test"
+      }
+    ],
+    "expectedManagerChoice": "s1"
+  },
+  "expect": {
+    "maxSteps": 10,
+    "requiredTools": [
+      "searchKnowledgeSuppliers",
+      "buildShortlist",
+      "askManagerToChoose",
+      "recordManagerChoice",
+      "recordSelection",
+      "prepareSupplierRequestText",
+      "scheduleReminder"
+    ],
+    "toolOrder": "ordered",
+    "stateChecks": [
+      {
+        "probe": "proposedSupplierCount",
+        "op": "gte",
+        "value": 2
+      },
+      {
+        "probe": "selectedSupplierCount",
+        "value": 2
+      },
+      {
+        "probe": "confirmedSupplierCount",
+        "value": 2
+      },
+      {
+        "probe": "selectionMatchesConfirmation",
+        "value": 1
+      },
+      {
+        "probe": "scheduledTasks",
+        "value": 1
+      },
+      {
+        "probe": "chatMessages",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "draftsShown",
+        "value": 0
+      },
+      {
+        "probe": "mailSent",
+        "value": 0
+      },
+      {
+        "probe": "requestTextsShown",
+        "value": 2
+      },
+      {
+        "probe": "preparedSupplierCount",
+        "value": 2
+      }
+    ],
+    "turnChecks": [
+      {
+        "turn": 1,
+        "probe": "confirmedSupplierCount",
+        "value": 2
+      },
+      {
+        "turn": 1,
+        "probe": "requestTextsShown",
+        "value": 2
+      },
+      {
+        "turn": 1,
+        "probe": "mailSent",
+        "value": 0
+      },
+      {
+        "turn": 1,
+        "probe": "draftsShown",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true,
+    "forbiddenTools": [
+      "prepareSupplierRequestDraft"
+    ]
+  },
+  "pii": {
+    "names": [
+      "Козлов",
+      "Игорь"
+    ],
+    "phones": [
+      "+7 (999) 111-22-33"
+    ],
+    "emails": [
+      "zakaz-metall@metall.test",
+      "zakaz-boltik@boltik.test",
+      "zakupki@pragmatika-company.test"
+    ]
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "caseId": "order-calc-session-topic-switch",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-search",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-2"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3924,
+        "outputTokens": 22
+      },
+      "latencyMs": 400,
+      "requestHash": "3d974f902ee11b31df60397b7987f42e8d7767106f769dfba5634462b4842844"
+    },
+    {
+      "content": "Заявка req-2: поиск по базе выполнен, рассылку не запускаю, жду вашего уточнения",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4006,
+        "outputTokens": 21
+      },
+      "latencyMs": 400,
+      "requestHash": "02a7b710edf595db8096d4d24d55c2844c419e28b072d27334e34dc391141df1"
+    }
+  ],
+  "synthetic": true
+}

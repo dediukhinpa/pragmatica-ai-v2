@@ -1,0 +1,51 @@
+{
+  "id": "documents-web-unconfirmed",
+  "agent": "documents",
+  "description": "Покупатель найден в интернете, сотрудник его не подтвердил. После 52f510d3 подтверждение выдачу не задерживает: документ собирается и уходит в чат, а поля из интернета агент называет в списке предупреждений (web_fields_unconfirmed) и просит подтвердить.",
+  "request": "Сделай КП на 10 болтов М8 по 12 руб., данные покупателя найди в интернете. Ответственный — Алексей Сидоров, +7 (913) 555-12-34.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "files": [
+      {
+        "path": "templates/КП шаблон.docx",
+        "text": "tpl"
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Шаблон договора поставки"
+    }
+  },
+  "expect": {
+    "maxSteps": 5,
+    "requiredTools": [
+      "findTemplate",
+      "saveDocument"
+    ],
+    "toolOrder": "ordered",
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true,
+    "outputMatches": [
+      "интернет"
+    ]
+  },
+  "pii": {
+    "names": [
+      "Сидоров",
+      "Алексей",
+      "Николаевич"
+    ],
+    "phones": [
+      "+7 (913) 555-12-34"
+    ]
+  }
+}

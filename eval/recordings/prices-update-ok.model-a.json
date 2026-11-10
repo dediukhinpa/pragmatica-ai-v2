@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "caseId": "prices-update-ok",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-norm",
+          "name": "normalizePriceTable",
+          "arguments": {
+            "path": "price.csv",
+            "supplierId": "s1",
+            "columns": {
+              "name": 0,
+              "price": 1
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6489,
+        "outputTokens": 32
+      },
+      "latencyMs": 400,
+      "requestHash": "e15a849790a5d163339ad234ad02b9cd450f121fcbbb742e1d388ceb113ec0e5"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-save",
+          "name": "savePriceImport",
+          "arguments": {
+            "path": "price.csv",
+            "supplierId": "s1",
+            "fileHash": "hvptzhvrytzkprmktrzkyjgpszxqthwmrjtzthvgwrsqjmynxrnwsthrpzskpkjw",
+            "columns": {
+              "name": 0,
+              "price": 1
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6668,
+        "outputTokens": 51
+      },
+      "latencyMs": 400,
+      "requestHash": "93650a9229aa7052b7f47907cb2ae8b886e241e766c4e29351d39e07f14b3efb"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-rep",
+          "name": "reportToManager",
+          "arguments": {
+            "kind": "import_done",
+            "path": "price.csv",
+            "fileHash": "h-1",
+            "updated": 2,
+            "needsReview": 0
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6756,
+        "outputTokens": 35
+      },
+      "latencyMs": 400,
+      "requestHash": "e5f22bd7cd36e1cb35d3d9f9302309df69d6368006950ee27df3571ab993ce74"
+    },
+    {
+      "content": "Прайс обновлён, менеджеру отправлена сводка",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6820,
+        "outputTokens": 12
+      },
+      "latencyMs": 400,
+      "requestHash": "3e71fca8bd68fffaa662d9d8c84759fa70d89deec135cc3993c63b6b28f2407f"
+    }
+  ],
+  "synthetic": true
+}

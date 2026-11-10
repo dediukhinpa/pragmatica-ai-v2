@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "caseId": "documents-offer-knowledge",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "КП шаблон"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5519,
+        "outputTokens": 18
+      },
+      "latencyMs": 650,
+      "requestHash": "21f6590c004b6d3d4955cdf837ded96d6b15cd780aabf14d992a7a94464426d1"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "saveDocument",
+          "arguments": {
+            "templatePath": "templates/КП шаблон.docx",
+            "document": {
+              "id": "doc-2",
+              "kind": "commercial_offer",
+              "number": "КП-2",
+              "buyer": "ООО Заказчик",
+              "seller": "ООО Прагматика",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "knowledge",
+                "seller": "employee",
+                "lines": "knowledge",
+                "total": "knowledge"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5635,
+        "outputTokens": 108
+      },
+      "latencyMs": 650,
+      "requestHash": "8bb48f729b79320351409cab52b70b8bb39de12a23c363e33ba7dba7fcbc1df4"
+    },
+    {
+      "content": "КП выпущено: данные из базы знаний",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5813,
+        "outputTokens": 9
+      },
+      "latencyMs": 650,
+      "requestHash": "2e19b61d326504dabd15c1062ee34a78cc2a950df44b5fd152e68e55347a3475"
+    }
+  ],
+  "synthetic": true
+}

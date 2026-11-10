@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "caseId": "handoff-ambiguous-prices-state",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "Уточните, что нужно с ценами: освежить, проверить актуальность или сравнить?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 3911,
+        "outputTokens": 20
+      },
+      "latencyMs": 400,
+      "requestHash": "d15117685d260b048be93092b93dd213b10dceb4585770c78b4488cf79a73184"
+    }
+  ],
+  "synthetic": true
+}

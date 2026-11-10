@@ -1,0 +1,158 @@
+{
+  "id": "order-calc-shortlist-pick",
+  "agent": "order-calc",
+  "description": "Заявка на арматуру: поиск по трём источникам, шорт-лист нумерованным списком и вопрос менеджеру текстом (кнопок нет), ход заканчивается. Менеджер отвечает названиями, агент записывает выбор recordManagerChoice и фиксирует его. Почта сотрудников не подключена: письма поставщикам агент не готовит. Две средние (этап 104): «по нашей базе» считается без порога числа цен, «по интернету» без обогащённых кандидатов - «нет данных». Метка: менеджер выбрал бы s1 (МеталлТорг).",
+  "request": "Заявка req-1 по сделке D-1, возьми в работу. Менеджер по продажам — Игорь Козлов, +7 (999) 111-22-33.",
+  "followUps": [
+    "Берём МеталлТорг и Болтик"
+  ],
+  "state": {
+    "requests": [
+      {
+        "id": "req-1",
+        "dealRef": "D-1",
+        "items": [
+          {
+            "name": "Арматура",
+            "quantity": 100,
+            "unit": "м"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      },
+      {
+        "id": "s3",
+        "name": "БезКонтакта"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Арматура 12 мм",
+        "price": 50
+      },
+      {
+        "supplierId": "s2",
+        "productName": "Арматура 12 мм",
+        "price": 50
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Арматура: условия поставки"
+    },
+    "web": [
+      {
+        "title": "МеталлТорг",
+        "url": "https://metall.test",
+        "snippet": "Арматура от склада"
+      },
+      {
+        "title": "Арматура-Центр",
+        "url": "https://armatura.test",
+        "snippet": "Арматура и сетка"
+      }
+    ],
+    "expectedManagerChoice": "s1"
+  },
+  "expect": {
+    "maxSteps": 7,
+    "requiredTools": [
+      "searchKnowledgeSuppliers",
+      "buildShortlist",
+      "askManagerToChoose",
+      "recordManagerChoice",
+      "recordSelection"
+    ],
+    "toolOrder": "ordered",
+    "outputContains": [
+      "выбор"
+    ],
+    "stateChecks": [
+      {
+        "probe": "proposedSupplierCount",
+        "op": "gte",
+        "value": 2
+      },
+      {
+        "probe": "selectedSupplierCount",
+        "value": 2
+      },
+      {
+        "probe": "confirmedSupplierCount",
+        "value": 2
+      },
+      {
+        "probe": "selectionMatchesConfirmation",
+        "value": 1
+      },
+      {
+        "probe": "mailSent",
+        "value": 0
+      },
+      {
+        "probe": "scheduledTasks",
+        "value": 0
+      },
+      {
+        "probe": "chatMessages",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "Средняя цена по нашей базе:[/B] ",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "Средняя цена по интернету:[/B] нет данных",
+        "value": 1
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "недостаточно",
+        "value": 0
+      }
+    ],
+    "turnChecks": [
+      {
+        "turn": 1,
+        "probe": "confirmedSupplierCount",
+        "value": 2
+      },
+      {
+        "turn": 1,
+        "probe": "mailSent",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Козлов",
+      "Игорь"
+    ],
+    "phones": [
+      "+7 (999) 111-22-33"
+    ],
+    "emails": [
+      "zakaz-metall@metall.test",
+      "zakaz-boltik@boltik.test"
+    ]
+  }
+}

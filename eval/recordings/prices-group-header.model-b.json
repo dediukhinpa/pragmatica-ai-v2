@@ -1,0 +1,100 @@
+{
+  "version": 1,
+  "caseId": "prices-group-header",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-norm",
+          "name": "normalizePriceTable",
+          "arguments": {
+            "path": "groups.csv",
+            "supplierId": "s1",
+            "columns": {
+              "name": 0,
+              "variantColumns": [
+                1
+              ],
+              "price": 2,
+              "groupHeaderRows": true
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6487,
+        "outputTokens": 44
+      },
+      "latencyMs": 650,
+      "requestHash": "2c6de26e8038c1808229c904b1eb4a2cea9d4e04bdde18dfb842625c0aa5369c"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-save",
+          "name": "savePriceImport",
+          "arguments": {
+            "path": "groups.csv",
+            "supplierId": "s1",
+            "fileHash": "gqvvkqtkhhtmkkswxrwswmjnpmpzxkzzqwzwzhkvzkvyvhhwkxxpzzjyxrxgygrr",
+            "columns": {
+              "name": 0,
+              "variantColumns": [
+                1
+              ],
+              "price": 2,
+              "groupHeaderRows": true
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6716,
+        "outputTokens": 62
+      },
+      "latencyMs": 650,
+      "requestHash": "4d652e72144450fc359a53ccfe1cbad5588b176f4c16373861c22da16fb0af29"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-rep",
+          "name": "reportToManager",
+          "arguments": {
+            "kind": "import_done",
+            "path": "groups.csv",
+            "fileHash": "h-1",
+            "updated": 2,
+            "needsReview": 0
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6814,
+        "outputTokens": 36
+      },
+      "latencyMs": 650,
+      "requestHash": "e5f22bd7cd36e1cb35d3d9f9302309df69d6368006950ee27df3571ab993ce74"
+    },
+    {
+      "content": "Прайс обновлён, менеджеру отправлена сводка",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6879,
+        "outputTokens": 12
+      },
+      "latencyMs": 650,
+      "requestHash": "3e71fca8bd68fffaa662d9d8c84759fa70d89deec135cc3993c63b6b28f2407f"
+    }
+  ],
+  "synthetic": true
+}

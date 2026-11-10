@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "caseId": "order-calc-business-card-photo-unreadable",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "readChatAttachments",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6905,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "0d8d4bbd760017bde5db54a9a2f093d21825c540c9fc50aaf06eec5b25349c4b"
+    },
+    {
+      "content": "Фото визитки прочитать не удалось, карточку не завёл. Пришлите данные визитки текстом: название, ИНН, телефон и почту.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7026,
+        "outputTokens": 30
+      },
+      "latencyMs": 400,
+      "requestHash": "48750521ab153b95e640418f70bfa8a00fb985ad88a115c1fcd8154a26d2b0fd"
+    }
+  ],
+  "synthetic": true
+}

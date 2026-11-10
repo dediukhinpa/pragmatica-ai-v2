@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "caseId": "handoff-unavailable-access-denied",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "h-1",
+          "name": "handoffToPrices",
+          "arguments": {
+            "requestId": "req-5",
+            "positions": [
+              "Арматура 12 мм"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3931,
+        "outputTokens": 26
+      },
+      "latencyMs": 650,
+      "requestHash": "dd9a19043c47ab9cb7d745795d0fbd53042040537611c9f6e0794337ac77ccb5"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-send",
+          "name": "prepareSupplierRequestText",
+          "arguments": {
+            "requestId": "req-5"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4063,
+        "outputTokens": 22
+      },
+      "latencyMs": 650,
+      "requestHash": "115ed69daeab8b1f936034bfc144ba4e6cf341340865214f4b9a1f4bf5aca395"
+    },
+    {
+      "content": "Запросил цены у поставщиков напрямую.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4137,
+        "outputTokens": 10
+      },
+      "latencyMs": 650,
+      "requestHash": "593c56fc5b7885f1ecbada0d3da3a958754d3d969b16a48b5b98053ae9203215"
+    }
+  ],
+  "synthetic": true
+}

@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "caseId": "documents-template-missing",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "saveDocument",
+          "arguments": {
+            "templatePath": "templates/акт сверки.docx",
+            "document": {
+              "id": "doc-1",
+              "kind": "reconciliation_act",
+              "number": "АС-1",
+              "buyer": "ООО Заказчик",
+              "seller": "ООО Прагматика",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "employee",
+                "seller": "employee",
+                "lines": "employee",
+                "total": "employee"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5508,
+        "outputTokens": 108
+      },
+      "latencyMs": 650,
+      "requestHash": "be6e561fd10574583139aa2a786d558fdfbdf8aa86b4924a393293d89521bb6c"
+    },
+    {
+      "content": "Акт сверки выпущен",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5850,
+        "outputTokens": 5
+      },
+      "latencyMs": 650,
+      "requestHash": "5f2fe554d2fed952f20900e60116147293d1011905773d4204543137960b44c7"
+    }
+  ],
+  "synthetic": true
+}

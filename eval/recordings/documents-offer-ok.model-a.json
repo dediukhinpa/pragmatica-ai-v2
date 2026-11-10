@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "caseId": "documents-offer-ok",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "КП шаблон"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5519,
+        "outputTokens": 18
+      },
+      "latencyMs": 400,
+      "requestHash": "2332c29fda9df90535f454fd7db3f24c5d4fca03d695b90d18a02ebc887adf16"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "saveDocument",
+          "arguments": {
+            "templatePath": "templates/КП шаблон.docx",
+            "document": {
+              "id": "doc-1",
+              "kind": "commercial_offer",
+              "number": "КП-1",
+              "buyer": "ООО Заказчик",
+              "seller": "ООО Прагматика",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "employee",
+                "seller": "employee",
+                "lines": "employee",
+                "total": "employee"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5635,
+        "outputTokens": 107
+      },
+      "latencyMs": 400,
+      "requestHash": "8bb48f729b79320351409cab52b70b8bb39de12a23c363e33ba7dba7fcbc1df4"
+    },
+    {
+      "content": "КП выпущено",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5811,
+        "outputTokens": 4
+      },
+      "latencyMs": 400,
+      "requestHash": "9f4709e486772f7f24b536192d1861d3224fa3d2db97d63cb76d36eba489bab6"
+    }
+  ],
+  "synthetic": true
+}

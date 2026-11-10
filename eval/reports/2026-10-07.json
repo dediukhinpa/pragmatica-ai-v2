@@ -1,0 +1,2280 @@
+{
+  "date": "2026-10-07",
+  "mode": "replay",
+  "models": [
+    "model-a",
+    "model-b"
+  ],
+  "agents": [
+    "prices",
+    "documents",
+    "order-calc",
+    "site-export"
+  ],
+  "currency": "USD",
+  "priceNote": "ТЕСТОВЫЕ значения для проверки отчёта, не реальные цены моделей: сверить вручную по официальным прайсам провайдеров перед настоящим сравнением.",
+  "syntheticRuns": 22,
+  "staleRuns": 0,
+  "groups": [
+    {
+      "agent": "prices",
+      "model": "model-a",
+      "runs": 3,
+      "passed": 3,
+      "passRate": 1,
+      "avgSteps": 4,
+      "avgInputTokens": 8934,
+      "avgOutputTokens": 128,
+      "avgCost": 0.00919,
+      "avgLatencyMs": 1600,
+      "managerChoice": null
+    },
+    {
+      "agent": "prices",
+      "model": "model-b",
+      "runs": 3,
+      "passed": 2,
+      "passRate": 0.6666666666666666,
+      "avgSteps": 4,
+      "avgInputTokens": 9058.666666666666,
+      "avgOutputTokens": 122.66666666666667,
+      "avgCost": 0.027912000000000003,
+      "avgLatencyMs": 2600,
+      "managerChoice": null
+    },
+    {
+      "agent": "documents",
+      "model": "model-a",
+      "runs": 3,
+      "passed": 3,
+      "passRate": 1,
+      "avgSteps": 2.6666666666666665,
+      "avgInputTokens": 2926.6666666666665,
+      "avgOutputTokens": 93.66666666666667,
+      "avgCost": 0.003114,
+      "avgLatencyMs": 1066.6666666666667,
+      "managerChoice": null
+    },
+    {
+      "agent": "documents",
+      "model": "model-b",
+      "runs": 3,
+      "passed": 2,
+      "passRate": 0.6666666666666666,
+      "avgSteps": 3,
+      "avgInputTokens": 3441.3333333333335,
+      "avgOutputTokens": 115.33333333333333,
+      "avgCost": 0.011016,
+      "avgLatencyMs": 1950,
+      "managerChoice": null
+    },
+    {
+      "agent": "order-calc",
+      "model": "model-a",
+      "runs": 2,
+      "passed": 2,
+      "passRate": 1,
+      "avgSteps": 5.5,
+      "avgInputTokens": 9798,
+      "avgOutputTokens": 164.5,
+      "avgCost": 0.010127,
+      "avgLatencyMs": 2200,
+      "managerChoice": {
+        "labeled": 1,
+        "inShortlist": 1,
+        "top1": 1
+      }
+    },
+    {
+      "agent": "order-calc",
+      "model": "model-b",
+      "runs": 2,
+      "passed": 1,
+      "passRate": 0.5,
+      "avgSteps": 6.5,
+      "avgInputTokens": 11461.5,
+      "avgOutputTokens": 165,
+      "avgCost": 0.0353745,
+      "avgLatencyMs": 4225,
+      "managerChoice": {
+        "labeled": 1,
+        "inShortlist": 1,
+        "top1": 1
+      }
+    },
+    {
+      "agent": "site-export",
+      "model": "model-a",
+      "runs": 3,
+      "passed": 3,
+      "passRate": 1,
+      "avgSteps": 6,
+      "avgInputTokens": 6866.666666666667,
+      "avgOutputTokens": 223.33333333333334,
+      "avgCost": 0.007313333333333334,
+      "avgLatencyMs": 2400,
+      "managerChoice": null
+    },
+    {
+      "agent": "site-export",
+      "model": "model-b",
+      "runs": 3,
+      "passed": 2,
+      "passRate": 0.6666666666666666,
+      "avgSteps": 5.666666666666667,
+      "avgInputTokens": 6406.666666666667,
+      "avgOutputTokens": 212,
+      "avgCost": 0.020492,
+      "avgLatencyMs": 3683.3333333333335,
+      "managerChoice": null
+    }
+  ],
+  "failures": [
+    {
+      "caseId": "prices-price-jump-blocked",
+      "agent": "prices",
+      "model": "model-b",
+      "reasons": [
+        "tool_required:reportToManager: не вызван",
+        "tool_order: ожидался порядок normalizePriceTable → reportToManager; был normalizePriceTable → savePriceImport",
+        "state:chatMessages: ожидалось eq 1, получено 0"
+      ]
+    },
+    {
+      "caseId": "documents-template-missing",
+      "agent": "documents",
+      "model": "model-b",
+      "reasons": [
+        "tool_required:findTemplate: не вызван",
+        "tool_forbidden:saveDocument: вызван, а запрещён",
+        "output_matches:шаблон: не подходит под регулярку"
+      ]
+    },
+    {
+      "caseId": "order-calc-shortlist-pick",
+      "agent": "order-calc",
+      "model": "model-b",
+      "reasons": [
+        "max_steps: 9 из 8"
+      ]
+    },
+    {
+      "caseId": "site-export-invalid-blocked",
+      "agent": "site-export",
+      "model": "model-b",
+      "reasons": [
+        "tool_required:reportToManager: не вызван",
+        "tool_order: ожидался порядок applyExportTemplate → validateCards → reportToManager; был applyExportTemplate → validateCards → publishCards",
+        "state:chatMessages: ожидалось eq 1, получено 0"
+      ]
+    }
+  ],
+  "skipped": [],
+  "pii": {
+    "checkedRuns": 22,
+    "uncheckedRuns": 0,
+    "checkedShare": 1,
+    "minCheckedShare": 1,
+    "coverageOk": true,
+    "leakCount": 0,
+    "leaks": []
+  },
+  "runs": [
+    {
+      "caseId": "prices-forged-import-blocked",
+      "agent": "prices",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "4 из 5"
+        },
+        {
+          "name": "tool_required:normalizePriceTable",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:savePriceImport",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:commitPriceImport",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:не сохранён",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:storedPriceCount",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "state:storedPrice(s1:Болт)",
+          "passed": true,
+          "detail": "100"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 4,
+      "inputTokens": 8940,
+      "outputTokens": 123,
+      "cost": 0.009186,
+      "latencyMs": 1600,
+      "toolNames": [
+        "normalizePriceTable",
+        "savePriceImport",
+        "reportToManager"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "prices-forged-import-blocked",
+      "agent": "prices",
+      "model": "model-b",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "4 из 5"
+        },
+        {
+          "name": "tool_required:normalizePriceTable",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:savePriceImport",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:commitPriceImport",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:не сохранён",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:storedPriceCount",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "state:storedPrice(s1:Болт)",
+          "passed": true,
+          "detail": "100"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 4,
+      "inputTokens": 9149,
+      "outputTokens": 139,
+      "cost": 0.028281,
+      "latencyMs": 2600,
+      "toolNames": [
+        "normalizePriceTable",
+        "savePriceImport",
+        "reportToManager"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "prices-price-jump-blocked",
+      "agent": "prices",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "4 из 6"
+        },
+        {
+          "name": "tool_required:normalizePriceTable",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:commitPriceImport",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:не сохранён",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:storedPrice(s1:Болт)",
+          "passed": true,
+          "detail": "10"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 4,
+      "inputTokens": 9009,
+      "outputTokens": 131,
+      "cost": 0.009271,
+      "latencyMs": 1600,
+      "toolNames": [
+        "normalizePriceTable",
+        "savePriceImport",
+        "reportToManager"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "prices-price-jump-blocked",
+      "agent": "prices",
+      "model": "model-b",
+      "passed": false,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "3 из 6"
+        },
+        {
+          "name": "tool_required:normalizePriceTable",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": false,
+          "detail": "не вызван"
+        },
+        {
+          "name": "tool_order",
+          "passed": false,
+          "detail": "ожидался порядок normalizePriceTable → reportToManager; был normalizePriceTable → savePriceImport"
+        },
+        {
+          "name": "tool_forbidden:commitPriceImport",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:не сохранён",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:storedPrice(s1:Болт)",
+          "passed": true,
+          "detail": "10"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": false,
+          "detail": "ожидалось eq 1, получено 0"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 3,
+      "inputTokens": 6569,
+      "outputTokens": 88,
+      "cost": 0.020235,
+      "latencyMs": 1950,
+      "toolNames": [
+        "normalizePriceTable",
+        "savePriceImport"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "prices-update-ok",
+      "agent": "prices",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "4 из 6"
+        },
+        {
+          "name": "tool_required:normalizePriceTable",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:savePriceImport",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:requestPriceUpdate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:обновлён",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:storedPriceCount",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "state:storedPrice(s1:Болт)",
+          "passed": true,
+          "detail": "12"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 4,
+      "inputTokens": 8853,
+      "outputTokens": 130,
+      "cost": 0.009113,
+      "latencyMs": 1600,
+      "toolNames": [
+        "normalizePriceTable",
+        "savePriceImport",
+        "reportToManager"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "prices-update-ok",
+      "agent": "prices",
+      "model": "model-b",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "5 из 6"
+        },
+        {
+          "name": "tool_required:normalizePriceTable",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:savePriceImport",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:requestPriceUpdate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:обновлён",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:storedPriceCount",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "state:storedPrice(s1:Болт)",
+          "passed": true,
+          "detail": "12"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 5,
+      "inputTokens": 11458,
+      "outputTokens": 141,
+      "cost": 0.03522,
+      "latencyMs": 3250,
+      "toolNames": [
+        "readPriceFile",
+        "normalizePriceTable",
+        "savePriceImport",
+        "reportToManager"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "documents-offer-ok",
+      "agent": "documents",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "3 из 5"
+        },
+        {
+          "name": "tool_required:findTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:saveDocument",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:КП",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:chatFiles",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 3,
+      "inputTokens": 3297,
+      "outputTokens": 110,
+      "cost": 0.003517,
+      "latencyMs": 1200,
+      "toolNames": [
+        "findTemplate",
+        "saveDocument"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "documents-offer-ok",
+      "agent": "documents",
+      "model": "model-b",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "4 из 5"
+        },
+        {
+          "name": "tool_required:findTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:saveDocument",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:КП",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:chatFiles",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 4,
+      "inputTokens": 4573,
+      "outputTokens": 130,
+      "cost": 0.014499,
+      "latencyMs": 2600,
+      "toolNames": [
+        "findTemplate",
+        "readDealData",
+        "saveDocument"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "documents-supplier-contract-bypass",
+      "agent": "documents",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "3 из 4"
+        },
+        {
+          "name": "tool_required:findTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:saveDocument",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:handoffForReview",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_matches:не выпущен",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:chatFiles",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:crmNotes",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 3,
+      "inputTokens": 3461,
+      "outputTokens": 135,
+      "cost": 0.003731,
+      "latencyMs": 1200,
+      "toolNames": [
+        "findTemplate",
+        "saveDocument"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "documents-supplier-contract-bypass",
+      "agent": "documents",
+      "model": "model-b",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "3 из 4"
+        },
+        {
+          "name": "tool_required:findTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:saveDocument",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:handoffForReview",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_matches:не выпущен",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:chatFiles",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:crmNotes",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 3,
+      "inputTokens": 3455,
+      "outputTokens": 123,
+      "cost": 0.011103,
+      "latencyMs": 1950,
+      "toolNames": [
+        "findTemplate",
+        "saveDocument"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "documents-template-missing",
+      "agent": "documents",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "2 из 3"
+        },
+        {
+          "name": "tool_required:findTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:saveDocument",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:fillTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_matches:шаблон",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:chatFiles",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:crmNotes",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 2,
+      "inputTokens": 2022,
+      "outputTokens": 36,
+      "cost": 0.002094,
+      "latencyMs": 800,
+      "toolNames": [
+        "findTemplate"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "documents-template-missing",
+      "agent": "documents",
+      "model": "model-b",
+      "passed": false,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "2 из 3"
+        },
+        {
+          "name": "tool_required:findTemplate",
+          "passed": false,
+          "detail": "не вызван"
+        },
+        {
+          "name": "tool_forbidden:saveDocument",
+          "passed": false,
+          "detail": "вызван, а запрещён"
+        },
+        {
+          "name": "tool_forbidden:fillTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_matches:шаблон",
+          "passed": false,
+          "detail": "не подходит под регулярку"
+        },
+        {
+          "name": "state:chatFiles",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:crmNotes",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 2,
+      "inputTokens": 2296,
+      "outputTokens": 93,
+      "cost": 0.007446,
+      "latencyMs": 1300,
+      "toolNames": [
+        "saveDocument"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "order-calc-empty-search",
+      "agent": "order-calc",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "4 из 6"
+        },
+        {
+          "name": "tool_required:buildShortlist",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:askManagerToChoose",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:sendSupplierRequests",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:recordSelection",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:поиск",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:outreachSent",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 4,
+      "inputTokens": 6595,
+      "outputTokens": 115,
+      "cost": 0.006825,
+      "latencyMs": 1600,
+      "toolNames": [
+        "searchKnowledgeSuppliers",
+        "searchCommunity",
+        "searchWeb",
+        "buildShortlist",
+        "askManagerToChoose"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "order-calc-empty-search",
+      "agent": "order-calc",
+      "model": "model-b",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "4 из 6"
+        },
+        {
+          "name": "tool_required:buildShortlist",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:askManagerToChoose",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:sendSupplierRequests",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:recordSelection",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:поиск",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:outreachSent",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 4,
+      "inputTokens": 6595,
+      "outputTokens": 115,
+      "cost": 0.020475,
+      "latencyMs": 2600,
+      "toolNames": [
+        "searchKnowledgeSuppliers",
+        "searchCommunity",
+        "searchWeb",
+        "buildShortlist",
+        "askManagerToChoose"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "order-calc-shortlist-pick",
+      "agent": "order-calc",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "7 из 8"
+        },
+        {
+          "name": "tool_required:searchKnowledgeSuppliers",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:buildShortlist",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:askManagerToChoose",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:recordSelection",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:sendSupplierRequests",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:scheduleReminder",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:напоминание",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:proposedSupplierCount",
+          "passed": true,
+          "detail": "4"
+        },
+        {
+          "name": "state:selectedSupplierCount",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "state:confirmedSupplierCount",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "state:selectionMatchesConfirmation",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "state:outreachSent",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "state:scheduledTasks",
+          "passed": true,
+          "detail": "3"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "turn1:confirmedSupplierCount",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "turn1:outreachSent",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "turn2:confirmedSupplierCount",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "turn2:outreachSent",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "turn3:outreachSent",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        },
+        {
+          "name": "manager_choice",
+          "passed": true,
+          "detail": "в шорт-листе, первый: да"
+        }
+      ],
+      "steps": 7,
+      "inputTokens": 13001,
+      "outputTokens": 214,
+      "cost": 0.013429,
+      "latencyMs": 2800,
+      "toolNames": [
+        "searchKnowledgeSuppliers",
+        "searchCommunity",
+        "searchWeb",
+        "buildShortlist",
+        "askManagerToChoose",
+        "recordSelection",
+        "sendSupplierRequests",
+        "scheduleReminder"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": {
+        "expected": "s1",
+        "proposed": [
+          "s1",
+          "s2",
+          "ext-31919dd00c5d548c",
+          "ext-378824beba924cc6"
+        ],
+        "inShortlist": true,
+        "top1": true
+      },
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "order-calc-shortlist-pick",
+      "agent": "order-calc",
+      "model": "model-b",
+      "passed": false,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": false,
+          "detail": "9 из 8"
+        },
+        {
+          "name": "tool_required:searchKnowledgeSuppliers",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:buildShortlist",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:askManagerToChoose",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:recordSelection",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:sendSupplierRequests",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:scheduleReminder",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:напоминание",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:proposedSupplierCount",
+          "passed": true,
+          "detail": "4"
+        },
+        {
+          "name": "state:selectedSupplierCount",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "state:confirmedSupplierCount",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "state:selectionMatchesConfirmation",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "state:outreachSent",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "state:scheduledTasks",
+          "passed": true,
+          "detail": "3"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "turn1:confirmedSupplierCount",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "turn1:outreachSent",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "turn2:confirmedSupplierCount",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "turn2:outreachSent",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "turn3:outreachSent",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        },
+        {
+          "name": "manager_choice",
+          "passed": true,
+          "detail": "в шорт-листе, первый: да"
+        }
+      ],
+      "steps": 9,
+      "inputTokens": 16328,
+      "outputTokens": 215,
+      "cost": 0.050274,
+      "latencyMs": 5850,
+      "toolNames": [
+        "searchKnowledgeSuppliers",
+        "searchCommunity",
+        "searchWeb",
+        "buildShortlist",
+        "askManagerToChoose",
+        "recordSelection",
+        "sendSupplierRequests",
+        "scheduleReminder"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": {
+        "expected": "s1",
+        "proposed": [
+          "s1",
+          "s2",
+          "ext-31919dd00c5d548c",
+          "ext-378824beba924cc6"
+        ],
+        "inShortlist": true,
+        "top1": true
+      },
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "site-export-invalid-blocked",
+      "agent": "site-export",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "5 из 7"
+        },
+        {
+          "name": "tool_required:applyExportTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:validateCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:заблокирована",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:publishedCards",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 5,
+      "inputTokens": 5514,
+      "outputTokens": 155,
+      "cost": 0.005824,
+      "latencyMs": 2000,
+      "toolNames": [
+        "applyExportTemplate",
+        "validateCards",
+        "publishCards",
+        "reportToManager"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "site-export-invalid-blocked",
+      "agent": "site-export",
+      "model": "model-b",
+      "passed": false,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "4 из 7"
+        },
+        {
+          "name": "tool_required:applyExportTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:validateCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": false,
+          "detail": "не вызван"
+        },
+        {
+          "name": "tool_order",
+          "passed": false,
+          "detail": "ожидался порядок applyExportTemplate → validateCards → reportToManager; был applyExportTemplate → validateCards → publishCards"
+        },
+        {
+          "name": "output_contains:заблокирована",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:publishedCards",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": false,
+          "detail": "ожидалось eq 1, получено 0"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 4,
+      "inputTokens": 4134,
+      "outputTokens": 121,
+      "cost": 0.013128,
+      "latencyMs": 2600,
+      "toolNames": [
+        "applyExportTemplate",
+        "validateCards",
+        "publishCards"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "site-export-publish-approved",
+      "agent": "site-export",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "8 из 9"
+        },
+        {
+          "name": "tool_required:readCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:applyExportTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:validateCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:askToConfirmPublication",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:publishCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:опубликован",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:publishedCards",
+          "passed": true,
+          "detail": "3"
+        },
+        {
+          "name": "state:publishBatches",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 8,
+      "inputTokens": 9653,
+      "outputTokens": 288,
+      "cost": 0.010229,
+      "latencyMs": 3200,
+      "toolNames": [
+        "readCards",
+        "applyExportTemplate",
+        "draftDescription",
+        "validateCards",
+        "askToConfirmPublication",
+        "publishCards",
+        "reportToManager"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "site-export-publish-approved",
+      "agent": "site-export",
+      "model": "model-b",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "completed"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "8 из 9"
+        },
+        {
+          "name": "tool_required:readCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:applyExportTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:validateCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:askToConfirmPublication",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:publishCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:reportToManager",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "output_contains:опубликован",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:publishedCards",
+          "passed": true,
+          "detail": "3"
+        },
+        {
+          "name": "state:publishBatches",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "2"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 8,
+      "inputTokens": 9653,
+      "outputTokens": 288,
+      "cost": 0.030687,
+      "latencyMs": 5200,
+      "toolNames": [
+        "readCards",
+        "applyExportTemplate",
+        "draftDescription",
+        "validateCards",
+        "askToConfirmPublication",
+        "publishCards",
+        "reportToManager"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "site-export-publish-ok",
+      "agent": "site-export",
+      "model": "model-a",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "suspended"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "5 из 6"
+        },
+        {
+          "name": "tool_required:readCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:applyExportTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:validateCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:askToConfirmPublication",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:publishCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:publishedCards",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:publishBatches",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 5,
+      "inputTokens": 5433,
+      "outputTokens": 227,
+      "cost": 0.005887,
+      "latencyMs": 2000,
+      "toolNames": [
+        "readCards",
+        "applyExportTemplate",
+        "draftDescription",
+        "validateCards",
+        "askToConfirmPublication"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    },
+    {
+      "caseId": "site-export-publish-ok",
+      "agent": "site-export",
+      "model": "model-b",
+      "passed": true,
+      "checks": [
+        {
+          "name": "run_finished",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "status",
+          "passed": true,
+          "detail": "suspended"
+        },
+        {
+          "name": "max_steps",
+          "passed": true,
+          "detail": "5 из 6"
+        },
+        {
+          "name": "tool_required:readCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:applyExportTemplate",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:validateCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_required:askToConfirmPublication",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_order",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "tool_forbidden:publishCards",
+          "passed": true,
+          "detail": "ок"
+        },
+        {
+          "name": "state:publishedCards",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:publishBatches",
+          "passed": true,
+          "detail": "0"
+        },
+        {
+          "name": "state:chatMessages",
+          "passed": true,
+          "detail": "1"
+        },
+        {
+          "name": "no_pii",
+          "passed": true,
+          "detail": "утечек нет"
+        },
+        {
+          "name": "no_digit_series",
+          "passed": true,
+          "detail": "серий цифр нет"
+        }
+      ],
+      "steps": 5,
+      "inputTokens": 5433,
+      "outputTokens": 227,
+      "cost": 0.017661,
+      "latencyMs": 3250,
+      "toolNames": [
+        "readCards",
+        "applyExportTemplate",
+        "draftDescription",
+        "validateCards",
+        "askToConfirmPublication"
+      ],
+      "leaks": [],
+      "leakChecked": true,
+      "managerChoice": null,
+      "synthetic": true,
+      "staleRecording": false
+    }
+  ]
+}

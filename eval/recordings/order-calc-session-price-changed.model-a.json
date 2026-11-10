@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "caseId": "order-calc-session-price-changed",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-search",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3914,
+        "outputTokens": 22
+      },
+      "latencyMs": 400,
+      "requestHash": "ccdb46ef5e556c1fc15ca2e8613be6d8c1450ee56a80ee63f213d4cb4cad97f8"
+    },
+    {
+      "content": "Перепроверил по базе: цена Болтик теперь 52 руб. за метр (с 25.10), в сводке была 48",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4006,
+        "outputTokens": 22
+      },
+      "latencyMs": 400,
+      "requestHash": "56e629d4c9d77f8dcdb68256fd487d75e4b70e328b336d5b1cf33279deb2d275"
+    }
+  ],
+  "synthetic": true
+}

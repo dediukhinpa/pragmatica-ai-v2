@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "caseId": "documents-web-unconfirmed",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "КП шаблон"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5522,
+        "outputTokens": 18
+      },
+      "latencyMs": 400,
+      "requestHash": "524515cdedcec6589fbd32215622253b6dcbf8f68623db3599a379709a64b344"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "saveDocument",
+          "arguments": {
+            "templatePath": "templates/КП шаблон.docx",
+            "document": {
+              "id": "doc-3",
+              "kind": "commercial_offer",
+              "number": "КП-3",
+              "buyer": "ООО Заказчик",
+              "seller": "ООО Прагматика",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "web",
+                "seller": "employee",
+                "lines": "employee",
+                "total": "employee"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5638,
+        "outputTokens": 106
+      },
+      "latencyMs": 400,
+      "requestHash": "8bb48f729b79320351409cab52b70b8bb39de12a23c363e33ba7dba7fcbc1df4"
+    },
+    {
+      "content": "КП выпущено, но взято из интернета и не подтверждено: покупатель. Подтверждаете эти данные?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5859,
+        "outputTokens": 24
+      },
+      "latencyMs": 400,
+      "requestHash": "d9cf1defb4dfc5b7135cb6f890cffa9acc2bfca243961022f40042e52f97bd66"
+    }
+  ],
+  "synthetic": true
+}

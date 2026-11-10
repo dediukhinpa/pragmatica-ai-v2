@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "caseId": "documents-web-confirmed",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "КП шаблон"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5522,
+        "outputTokens": 18
+      },
+      "latencyMs": 400,
+      "requestHash": "524515cdedcec6589fbd32215622253b6dcbf8f68623db3599a379709a64b344"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "askToConfirmWebFields",
+          "arguments": {
+            "document": {
+              "id": "doc-3",
+              "kind": "commercial_offer",
+              "number": "КП-3",
+              "buyer": "ООО Заказчик",
+              "seller": "ООО Прагматика",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "web",
+                "seller": "employee",
+                "lines": "employee",
+                "total": "employee"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5638,
+        "outputTokens": 98
+      },
+      "latencyMs": 400,
+      "requestHash": "8bb48f729b79320351409cab52b70b8bb39de12a23c363e33ba7dba7fcbc1df4"
+    },
+    {
+      "content": "Подтвердите, пожалуйста, данные из интернета.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5764,
+        "outputTokens": 12
+      },
+      "latencyMs": 400,
+      "requestHash": "099543b40460580f89639e57d4a11f80ab56075e6286b00f92a83db567a829f5"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c3",
+          "name": "recordWebFieldsDecision",
+          "arguments": {
+            "document": {
+              "id": "doc-3",
+              "kind": "commercial_offer",
+              "number": "КП-3",
+              "buyer": "ООО Заказчик",
+              "seller": "ООО Прагматика",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "web",
+                "seller": "employee",
+                "lines": "employee",
+                "total": "employee"
+              }
+            },
+            "decision": "confirmed"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5557,
+        "outputTokens": 104
+      },
+      "latencyMs": 400,
+      "requestHash": "80a58dbf0f129bdc600779d1d344a364dab1aa98892f333006534f11f0c5069b"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c4",
+          "name": "saveDocument",
+          "arguments": {
+            "templatePath": "templates/КП шаблон.docx",
+            "document": {
+              "id": "doc-3",
+              "kind": "commercial_offer",
+              "number": "КП-3",
+              "buyer": "ООО Заказчик",
+              "seller": "ООО Прагматика",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "web",
+                "seller": "employee",
+                "lines": "employee",
+                "total": "employee"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5698,
+        "outputTokens": 106
+      },
+      "latencyMs": 400,
+      "requestHash": "745c7c19c31288e6642876a14a63e8f3fecec3041967612eef053746df4ee6d6"
+    },
+    {
+      "content": "КП выпущено: поля из интернета подтверждены сотрудником",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5875,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "4ba4dc272daad704975309ea6270cf2947178cb7896bd54e8817a79f9bf84661"
+    }
+  ],
+  "synthetic": true
+}

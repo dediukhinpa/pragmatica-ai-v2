@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "caseId": "handoff-no-need-prices-fresh",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "s-0",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-4"
+          }
+        },
+        {
+          "id": "s-1",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-4"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3939,
+        "outputTokens": 37
+      },
+      "latencyMs": 400,
+      "requestHash": "d69ed2fd63452236bdc3caa441347860a6a917b985e746550b82b5023fdc0ef7"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-4"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4064,
+        "outputTokens": 19
+      },
+      "latencyMs": 400,
+      "requestHash": "5556a6c83699354efc7fc96599f5b091cd1919238e045d75252d4af0c50aff48"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-4",
+            "version": "gqtzmgwnqwnpywgv"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4276,
+        "outputTokens": 27
+      },
+      "latencyMs": 400,
+      "requestHash": "f93437b1faebcaccb5bed1bb1ddec9ce666920980a11c0a43f10d65c4d243ed8"
+    }
+  ],
+  "synthetic": true
+}

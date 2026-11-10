@@ -1,0 +1,56 @@
+{
+  "id": "documents-web-confirmed",
+  "agent": "documents",
+  "description": "Те же данные из интернета: агент спрашивает подтверждение текстом, сотрудник отвечает «подтверждаю» (решение пишет окружение), следующим ходом документ собирается и уходит в чат.",
+  "request": "Сделай КП на 10 болтов М8 по 12 руб., данные покупателя найди в интернете. Ответственный — Алексей Сидоров, +7 (913) 555-12-34.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "files": [
+      {
+        "path": "templates/КП шаблон.docx",
+        "text": "tpl"
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Шаблон договора поставки"
+    }
+  },
+  "expect": {
+    "maxSteps": 6,
+    "requiredTools": [
+      "findTemplate",
+      "askToConfirmWebFields",
+      "recordWebFieldsDecision",
+      "saveDocument"
+    ],
+    "toolOrder": "ordered",
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true,
+    "outputContains": [
+      "КП"
+    ]
+  },
+  "pii": {
+    "names": [
+      "Сидоров",
+      "Алексей",
+      "Николаевич"
+    ],
+    "phones": [
+      "+7 (913) 555-12-34"
+    ]
+  },
+  "followUps": [
+    "Подтверждаю данные из интернета"
+  ]
+}

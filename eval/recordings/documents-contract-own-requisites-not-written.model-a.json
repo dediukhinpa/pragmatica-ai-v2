@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "caseId": "documents-contract-own-requisites-not-written",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "lookupSupplierInBase",
+          "arguments": {
+            "name": "МеталлТорг",
+            "documentKind": "contract"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7138,
+        "outputTokens": 26
+      },
+      "latencyMs": 400,
+      "requestHash": "c73d06df357b29353f763109da5f552dd570ca2b50dd26e45b6af53431e54b56"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "prepareSupplierDocument",
+          "arguments": {
+            "kind": "contract",
+            "supplierId": "s1",
+            "number": "Д-1",
+            "issuedAt": "2026-01-05T00:00:00.000Z"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7261,
+        "outputTokens": 38
+      },
+      "latencyMs": 400,
+      "requestHash": "d0993fd337c7fc7350cd1e4b529d85f715378fb00ce09030265635c530eeb4e8"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c3",
+          "name": "enrichSupplierCard",
+          "arguments": {
+            "documentKind": "contract",
+            "supplierId": "s1",
+            "origin": "chat",
+            "legalAddress": "г. Свой, ул. Наша, 5",
+            "website": "https://metalltorg.example"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7539,
+        "outputTokens": 48
+      },
+      "latencyMs": 400,
+      "requestHash": "adef716606178e78dcfc2598c1e61ab89e0d8e1a4f14b7f0be1703366dd0aae5"
+    },
+    {
+      "content": "Договор подготовлен, карточка поставщика дополнена: сайт.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7711,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "af0828763e5ee1f50291b9cfa628dbcb544187f7d6f1beaf8fa2c336eb0ddce4"
+    }
+  ],
+  "synthetic": true
+}

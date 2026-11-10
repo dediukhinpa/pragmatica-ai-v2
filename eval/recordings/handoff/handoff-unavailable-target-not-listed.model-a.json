@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "caseId": "handoff-unavailable-target-not-listed",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "Не могу передать задачу агенту «Подготовка документов (ИИ агент)»: такой передачи у меня нет.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 3938,
+        "outputTokens": 24
+      },
+      "latencyMs": 400,
+      "requestHash": "6ce9e1ec2954a0f984c130bab8418b7f537ab0414b338b8f99e9c0181d1a5537"
+    }
+  ],
+  "synthetic": true
+}
