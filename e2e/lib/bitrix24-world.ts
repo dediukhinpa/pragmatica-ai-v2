@@ -1,5 +1,6 @@
 import {
   Bitrix24ChatChannel,
+  Bitrix24PortalLinks,
   FixedClock,
   MemoryCrm,
   SystemClock,
@@ -557,7 +558,11 @@ export async function startBitrixWorld(options: BitrixWorldOptions): Promise<Bit
       heads: integrations.directory,
       tasks: integrations.tasks,
       dealSearch: integrations.deals,
-      ...(integrations.links === undefined ? {} : { portalLinks: integrations.links }),
+      // Платформа разбирает только https-ссылки, а портал стенда слушает http на локальном
+      // адресе (в старом репозитории для этого был признак allowHttp): только для стенда.
+      portalLinks: new Bitrix24PortalLinks(new URL(config.bitrix24.webhookUrl).host, {
+        allowHttp: true,
+      }),
       ...(options.flags?.attachments === true ? { attachments: integrations.attachments } : {}),
       ...(options.mailboxes === undefined ? {} : { mailboxes: options.mailboxes }),
       ...(options.external ?? {}),

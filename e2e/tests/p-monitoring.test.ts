@@ -80,11 +80,11 @@ const THURSDAY_LETTER_AT = '2026-10-15T07:00:00.000Z';
 
 const USER_A = 'emp-e2e-p-a';
 const USER_B = 'emp-e2e-p-b';
-const THREAD_A = 'e2e-p-thread-a';
-const THREAD_B = 'e2e-p-thread-b';
+const THREAD_A = `${PRICES_AGENT_ID}/${USER_A}`;
+const THREAD_B = `${PRICES_AGENT_ID}/${USER_B}`;
 /** Допущен к боту, но ящик не подключён. */
 const USER_NO_MAIL = 'emp-e2e-p-nomail';
-const THREAD_NO_MAIL = 'e2e-p-thread-nomail';
+const THREAD_NO_MAIL = `${PRICES_AGENT_ID}/${USER_NO_MAIL}`;
 /** Тред ответственного за прайсы (`PRICE_RESPONSIBLE_THREAD_ID`). */
 const THREAD_RESPONSIBLE = 'e2e-p-thread-resp';
 const ADDRESS_A = 'ivanov.a@pragmatika-mail.test';

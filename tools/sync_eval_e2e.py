@@ -159,6 +159,14 @@ TEXT_RULES: list[tuple[str, str, str, bool]] = [
     # карточками поставщиков (в deploy/compat.env флаг берётся из SUPPLIER_CARDS_ENABLED).
     (r"e2e/**/*.ts", r"(?m)^( *)SUPPLIER_CARDS_ENABLED: 'true',\n",
      "\\1SUPPLIER_CARDS_ENABLED: 'true',\n\\1PAIR_NOTES_ENABLED: 'true',\n", False),
+    # Реестр обращений в v2 ведёт хук хода агента по треду связки `<бот>/<сотрудник>` (насос
+    # платформы реестра не ведёт и id сотрудника отдельно от треда хуку не отдаёт).
+    (r"e2e/tests/p-monitoring.test.ts", r"const THREAD_A = 'e2e-p-thread-a';",
+     "const THREAD_A = `${PRICES_AGENT_ID}/${USER_A}`;", True),
+    (r"e2e/tests/p-monitoring.test.ts", r"const THREAD_B = 'e2e-p-thread-b';",
+     "const THREAD_B = `${PRICES_AGENT_ID}/${USER_B}`;", True),
+    (r"e2e/tests/p-monitoring.test.ts", r"const THREAD_NO_MAIL = 'e2e-p-thread-nomail';",
+     "const THREAD_NO_MAIL = `${PRICES_AGENT_ID}/${USER_NO_MAIL}`;", True),
     # Профиля LABOPS_PII_PROFILE у библиотеки маскирования платформы нет (с ним она не стартует):
     # настройки второго pseudonymizer (с маскированием юрлица) задаются явно, ключ и токен API
     # приходят из окружения прогона.
