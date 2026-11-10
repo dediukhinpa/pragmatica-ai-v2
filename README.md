@@ -1,1 +1,38 @@
 # pragmatica-ai-v2
+
+Thin purchasing-assistant project built on the versioned platform packages
+`@business-ai/core`, `@business-ai/adapters`, `@business-ai/testing`, `@business-ai/eval`.
+The platform (runtime, services, gateway, monitoring) lives in `business-ai`; this repository
+holds only what is specific to the project. Russian version: [README.ru.md](README.ru.md).
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `src/project.ts` | project manifest (`defineProject`): agents, models, config schema, access actions |
+| `src/agents/` | agents and their closure, **generated** by `tools/sync-agents.sh` |
+| `prompts/` | reserved for gateway-side prompts (stage 10) |
+| `db/app/` | project migrations (stream `app`), `db/legacy-map.tsv` maps old migration versions |
+| `config/` | dictionaries and PII patterns for the services' `/config`, access-policy sample |
+| `deploy/` | `compose.yml` (project `pragmatika`), `.env.example` |
+| `eval/`, `e2e/` | eval cases and recordings, end-to-end scenarios |
+| `tools/` | `sync-agents.sh` and its helpers, baseline helpers |
+
+## Do not edit `src/agents/**` by hand
+
+Everything under `src/agents/**` and `tests/agents/**` is overwritten by
+`tools/sync-agents.sh <commit of the old repository>`. Until the switch (stage 8) agents are
+developed in the old repository only. If v2 needs a different shape of a file, change the
+rewrite rules in `tools/sync-agents.sh` / `tools/sync_agents.py`, the patches in
+`tools/overrides/`, or the manifest — never the generated file. `tools/sync-agents.sh` records
+a checksum of every generated file in `tools/sync-manifest.tsv`; the test
+`tests/sync-guard.test.ts` fails if a generated file was edited by hand.
+
+## Checks
+
+```
+export BAI_NPM_REGISTRY=http://127.0.0.1:24873/   # local development registry
+bun install
+bun run typecheck
+bun test
+```

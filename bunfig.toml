@@ -1,0 +1,11 @@
+# Пакеты платформы берутся из реестра, адрес которого задаёт BAI_NPM_REGISTRY
+# (локальный реестр разработки: http://127.0.0.1:24873/).
+[install.scopes]
+"@business-ai" = { url = "$BAI_NPM_REGISTRY" }
+
+[test]
+# Общая проверка после каждого теста, проект для тестов платформы и описание eval.
+preload = [
+  "@business-ai/testing/setup",
+  "./tests/register-project.ts",
+]
