@@ -2,8 +2,8 @@
 # (stage-0/baseline/migrations/schema-from-migrations.sql). Формат: объект<TAB>причина.
 # Объект - "ТИП имя" как в заголовках pg_dump. tools/check-migrations.sh требует точного
 # совпадения набора: лишнее и недостающее - ошибка.
-# ВНИМАНИЕ: список составлен по сравнению текстов миграций платформы и прежнего репозитория;
-# прогон на PostgreSQL не выполнялся (нет ресурсов хоста), поэтому он не подтверждён.
+# Список подтверждён прогоном tools/check-migrations.sh на временном PostgreSQL 16
+# (три сценария: пустая база, прежний раннер на SRC, схема боя).
 TABLE knowledge_chunks	платформа называет столбец привязки scope, у Прагматики был supplier_id
 INDEX knowledge_chunks_supplier_idx	в платформе индекс по привязке называется knowledge_chunks_scope_idx
 INDEX knowledge_chunks_scope_idx	платформенное имя индекса по столбцу scope (у Прагматики supplier_idx)
