@@ -1,0 +1,19 @@
+import type { ScriptResultKindSpec } from '@business-ai/core';
+
+/**
+ * Вид результата скрипта `price_items` для агентов без разбора прайсов: модели возвращается
+ * сводка (число позиций и образец), а не все позиции. Агент прайсов объявляет тот же вид со своим
+ * обработчиком (сверка и staging). Песочница платформы знает общий вид `rows`; форму позиции
+ * проверяет обработчик агента-владельца.
+ */
+export function priceItemsSummaryKind<D>(): ScriptResultKindSpec<D> {
+  return {
+    name: 'price_items',
+    sandboxKind: 'rows',
+    description:
+      'price_items (список позиций {name, price>0, variant?, sku?, note?, currency? (USD), ' +
+      'tier_basis?: quantity|order_sum, tiers?: [{min_quantity>0, price>0}] (порог по ' +
+      'возрастанию, цена позиции = цене первого тиража), price_qualifier?: from|range, ' +
+      'price_max?}, лишние ключи - ошибка; вернётся сводка, не сами позиции)',
+  };
+}

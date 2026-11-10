@@ -1,0 +1,377 @@
+{
+  "blocksLead": "[B]Шорт-лист поставщиков[/B]\nЗаявка: [B]заявка[/B]\n[B]Средняя цена по нашей базе:[/B] 60 500 ₽/т (2 поставщика, от 60 000 до 61 000 ₽/т)\n\n[B]Средняя цена по интернету:[/B] нет данных\n\nИз 20 сравнённых кандидатов в шорт-листе — 10.",
+  "blocks": [
+    {
+      "kind": "message",
+      "text": "[B]1. Поставщик 1[/B] · из базы"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "Арматура: 60 000 ₽/т (НДС не указан); Уголок: 61 000 ₽/т (НДС не указан); Швеллер: 62 000 ₽/т (НДС не указан)",
+          "tone": "primary"
+        },
+        {
+          "name": "Срок",
+          "value": "3-5 дней"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "4,5 из 5 (оценка модели): давно работаем"
+        },
+        {
+          "name": "Город",
+          "value": "Казань (ул. Складская, 5)"
+        },
+        {
+          "name": "Контакты",
+          "value": "Иванов Иван, +70000000001, sales@one.test"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]2. Поставщик 2[/B] · из базы"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "1 ₽/т (НДС не указан); 2 ₽/т (НДС не указан); 3 ₽/т (НДС не указан); и ещё 2",
+          "tone": "primary"
+        },
+        {
+          "name": "Срок",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "3,5 из 5 (по правилу)"
+        },
+        {
+          "name": "Город",
+          "value": "Тверь"
+        },
+        {
+          "name": "Контакты",
+          "value": "нет данных",
+          "tone": "secondary"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]3. Поставщик 3[/B] · из базы"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Срок",
+          "value": "7 дней"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Город",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Контакты",
+          "value": "info@three.test"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]4. Поставщик 4[/B] · ИЗ ИНТЕРНЕТА"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "61 800 ₽/т (НДС не указан) (ИЗ ИНТЕРНЕТА)",
+          "tone": "primary"
+        },
+        {
+          "name": "Срок",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Город",
+          "value": "Пермь (ИЗ ИНТЕРНЕТА)"
+        },
+        {
+          "name": "Контакты",
+          "value": "тел. +70000000004 (ИЗ ИНТЕРНЕТА)"
+        },
+        {
+          "name": "Сайт",
+          "value": "https://four.test/price (ИЗ ИНТЕРНЕТА)",
+          "link": "https://four.test/price"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]5. Поставщик 5[/B] · ИЗ ИНТЕРНЕТА"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Срок",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Город",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Контакты",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Сайт",
+          "value": "https://five.test/ (ИЗ ИНТЕРНЕТА)",
+          "link": "https://five.test/"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]6. Поставщик 6[/B] · из базы, ИЗ ИНТЕРНЕТА"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Срок",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Город",
+          "value": "Омск"
+        },
+        {
+          "name": "Контакты",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Сайт",
+          "value": "https://six.test/ (ИЗ ИНТЕРНЕТА)",
+          "link": "https://six.test/"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]7. Поставщик 7[/B] · из базы"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Срок",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Город",
+          "value": "Уфа"
+        },
+        {
+          "name": "Контакты",
+          "value": "нет данных",
+          "tone": "secondary"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]8. Поставщик 8[/B] · из базы"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Срок",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Город",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Контакты",
+          "value": "info@eight.test"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]9. Поставщик 9[/B] · из базы"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Срок",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Город",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Контакты",
+          "value": "нет данных",
+          "tone": "secondary"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    },
+    {
+      "kind": "message",
+      "text": "[B]10. ООО (B)Хитрый(/B)[/B] · ИЗ ИНТЕРНЕТА"
+    },
+    {
+      "kind": "grid",
+      "rows": [
+        {
+          "name": "Стоимость",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Срок",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Рейтинг",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Город",
+          "value": "нет данных",
+          "tone": "secondary"
+        },
+        {
+          "name": "Контакты",
+          "value": "нет данных",
+          "tone": "secondary"
+        }
+      ]
+    },
+    {
+      "kind": "delimiter"
+    }
+  ]
+}
