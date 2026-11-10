@@ -248,7 +248,8 @@ describe('сохранённый скрипт идёт первым в обыч�
     expect(out).toMatchObject({ viaSavedScript: true, staged: 2, totalStaged: 2, nextRow: null });
     expect(sandbox.requests).toHaveLength(1);
     expect(sandbox.requests[0]?.code).toBe(CODE);
-    expect(sandbox.requests[0]?.resultKind).toBe('price_items');
+    // Песочница платформы принимает общие виды: `price_items` уходит ей как `rows`.
+    expect(sandbox.requests[0]?.resultKind).toBe('rows');
     const staged = await deps.staging.load(stagingImportId(SUPPLIER_ID, out.fileHash));
     expect(staged?.items.map((item) => item.price)).toEqual([11, 6]);
     // Повторный вызов по другой таблице файла - пустой: скрипт разобрал файл целиком.

@@ -350,7 +350,8 @@ export async function runSavedScript(
       code: saved.code,
       parsed,
       bytes: await readScriptFile(source),
-      resultKind: 'price_items',
+      // Песочница платформы знает общие виды; `price_items` для неё - список объектов (`rows`).
+      resultKind: 'rows',
     }),
     context.signal === undefined ? {} : { signal: context.signal },
   );
