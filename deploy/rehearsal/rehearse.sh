@@ -58,6 +58,7 @@ PG_USER_DEFAULT="pragmatika"
 PG_DB_DEFAULT="pragmatika"
 PSEUDO_UID=10001
 SECRET_BYTES=24
+FAILURE_LOG_LINES=20
 SMOKE_THREAD="rehearsal-smoke"
 SMOKE_TEXT="Контакт для проверки: rehearsal.smoke@example.test"
 # Шаблоны docker inspect и запросов, вынесенные ради длины строк.
@@ -560,6 +561,9 @@ prepare_inputs() {
   fi
   [[ -d "$BATTLE_ETC_DIR/access" ]] && cp -a "$BATTLE_ETC_DIR/access/." "$etc/access/" || true
   [[ -d "$BATTLE_LOCAL_DIR" ]] && cp -a "$BATTLE_LOCAL_DIR/." "$RUN_DIR/local/" || true
+  # Контейнеры работают под своими uid (не владелец копий): копиям нужно чтение для всех.
+  # Каталог запуска закрыт (700), поэтому посторонние на хосте до копий не дойдут.
+  chmod -R a+rX "$etc" "$RUN_DIR/share" "$RUN_DIR/local"
   # Почта: настоящий файл ящиков (логины) не переносится, проверяется только форма.
   local mailboxes="$BATTLE_ETC_DIR/mail/mailboxes.json"
   if [[ -f "$mailboxes" ]]; then
@@ -823,24 +827,33 @@ PY
 # ---------------------------------------------------------------------------------------------
 # 6. Псевдонимизатор v2, app
 # ---------------------------------------------------------------------------------------------
+# Последние строки журнала контейнера для разбора сбоя: JSON-строки сводятся к level и event,
+# остальное (вывод точки входа) режется по длине. Значения секретов отсеивает leak-scan.
+capture_failure_log() { # capture_failure_log <сервис>
+  docker logs --tail "$FAILURE_LOG_LINES" "$PROJECT-$1-1" 2>&1 | python3 -I -c '
+import json, sys
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+        print({k: d.get(k) for k in ("level", "event", "status")})
+    except ValueError:
+        print(line.rstrip()[:200])' >"$RES/failure-$1.txt" 2>/dev/null || true
+}
+
 start_services() {
   phase "старт псевдонимизатора и app"
-  dc up -d pseudonymizer model-stub app >>"$LOG_FILE" 2>&1 \
-    || { check "старт стека" fail "compose up не удался"; die "$EXIT_FAILED" "стек не стартовал"; }
   local svc
+  if ! dc up -d pseudonymizer model-stub app >>"$LOG_FILE" 2>&1; then
+    for svc in pseudonymizer model-stub app; do capture_failure_log "$svc"; done
+    check "старт стека" fail "compose up не удался (failure-<сервис>.txt)"
+    die "$EXIT_FAILED" "стек не стартовал"
+  fi
   for svc in pseudonymizer model-stub app; do
     if wait_healthy "$svc" "$READY_WAIT_S"; then
       check "сервис $svc" ok "healthy"
     else
       check "сервис $svc" fail "не стал healthy за ${READY_WAIT_S} с"
-      docker logs --tail 5 "$PROJECT-$svc-1" 2>&1 | python3 -I -c '
-import json, sys
-for line in sys.stdin:
-    try:
-        d = json.loads(line)
-        print({k: d.get(k) for k in ("level", "event")})
-    except ValueError:
-        print("(не JSON строка журнала)")' >>"$LOG_FILE" || true
+      capture_failure_log "$svc"
     fi
   done
   # /ready приложения
