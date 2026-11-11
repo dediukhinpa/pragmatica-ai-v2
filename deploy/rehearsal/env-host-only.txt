@@ -6,3 +6,6 @@
 _HOST_DIR$
 _HOST_FILE$
 ^COMPOSE_
+# Сроки хранения и имя тома приёма читают maintenance.sh и backup-lib.sh старого дерева на хосте.
+_RETENTION_DAYS$
+^INTAKE_VOLUME$
