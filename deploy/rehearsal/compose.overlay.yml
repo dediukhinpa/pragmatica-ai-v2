@@ -1,0 +1,165 @@
+# Отличия репетиции от боевого compose (третий файл списка include в compose.yml).
+#
+# Принципы:
+#   * никаких опубликованных портов и никаких путей боя: все каталоги хоста берутся из каталога
+#     запуска репетиции (REHEARSAL_RUN_DIR), все данные лежат в собственных томах проекта
+#     `pragmatika-rehearsal`;
+#   * каналов нет: Bitrix24, почта, поиск, Telegram не настраиваются (rehearse.sh не передаёт их
+#     переменных), у app нет выхода наружу (сеть egress убрана), шлюз моделей - заглушка;
+#   * контейнеры репетиции первыми попадают под OOM-убийцу хоста (oom_score_adj) и имеют малый
+#     вес CPU: бой важнее;
+#   * режим «лёгкий»: запускаются только postgres, pseudonymizer, model-stub и app. Остальные
+#     сервисы базы (documents, embeddings, indexer, sandbox, mask, speech, gateway-mtls,
+#     телеметрия) rehearse.sh не поднимает; app не ждёт gateway-mtls.
+#
+# ПУТИ. Относительные пути отсчитываются от deploy/platform/ (первый файл списка include).
+# Здесь пути абсолютные - из переменных rehearse.sh.
+
+x-rehearsal: &rehearsal
+  labels:
+    pragmatika.rehearsal: "1"
+  # Приоритет при нехватке памяти хоста: первыми гибнут контейнеры репетиции, не бой.
+  oom_score_adj: 800
+  cpu_shares: 128
+
+services:
+  postgres:
+    <<: *rehearsal
+    volumes: !override
+      - pgdata:/var/lib/postgresql/data
+    shm_size: 256mb
+    # Настройки легче боевых (бой: shared_buffers 1GB, maintenance_work_mem 1GB, лимит 4g):
+    # репетиция идёт на хосте, где память почти занята боем. Числа памяти Postgres поэтому
+    # с боевыми не сравниваются, сравниваются app и pseudonymizer.
+    mem_limit: ${REHEARSAL_PG_MEM_LIMIT:-2g}
+    command: !override
+      - postgres
+      - -c
+      - shared_buffers=${REHEARSAL_PG_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=${REHEARSAL_PG_MAINTENANCE_WORK_MEM:-512MB}
+      - -c
+      - max_connections=50
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
+      - -c
+      - log_error_verbosity=terse
+      - -c
+      - log_min_error_statement=panic
+
+  pseudonymizer:
+    <<: *rehearsal
+    volumes: !override
+      - ${REHEARSAL_RUN_DIR:?}/etc/config:/config:ro
+      - pseudonymizer-data:/data
+      - type: bind
+        source: ${REHEARSAL_RUN_DIR:?}/etc/contacts.txt
+        target: /etc/pragmatika/contacts.txt
+        read_only: true
+        bind:
+          create_host_path: false
+
+  # Заглушка шлюза моделей: отвечает на /health и OpenAI-совместимые маршруты фиксированным
+  # ответом, ничего не запоминает. Работает на образе app (в нём есть bun), без сети наружу.
+  model-stub:
+    <<: *rehearsal
+    image: ${BAI_IMAGE_APP:?}
+    networks: [backend]
+    entrypoint: ["bun", "run", "/stub/model-stub.ts"]
+    environment:
+      MODEL_STUB_PORT: "4000"
+    volumes:
+      - type: bind
+        source: ${REHEARSAL_STUB_FILE:?}
+        target: /stub/model-stub.ts
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    restart: "no"
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - >-
+          fetch('http://127.0.0.1:4000/health').then(
+          (r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+
+  app:
+    <<: *rehearsal
+    # Без egress: репетиция не должна никуда ходить. Шлюз - model-stub вместо gateway-mtls.
+    networks: !override [backend, pseudonymizer-net]
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      pseudonymizer:
+        condition: service_healthy
+      model-stub:
+        condition: service_healthy
+    environment:
+      LITELLM_BASE_URL: http://model-stub:4000
+      # Пути правил доступа и почты внутри контейнера боевые; файлы - копии из каталога запуска.
+      # Файл ящиков почты не передаётся совсем: почта не настроена.
+      HEALTH_PORT: "8088"
+    volumes: !override
+      - type: bind
+        source: ${REHEARSAL_RUN_DIR:?}/share
+        target: /srv/documents
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${REHEARSAL_RUN_DIR:?}/share
+        target: /srv/templates
+        read_only: true
+        bind:
+          create_host_path: false
+      - intake-data:/var/lib/pragmatika/intake
+      - file-spool:/var/lib/pragmatika/spool
+      - documents-exchange:/var/lib/pragmatika/exchange
+      - sandbox-socket:/run/sandbox
+      - type: bind
+        source: ${REHEARSAL_RUN_DIR:?}/etc/access
+        target: /etc/pragmatika/access
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${REHEARSAL_RUN_DIR:?}/etc/mail
+        target: /etc/pragmatika/mail
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${REHEARSAL_RUN_DIR:?}/local
+        target: /opt/pragmatika/local
+        read_only: true
+        bind:
+          create_host_path: false
+
+  migrate:
+    <<: *rehearsal
+
+volumes:
+  pgdata: {}

@@ -1,0 +1,19 @@
+# Compose репетиции переезда: лёгкий стек (postgres, pseudonymizer, app, заглушка шлюза моделей)
+# рядом с боем, но отдельно от него. Запуск - только через rehearse.sh (он готовит .env репетиции,
+# каталог запуска и переменные REHEARSAL_*).
+#
+# Имя проекта `pragmatika-rehearsal` отличается от боевого `pragmatika`: у репетиции свои
+# контейнеры, тома (`pragmatika-rehearsal_*`) и сети, боевые не пересекаются. Состав сервисов
+# и их настройки - те же, что у боя (platform/compose.base.yml + compose.project.yml); отличия
+# репетиции вынесены в третий файл списка (compose.overlay.yml).
+name: pragmatika-rehearsal
+
+include:
+  - path:
+      # Файлы списка отсчитываются от каталога этого файла (deploy/rehearsal/), а относительные
+      # пути ВНУТРИ них - от каталога первого файла списка (deploy/platform/).
+      - ../platform/compose.base.yml
+      - ../compose.project.yml
+      - compose.overlay.yml
+    env_file:
+      - ../compat.env

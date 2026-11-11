@@ -1,0 +1,28 @@
+# Имена боевого окружения, которые репетиция НЕ переносит в свой .env (регулярные выражения
+# Python, поиск по имени). В репетицию попадают только имена, известные compose v2, за вычетом
+# этого списка. Смысл: у репетиции нет каналов, нет секретов боя и нет выхода наружу.
+# Каналы и внешние сервисы
+^BITRIX24_
+^MAIL_(?!TAG_SALT_PREFIX$)
+^TELEGRAM_
+^LITELLM_
+^GATEWAY_
+^WEB_SEARCH_(PROVIDER|API|ENDPOINT|FOLDER)
+^YANDEX_
+^SPEECH_
+^SMB_
+# Секреты и ключи (PSEUDONYMIZER_KEY репетиция берёт отдельно и явно)
+_KEY$
+_TOKEN$
+_PASSWORD$
+_SECRET$
+_SECRET_KEY$
+^BACKUP_
+# Пути хоста боя: у репетиции свой каталог запуска
+_HOST_DIR$
+_HOST_FILE$
+^(DATA_DIR|SECRETS_DIR|MTLS_DIR|MODELS_DIR|TEXTFILE_METRICS_DIR|BAI_CONFIG_HOST_DIR)$
+# Мониторинг и телеметрия боя
+^(ALLOY_|TELEMETRY_(?!SERVICE_NAME$)|OTEL_)
+# Образы: версии берутся только из images.lock
+^(BAI_IMAGE_|BAI_VERSION$|POSTGRES_IMAGE$|NGINX_IMAGE$|ALLOY_IMAGE$|DOCKER_PROXY_IMAGE$)
