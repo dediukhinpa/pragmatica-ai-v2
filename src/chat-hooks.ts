@@ -57,6 +57,7 @@ import {
 import { openMailProposalBlock } from './agents/suppliers/mail-proposal-store';
 import { SUPPLIER_HELP_TEXT } from './agents/suppliers/prompt';
 import { retiredPriceJumpButton } from './kit/app/chat-pump.owned';
+import { launchAgentTurn, type LaunchOutcome } from './chat-launch';
 import { pragmatikaRuntime, type PragmatikaRuntime } from './runtime';
 
 /** Тексты отказов и ответов на кнопки (как были в насосе чата до манифеста). */
@@ -218,10 +219,13 @@ async function pickOutcomeText(
   }
 }
 
-/** Ответ менеджеру после «Готово»: выбор записан кодом, агент следующим сообщением продолжит. */
-const CHOICE_DONE_TEXTS: Record<ChoiceDoneOutcome['kind'], string> = {
-  finalized: CHAT_CHOICE_DONE_RECORDED_TEXT,
-  already_done: CHAT_CHOICE_DONE_RECORDED_TEXT,
+/**
+ * Отказ после «Готово»; `null` - выбор записан кодом, дальше агент (как в прежнем насосе:
+ * возобновление или новый ход). Агент фиксирует выбор и рассылает запросы.
+ */
+const CHOICE_DONE_REFUSALS: Record<ChoiceDoneOutcome['kind'], string | null> = {
+  finalized: null,
+  already_done: null,
   nothing_selected: CHAT_CHOICE_NOTHING_TEXT,
   no_identity: CHAT_CHOICE_IDENTITY_TEXT,
   stale_button: CHAT_CHOICE_STALE_TEXT,
@@ -296,9 +300,43 @@ const pickButton = chatButtonHandler<string>({
 });
 
 /**
- * Кнопка «Готово»: код завершает накопленный выбор. Платформа не даёт обработчику кнопки со
- * сценарием запустить агента следом (префикс не может быть и в `scenarios`, и в `buttons`), поэтому
- * агента менеджер подталкивает сам: `recordSelection` берёт набор из уже завершённого выбора.
+ * Запустить ход агента после решения, записанного кодом (как `answer(...)` в прежнем насосе).
+ * Платформа после проектной кнопки агента не запускает, поэтому ход ставит мост канала
+ * (`chat-launch.ts`). Моста нет или насос событие не принял - сотрудник получает прежний текст
+ * с просьбой написать агенту самому: решение уже записано, ничего не потеряно.
+ */
+async function continueWithAgent(
+  context: ChatHookContext,
+  runtime: PragmatikaRuntime,
+  launch: { text: string; dedupeKey: string; fallbackText: string },
+): Promise<LaunchOutcome> {
+  const outcome = await launchAgentTurn(
+    {
+      threadId: context.threadId,
+      userId: context.userId,
+      botId: context.botId,
+      text: launch.text,
+      dedupeKey: launch.dedupeKey,
+    },
+    runtime.clock.now().getTime(),
+  );
+  if (outcome === 'unavailable' || outcome === 'not_accepted') {
+    await context.say(launch.fallbackText);
+  }
+  return outcome;
+}
+
+/** Код результата для аудита: ход не начат (нет моста, насос не принял) - виден в коде. */
+function launchCode(code: string, outcome: LaunchOutcome): string {
+  return outcome === 'unavailable' || outcome === 'not_accepted' ? `${code}_${outcome}` : code;
+}
+
+/**
+ * Кнопка «Готово»: код завершает накопленный выбор и только после этого запускается агент
+ * (возобновление или новый ход) с тем же вводом, что и в прежнем насосе: он фиксирует выбор
+ * (`recordSelection` берёт набор из уже завершённого выбора) и рассылает запросы. Повтор
+ * «Готово» при открытом вопросе (прошлый ход не дошёл до записи) запускает агента снова, но не
+ * чаще раза в окно `LAUNCH_DEDUPE_WINDOW_MS`: двойное нажатие не задваивает ход.
  */
 const pickDoneButton: ChatButtonHandler = {
   prefix: PICK_DONE_PREFIX,
@@ -315,12 +353,37 @@ const pickDoneButton: ChatButtonHandler = {
       userId: context.userId,
       threadId: context.threadId,
     });
-    await context.say(CHOICE_DONE_TEXTS[outcome.kind]);
-    return outcome.kind === 'stale_button' ? 'choice_stale_button' : `choice_${outcome.kind}`;
+    const refusal = CHOICE_DONE_REFUSALS[outcome.kind];
+    const code = outcome.kind === 'stale_button' ? 'choice_stale_button' : `choice_${outcome.kind}`;
+    if (refusal !== null) {
+      await context.say(refusal);
+      return code;
+    }
+    const launched = await continueWithAgent(context, runtime, {
+      text: `Нажата кнопка: ${buttonId}`,
+      dedupeKey: `${PICK_DONE_PREFIX}:${context.threadId}:${token}`,
+      fallbackText: CHAT_CHOICE_DONE_RECORDED_TEXT,
+    });
+    return launchCode(code, launched);
   },
 };
 
-/** Кнопка «заменить КП на ответ N» (старые сообщения): подтверждение пишет код. */
+/** Ввод агенту после разрешённой замены КП: тот же текст, что был в прежнем насосе. */
+export function quoteReplaceAgentInput(
+  outcome: Extract<QuoteReplaceOutcome, { kind: 'approved' | 'already_approved' }>,
+): string {
+  return (
+    `Менеджер разрешил заменить КП поставщика ${outcome.supplierId} по заявке ` +
+    `${outcome.requestId} ответом ${outcome.replyId}. Вызови readSupplierReplies, затем ` +
+    `recordQuote с sourceRef=${outcome.replyId} (только данные из этого ответа), затем ` +
+    'compareQuotes и sendQuoteSummary.'
+  );
+}
+
+/**
+ * Кнопка «заменить КП на ответ N» (старые сообщения): подтверждение пишет код (тред, срок 24 ч,
+ * ответ, одноразово), затем агент записывает КП из этого ответа.
+ */
 const quoteReplaceButton = chatButtonHandler<string>({
   prefix: QUOTE_REPLACE_PREFIX,
   replay: 'auto',
@@ -335,9 +398,17 @@ const quoteReplaceButton = chatButtonHandler<string>({
       userId: context.userId,
       threadId: context.threadId,
     });
-    const refusal = QUOTE_REPLACE_REFUSALS[outcome.kind];
-    await context.say(refusal ?? CHAT_QUOTE_REPLACE_APPROVED_TEXT);
-    return `quote_replace_${outcome.kind}`;
+    const code = `quote_replace_${outcome.kind}`;
+    if (outcome.kind !== 'approved' && outcome.kind !== 'already_approved') {
+      await context.say(QUOTE_REPLACE_REFUSALS[outcome.kind] ?? CHAT_QUOTE_REPLACE_UNKNOWN_TEXT);
+      return code;
+    }
+    const launched = await continueWithAgent(context, runtime, {
+      text: quoteReplaceAgentInput(outcome),
+      dedupeKey: `${QUOTE_REPLACE_PREFIX}:${context.threadId}:${token}`,
+      fallbackText: CHAT_QUOTE_REPLACE_APPROVED_TEXT,
+    });
+    return launchCode(code, launched);
   },
 });
 

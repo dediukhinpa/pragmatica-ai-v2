@@ -131,7 +131,7 @@ describe('обработчики кнопок', () => {
     expect(said).toHaveLength(1);
   });
 
-  test('«Готово» не отдаёт ход агенту: обработчик всегда отвечает сам', async () => {
+  test('«Готово» без моста к насосу: обработчик отвечает сам, ход не теряется', async () => {
     const { context } = fakeContext();
     expect(await handlerOf('pickdone').handle('pickdone:abcdef', context)).not.toBeNull();
   });
