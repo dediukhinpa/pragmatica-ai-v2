@@ -15,8 +15,8 @@
 #      только версии, которых на бою нет (app 041/042 и новые миграции проекта); после
 #      применения схема равна схеме сценария 1.
 #
-# Postgres - контейнер pgvector/pgvector:0.8.6-pg16 на 127.0.0.1:20600-20649, данные в tmpfs
-# (диск хоста почти полон). Скрипт сам поднимает и гасит контейнер, работает под flock
+# Postgres - контейнер pgvector/pgvector:0.8.6-pg16 на 127.0.0.1:20600-20649 (MIGR_PORT_*),
+# данные в tmpfs (диск хоста почти полон). Скрипт сам поднимает и гасит контейнер, работает под flock
 # heavy.lock, пишет протокол в $WORK/check.log. Код выхода: 0 - всё сошлось, 1 - расхождение,
 # 2 - ошибка окружения, 3 - не хватает ресурсов хоста.
 set -euo pipefail
@@ -28,10 +28,11 @@ LOCK_FILE="$BAI_HOME/heavy.lock"
 
 # --- Константы -----------------------------------------------------------------------------
 PG_IMAGE="pgvector/pgvector:0.8.6-pg16"
-CONTAINER="bai6-migr-pg"
-PORT_FIRST=20600
-PORT_LAST=20649
-STAGE_LABEL="bai.stage=6"
+# Порты, метка и имя контейнера задаются этапом снаружи (по умолчанию - диапазон этапа 6).
+CONTAINER="${MIGR_CONTAINER:-bai6-migr-pg}"
+PORT_FIRST="${MIGR_PORT_FIRST:-20600}"
+PORT_LAST="${MIGR_PORT_LAST:-20649}"
+STAGE_LABEL="${MIGR_STAGE_LABEL:-bai.stage=6}"
 PG_READY_TRIES=60
 RUNNER_TIMEOUT_SEC=300
 # Пороги ресурсов хоста (общие правила этапов) и ожидание при нехватке.
@@ -44,7 +45,7 @@ E2E_WAIT_SEC=60
 E2E_WAIT_TRIES=30
 
 PLATFORM_REPO="${PLATFORM_REPO:-$HOME/wt-bai-modular}"
-PLATFORM_REF="${PLATFORM_REF:-v1.0.0}"
+PLATFORM_REF="${PLATFORM_REF:-v1.0.1}"
 SRC_REPO="${SRC_REPO:-$HOME/pragmatika-purchasing}"
 SRC_COMMIT="${SRC_COMMIT:-5ea7f2d308beb476fb8b6fe05e095587c9ee4f40}"
 BASELINE_SCHEMA="${BASELINE_SCHEMA:-$BAI_HOME/stage-0/baseline/migrations/schema-from-migrations.sql}"

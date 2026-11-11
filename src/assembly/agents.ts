@@ -51,7 +51,6 @@ import {
   type SupplierCardsRuntime,
 } from '../runtime';
 import { attachModelAdapters } from './model-adapters';
-import { projectModels } from './project-models';
 import { supplierTemplateLoader } from './supplier-template-loader';
 
 /** Контекст сборки Прагматики (типизирован предметными переменными проекта). */
@@ -472,13 +471,12 @@ function isMailConnected(ctx: Context): boolean {
   );
 }
 
-/** Шлюз модели для вызовов вне агентского цикла: один на сборку (платформа его не отдаёт). */
-function modelsOf(ctx: Context): ReturnType<typeof projectModels> {
-  return projectModels({
-    config: ctx.config,
-    services: ctx.services,
-    alertThreadId: managerThreadOf(ctx),
-  });
+/**
+ * Шлюз модели для вызовов вне агентского цикла: платформенный (`PlatformServices.models`, 1.0.1),
+ * с псевдонимизацией и общим с агентским циклом пределом `PSEUDONYMIZER_MAX_INFLIGHT`.
+ */
+function modelsOf(ctx: Context): Context['services']['models'] {
+  return ctx.services.models;
 }
 
 /** Карточки поставщиков: общий набор зависимостей модуля, сервис нажатий и шаблон-файл. */

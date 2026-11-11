@@ -44,7 +44,6 @@ bun test
 
 | Файл | Что возвращает |
 |---|---|
-| `src/chat-intake.ts`, `src/chat-launch.ts` | текст сообщения сотрудника для агента документов; ход агента после кнопок «Готово» и «заменить КП» (мост ставится в `ports(env)`) |
 | `src/legacy-tools.ts`, `src/legacy-tool-texts.ts` | описания и схемы инструментов и общие блоки промпта в прежнем виде |
 | `src/lifecycle-disk-sync.ts`, `src/background-*.ts` | закрытие неотчитанных прогонов синхронизации с диска; команды владельца `bun run src/background-cli.ts <mail-info-backfill\|mail-trust-survey\|crm-suppliers-sync>` |
 | `src/mail-sender-lookup.ts` | допуск отправителей почты по базе поставщиков |

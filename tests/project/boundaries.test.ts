@@ -19,8 +19,6 @@ const OWNED_ROOT_FILES = [
   'legacy-tool-texts.ts',
   'legacy-tools.ts',
   'chat-hooks.ts',
-  'chat-intake.ts',
-  'chat-launch.ts',
   'config.ts',
   'eval.ts',
   'event-severity.ts',

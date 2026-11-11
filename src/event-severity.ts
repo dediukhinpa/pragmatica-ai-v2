@@ -2,12 +2,17 @@ import type { Severity } from '@business-ai/adapters';
 
 /**
  * Классы событий журнала, которые пишет код проекта (агенты, адаптеры, сборка). События
- * платформы здесь не повторяются: их класс задаёт сама платформа и менять его проект не может.
+ * платформы здесь не повторяются: их класс задаёт сама платформа. Исключение - события из
+ * `PROJECT_EVENT_SEVERITY_OVERRIDES`: проект вправе заменить их класс (платформа 1.0.1,
+ * `eventSeverityOverrides` манифеста).
  * Событие без записи получает класс `info`, поэтому новое событие агента обязано попасть сюда
  * (это проверяет `tests/project/event-severity.test.ts`). Таблица снята с прежнего ядра
  * Прагматики; события платформы отсюда исключены.
  */
 export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
+  // Лимит чтений страниц - штатная защита, а не сбой: в прежнем ядре `info` (в платформе
+  // `warning`, из-за чего разбор считал бы работу «с проблемами»). Замена разрешена ниже.
+  web_fetch_rate_limited: 'info',
   // Этап 230: наши реквизиты как данные. Нет записи юрлица - договор не собран (fail closed);
   // печатный блок шаблона расходится с записью - тоже отказ; запись изменена сотрудником
   // (в поле только юрлицо и названия полей); чтение записей для фильтра не удалось - остаётся env.
@@ -126,8 +131,6 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   supplier_mail_proposal_unavailable: 'warning',
   supplier_mail_proposal_letters_unavailable: 'warning',
   mail_proposals_ignored: 'warning',
-  // Не удалось закрыть итог файла диска после хода (lifecycle-disk-sync): ждёт срока, как раньше.
-  disk_sync_close_failed: 'warning',
   // Этап 220b: сбой аудита при применении подтверждённого пункта отчёта (запись уже сделана).
   supplier_mail_backfill_audit_failed: 'warning',
   // Этап 163: названный поставщик без карточки - предложение, ответ сотрудника и заведённая
@@ -187,3 +190,9 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   telegram_source_unavailable: 'warning',
   telegram_source_failed: 'warning',
 };
+
+/**
+ * События платформы, чей класс проект заменяет своим (передаётся в манифест как
+ * `eventSeverityOverrides`; каждое событие обязано быть в `PROJECT_EVENT_SEVERITY`).
+ */
+export const PROJECT_EVENT_SEVERITY_OVERRIDES: readonly string[] = ['web_fetch_rate_limited'];

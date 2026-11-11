@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import {
   FixedClock,
   MemoryAuditRepository,
@@ -6,15 +6,20 @@ import {
   MemoryWorkflowStateStore,
   SequentialIdGenerator,
 } from '@business-ai/adapters';
-import { DomainError } from '@business-ai/core';
+import { DomainError, lifecycleOf } from '@business-ai/core';
 import type { AgentRunResult, ScheduledTask, ThreadState } from '@business-ai/core';
 import {
+  AGENT_RUN_JOB,
   JobWorker,
   MAX_JOB_ATTEMPTS,
-  openScheduledWaits,
   createJobHandlerRegistry,
+  openScheduledWaits,
+  registerDefaultJobs,
   type DefaultJobsOptions,
+  type ProductionConfig,
 } from '@business-ai/core/compose';
+import { loadProductionConfig } from '@business-ai/testing';
+import { pragmatikaProject } from '../../src';
 import { PRICES_AGENT_ID } from '../../src/agents/prices';
 import { NO_FINAL_ACTION_CODE } from '../../src/agents/prices/disk-sync-close';
 import {
@@ -22,20 +27,20 @@ import {
   readDiskSyncOutcome,
   recordDiskSyncOutcome,
 } from '../../src/agents/prices/disk-sync-outcome';
+import { diskSyncThreadId } from '../../src/agents/prices/price-disk-sync';
+import { diskSyncJobHooks, pricesWaitThreadOf } from '../../src/lifecycle-disk-sync';
 import {
-  PRICE_DISK_SYNC_RUN_TASK,
-  diskSyncThreadId,
-} from '../../src/agents/prices/price-disk-sync';
-import {
-  DISK_SYNC_RUN_JOB,
-  diskSyncRunHandler,
-  diskSyncRunScheduler,
-} from '../../src/lifecycle-disk-sync';
+  clearPragmatikaRuntime,
+  setPragmatikaRuntime,
+  type PragmatikaRuntime,
+} from '../../src/runtime';
+import { pragmatikaEnv } from './support';
 
 /**
  * Поведение SRC (`core/src/app/scheduled-run.ts:269` и `service.ts:535`): итог файла импорта с
  * диска, оставленный агентом «в очереди», закрывается сразу - когда ход закончился без записи
- * итога и когда воркер снял задачу после всех попыток, - а не через 2 часа ожидания.
+ * итога и когда воркер снял задачу, - а не через 2 часа ожидания. В 1.0.1 это штатные хуки
+ * манифеста `jobHooks` (G-8), а тред вопросов агента прайсов задаёт `waitThreadByAgentOf`.
  */
 
 const RUN = '2026-10-27T05:46:24.397Z';
@@ -45,11 +50,16 @@ const NO_DELAY_MS = 0;
 const OPERATOR_THREAD = 'operator-thread';
 const RESPONSIBLE_THREAD = 'responsible-thread';
 const MANAGER_THREAD = 'manager-thread';
+const OWNER_THREAD = 'owner-1';
+
+afterEach(() => {
+  clearPragmatikaRuntime();
+});
 
 type Scenario = (threadId: string) => Promise<AgentRunResult> | AgentRunResult;
 
-/** Стенд: служба на памяти, агент прайсов заменён сценарием хода. */
-async function stand(scenario: Scenario, pricesDeps: Record<string, string> = {}) {
+/** Стенд: служба на памяти, агент прайсов заменён сценарием хода, жизненный цикл - из манифеста. */
+async function stand(scenario: Scenario, envExtra: Record<string, string> = {}) {
   const clock = new FixedClock();
   const state = new MemoryWorkflowStateStore();
   const audit = new MemoryAuditRepository();
@@ -74,29 +84,28 @@ async function stand(scenario: Scenario, pricesDeps: Record<string, string> = {}
   const registry = {
     get: () => ({ id: PRICES_AGENT_ID, prompt: '', tools: [], validators: [], model: 'm' }),
   };
+  const config = loadProductionConfig(pragmatikaEnv(envExtra)) as unknown as ProductionConfig;
+  const logged: string[] = [];
   const options = {
-    app: {
-      runtime,
-      registry,
-      workflowState: state,
-      scheduler,
-      audit,
-      agentDeps: { [PRICES_AGENT_ID]: pricesDeps },
-    },
+    app: { runtime, registry, workflowState: state, scheduler, audit },
     audit,
     clock,
     operatorThreadId: OPERATOR_THREAD,
-    log: () => undefined,
+    lifecycle: lifecycleOf(pragmatikaProject, config),
+    log: (event: string) => logged.push(event),
   } as unknown as DefaultJobsOptions;
+  setPragmatikaRuntime({ clock, state } as unknown as PragmatikaRuntime);
+  const handlers = createJobHandlerRegistry();
+  registerDefaultJobs(handlers, options);
   const threadId = diskSyncThreadId(PATH);
   await queueDiskSyncOutcome(state, threadId, RUN, PATH, clock.now().toISOString());
-  return { clock, state, scheduler, options, threadId };
+  return { clock, state, scheduler, options, handlers, threadId, logged };
 }
 
-function taskOf(threadId: string, attempts = 1): ScheduledTask {
+function taskOf(threadId: string, attempts = 1, name: string = AGENT_RUN_JOB): ScheduledTask {
   return {
     id: 'task-1',
-    name: DISK_SYNC_RUN_JOB,
+    name,
     payload: JSON.stringify({ agentId: PRICES_AGENT_ID, threadId, input: 'импорт' }),
     runAt: new Date(0).toISOString(),
     status: 'running',
@@ -104,39 +113,27 @@ function taskOf(threadId: string, attempts = 1): ScheduledTask {
   };
 }
 
+/** Платформенный обработчик `agent.run` (с хуками манифеста) на стенде. */
+function agentRun(handlers: ReturnType<typeof createJobHandlerRegistry>) {
+  const handler = handlers.get(AGENT_RUN_JOB);
+  if (handler === undefined) throw new Error('нет обработчика agent.run');
+  return handler;
+}
+
 const DONE: AgentRunResult = { threadId: '', status: 'completed', output: 'готово' };
 
-describe('постановка запуска на файл диска', () => {
-  test('запуск на файл с диска идёт отдельной задачей проекта, ключ тот же', async () => {
-    const { scheduler, threadId } = await stand(() => DONE);
-    const decorated = diskSyncRunScheduler(scheduler);
-    const payload = JSON.stringify({ agentId: PRICES_AGENT_ID, threadId, input: 'x' });
-    const task = await decorated.schedule(PRICE_DISK_SYNC_RUN_TASK, payload, new Date(0), 'k-1');
-    expect(task.name).toBe(DISK_SYNC_RUN_JOB);
-    // Повтор с тем же ключом новую задачу не создаёт.
-    const again = await decorated.schedule(PRICE_DISK_SYNC_RUN_TASK, payload, new Date(0), 'k-1');
-    expect(again.id).toBe(task.id);
-  });
-
-  test('чужие запуски агента и прочие задачи не переименовываются', async () => {
-    const { scheduler } = await stand(() => DONE);
-    const decorated = diskSyncRunScheduler(scheduler);
-    const agentId = PRICES_AGENT_ID;
-    const chatPayload = JSON.stringify({ agentId, threadId: 'chat-1', input: 'x' });
-    const run = PRICE_DISK_SYNC_RUN_TASK;
-    const chat = await decorated.schedule(run, chatPayload, new Date(0), 'k-2');
-    expect(chat.name).toBe(PRICE_DISK_SYNC_RUN_TASK);
-    const other = await decorated.schedule('prices.other', '{}', new Date(0), 'k-3');
-    expect(other.name).toBe('prices.other');
-    const broken = await decorated.schedule(run, 'не json', new Date(0), 'k-4');
-    expect(broken.name).toBe(PRICE_DISK_SYNC_RUN_TASK);
+describe('манифест: хуки закрытия итога файла вместо проектной задачи', () => {
+  test('jobHooks манифеста - хуки диска, жизненный цикл их отдаёт службе', () => {
+    expect(pragmatikaProject.jobHooks).toBe(diskSyncJobHooks);
+    const config = loadProductionConfig(pragmatikaEnv()) as unknown as ProductionConfig;
+    expect(lifecycleOf(pragmatikaProject, config).jobHooks).toBe(diskSyncJobHooks);
   });
 });
 
-describe('ход импорта закончился без итога файла', () => {
+describe('ход импорта закончился без итога файла (afterAgentRun)', () => {
   test('«в очереди» после завершённого хода -> skipped no_result:no_final_action', async () => {
-    const { options, state, threadId } = await stand(() => DONE);
-    await diskSyncRunHandler(options)(taskOf(threadId), new Date(0));
+    const { handlers, state, threadId } = await stand(() => DONE);
+    await agentRun(handlers)(taskOf(threadId), new Date(0));
     expect(await readDiskSyncOutcome(state, threadId)).toMatchObject({
       status: 'skipped',
       reason: `no_result:${NO_FINAL_ACTION_CODE}`,
@@ -145,23 +142,41 @@ describe('ход импорта закончился без итога файл�
   });
 
   test('итог, записанный агентом, не затирается', async () => {
-    const { options, state, clock, threadId } = await stand(async (id) => {
+    const { handlers, state, clock, threadId } = await stand(async (id) => {
       await recordDiskSyncOutcome({ state, clock }, id, { status: 'written', rows: 3 });
       return DONE;
     });
-    await diskSyncRunHandler(options)(taskOf(threadId), new Date(0));
+    await agentRun(handlers)(taskOf(threadId), new Date(0));
     expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('written');
   });
 
   test('ход приостановлен (ждёт сотрудника) - итог остаётся «в очереди»', async () => {
-    const { options, state, threadId } = await stand(() => ({ ...DONE, status: 'suspended' }));
-    await diskSyncRunHandler(options)(taskOf(threadId), new Date(0));
+    const { handlers, state, threadId } = await stand(() => ({ ...DONE, status: 'suspended' }));
+    await agentRun(handlers)(taskOf(threadId), new Date(0));
     expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('queued');
   });
 
   test('тред не из синхронизации диска не трогается', async () => {
-    const { options, state, threadId } = await stand(() => DONE);
-    await diskSyncRunHandler(options)(taskOf('chat-1'), new Date(0));
+    const { handlers, state, threadId } = await stand(() => DONE);
+    await agentRun(handlers)(taskOf('chat-1'), new Date(0));
+    expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('queued');
+  });
+
+  test('сбой хука не роняет ход: платформа пишет его в журнал', async () => {
+    const { handlers, state, threadId, logged } = await stand(() => DONE);
+    // Хранилище, которое падает на любом обращении: закрытие итога не удаётся.
+    const broken = new Proxy({}, { get: () => () => Promise.reject(new Error('сбой хранилища')) });
+    const runtime = { clock: new FixedClock(), state: broken };
+    setPragmatikaRuntime(runtime as unknown as PragmatikaRuntime);
+    await agentRun(handlers)(taskOf(threadId), new Date(0));
+    expect(logged).toContain('job_hook_failed');
+    expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('queued');
+  });
+
+  test('приложение не собрано (нет состояния проекта) - хук ничего не делает', async () => {
+    const { handlers, state, threadId } = await stand(() => DONE);
+    clearPragmatikaRuntime();
+    await agentRun(handlers)(taskOf(threadId), new Date(0));
     expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('queued');
   });
 });
@@ -172,84 +187,108 @@ describe('PRICE_RESPONSIBLE_THREAD_ID: тред вопросов планово�
     (await openScheduledWaits(state, thread)).map((wait) => wait.agentId);
 
   test('приостановленный запуск ждёт ответа в треде ответственного', async () => {
-    const { options, state, threadId } = await stand(suspended, {
-      managerThreadId: MANAGER_THREAD,
-      responsibleThreadId: RESPONSIBLE_THREAD,
+    const { handlers, state, threadId } = await stand(suspended, {
+      MANAGER_THREAD_ID: MANAGER_THREAD,
+      PRICE_RESPONSIBLE_THREAD_ID: RESPONSIBLE_THREAD,
     });
-    await diskSyncRunHandler(options)(taskOf(threadId), new Date(0));
+    await agentRun(handlers)(taskOf(threadId), new Date(0));
     expect(await waitsIn(state, RESPONSIBLE_THREAD)).toEqual([PRICES_AGENT_ID]);
     expect(await waitsIn(state, OPERATOR_THREAD)).toEqual([]);
   });
 
   test('ответственный не задан - тред менеджера (запасной адресат SRC)', async () => {
-    const { options, state, threadId } = await stand(suspended, {
-      managerThreadId: MANAGER_THREAD,
+    const { handlers, state, threadId } = await stand(suspended, {
+      MANAGER_THREAD_ID: MANAGER_THREAD,
     });
-    await diskSyncRunHandler(options)(taskOf(threadId), new Date(0));
+    await agentRun(handlers)(taskOf(threadId), new Date(0));
     expect(await waitsIn(state, MANAGER_THREAD)).toEqual([PRICES_AGENT_ID]);
+  });
+
+  test('ни ответственного, ни менеджера - тред владельца платформы', async () => {
+    const { handlers, state, threadId } = await stand(suspended);
+    await agentRun(handlers)(taskOf(threadId), new Date(0));
+    expect(await waitsIn(state, OWNER_THREAD)).toEqual([PRICES_AGENT_ID]);
   });
 });
 
-describe('задача снята воркером после сбоя', () => {
+describe('waitThreadByAgentOf: тред ожиданий агента прайсов из конфигурации', () => {
+  const configOf = (envExtra: Record<string, string>): ProductionConfig =>
+    loadProductionConfig(pragmatikaEnv(envExtra)) as unknown as ProductionConfig;
+
+  test('манифест подключает функцию', () => {
+    expect(pragmatikaProject.waitThreadByAgentOf).toBe(pricesWaitThreadOf);
+  });
+
+  test('ответственный, иначе менеджер, иначе владелец платформы', () => {
+    const env = {
+      MANAGER_THREAD_ID: MANAGER_THREAD,
+      PRICE_RESPONSIBLE_THREAD_ID: RESPONSIBLE_THREAD,
+    };
+    expect(pricesWaitThreadOf(configOf(env))).toEqual({ [PRICES_AGENT_ID]: RESPONSIBLE_THREAD });
+    const manager = { MANAGER_THREAD_ID: MANAGER_THREAD };
+    expect(pricesWaitThreadOf(configOf(manager))).toEqual({ [PRICES_AGENT_ID]: MANAGER_THREAD });
+    expect(pricesWaitThreadOf(configOf({}))).toEqual({ [PRICES_AGENT_ID]: OWNER_THREAD });
+  });
+
+  test('пустая переменная ответственного считается незаданной', () => {
+    const env = { PRICE_RESPONSIBLE_THREAD_ID: '  ', MANAGER_THREAD_ID: MANAGER_THREAD };
+    const config = configOf(env);
+    expect(pricesWaitThreadOf(config)).toEqual({ [PRICES_AGENT_ID]: MANAGER_THREAD });
+  });
+});
+
+describe('задача снята воркером после сбоя (onJobGivenUp)', () => {
   const failing: Scenario = () => {
     throw new DomainError('external_failure', 'шлюз недоступен', { retryable: true });
   };
 
-  test('повторяемый сбой до последней попытки итог не закрывает', async () => {
-    const { options, state, threadId } = await stand(failing);
-    const run = diskSyncRunHandler(options)(taskOf(threadId, MAX_JOB_ATTEMPTS - 1), new Date(0));
-    await expect(run).rejects.toThrow('шлюз недоступен');
-    expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('queued');
-  });
-
-  test('последняя попытка закрывает итог кодом сбоя, ошибка уходит воркеру', async () => {
-    const { options, state, threadId } = await stand(failing);
-    const run = diskSyncRunHandler(options)(taskOf(threadId, MAX_JOB_ATTEMPTS), new Date(0));
-    await expect(run).rejects.toThrow('шлюз недоступен');
+  test('снятая задача запуска на файл диска закрывает итог кодом причины', async () => {
+    const { state, threadId } = await stand(() => DONE);
+    await diskSyncJobHooks.onJobGivenUp?.({ task: taskOf(threadId), code: 'external_failure' });
     expect(await readDiskSyncOutcome(state, threadId)).toMatchObject({
       status: 'skipped',
       reason: 'no_result:external_failure',
+      run: RUN,
     });
   });
 
-  test('неповторяемая ошибка закрывает итог сразу (воркер снимет задачу)', async () => {
-    const { options, state, threadId } = await stand(() => {
-      throw new DomainError('invalid_input', 'плохой ввод');
-    });
-    await expect(diskSyncRunHandler(options)(taskOf(threadId), new Date(0))).rejects.toThrow();
-    expect((await readDiskSyncOutcome(state, threadId))?.reason).toBe('no_result:invalid_input');
-  });
-
-  test('таймаут обработчика на последней попытке закрывает итог кодом таймаута', async () => {
-    const controller = new AbortController();
-    const { options, state, threadId } = await stand(() => {
-      controller.abort();
-      throw new Error('прервано');
-    });
-    const run = diskSyncRunHandler(options)(
-      taskOf(threadId, MAX_JOB_ATTEMPTS),
-      new Date(0),
-      controller.signal,
-    );
-    await expect(run).rejects.toThrow();
+  test('код таймаута доходит до причины без изменений', async () => {
+    const { state, threadId } = await stand(() => DONE);
+    const event = { task: taskOf(threadId), code: HANDLER_TIMEOUT_CODE };
+    await diskSyncJobHooks.onJobGivenUp?.(event);
     expect((await readDiskSyncOutcome(state, threadId))?.reason).toBe(
       `no_result:${HANDLER_TIMEOUT_CODE}`,
     );
   });
-});
 
-describe('вместе с воркером платформы', () => {
-  test('семь сбоев подряд: итог файла закрыт только после последнего', async () => {
+  test('чужие задачи, чужие треды и битый payload не трогаются', async () => {
+    const { state, threadId } = await stand(() => DONE);
+    const hook = diskSyncJobHooks.onJobGivenUp;
+    await hook?.({ task: taskOf(threadId, 1, 'prices.disk-sync'), code: 'x' });
+    await hook?.({ task: taskOf('chat-1'), code: 'x' });
+    await hook?.({ task: { ...taskOf(threadId), payload: 'не json' }, code: 'x' });
+    await hook?.({ task: { ...taskOf(threadId), payload: '[1]' }, code: 'x' });
+    await hook?.({ task: { ...taskOf(threadId), payload: '{"threadId":7}' }, code: 'x' });
+    expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('queued');
+  });
+
+  test('итог, записанный агентом, не затирается', async () => {
+    const { state, clock, threadId } = await stand(() => DONE);
+    await recordDiskSyncOutcome({ state, clock }, threadId, { status: 'written', rows: 3 });
+    await diskSyncJobHooks.onJobGivenUp?.({ task: taskOf(threadId), code: 'external_failure' });
+    expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('written');
+  });
+
+  test('вместе с воркером: семь сбоев подряд, итог закрыт только после последнего', async () => {
     // Состояние итога на входе в каждую попытку: до последней он должен оставаться «в очереди».
     const seen: string[] = [];
-    let readState: () => Promise<string | undefined> = async () => undefined;
-    const { options, state, scheduler, clock, threadId } = await stand(async () => {
-      seen.push((await readState()) ?? 'нет');
+    let readStatus: () => Promise<string | undefined> = async () => undefined;
+    const { options, state, scheduler, clock, handlers, threadId } = await stand(async () => {
+      seen.push((await readStatus()) ?? 'нет');
       throw new DomainError('external_failure', 'шлюз недоступен', { retryable: true });
     });
-    readState = async () => (await readDiskSyncOutcome(state, threadId))?.status;
-    const handlers = createJobHandlerRegistry();
-    handlers.register(DISK_SYNC_RUN_JOB, diskSyncRunHandler(options));
+    readStatus = async () => (await readDiskSyncOutcome(state, threadId))?.status;
+    const givenUp = options.lifecycle?.jobHooks?.onJobGivenUp;
     const worker = new JobWorker({
       scheduler,
       clock,
@@ -258,27 +297,47 @@ describe('вместе с воркером платформы', () => {
       log: () => undefined,
       retryBaseDelayMs: NO_DELAY_MS,
       random: () => 0.5,
+      // Как служба: хук проекта вызывается, когда воркер снял задачу.
+      notifyFailure: async ({ task, code }) => givenUp?.({ task, code }),
     });
     const payload = JSON.stringify({ agentId: PRICES_AGENT_ID, threadId, input: 'импорт' });
-    const queued = await diskSyncRunScheduler(scheduler).schedule(
-      PRICE_DISK_SYNC_RUN_TASK,
-      payload,
-      clock.now(),
-      'prices-disk-sync:hash',
-    );
+    const queued = await scheduler.schedule(AGENT_RUN_JOB, payload, clock.now(), 'k:hash');
     await worker.tick();
     expect(seen).toEqual(Array.from({ length: MAX_JOB_ATTEMPTS }, () => 'queued'));
     expect(await readDiskSyncOutcome(state, threadId)).toMatchObject({
       status: 'skipped',
       reason: 'no_result:external_failure',
     });
-    const after = await diskSyncRunScheduler(scheduler).schedule(
-      PRICE_DISK_SYNC_RUN_TASK,
-      payload,
-      clock.now(),
-      'prices-disk-sync:hash',
-    );
+    const after = await scheduler.schedule(AGENT_RUN_JOB, payload, clock.now(), 'k:hash');
     expect(after.id).toBe(queued.id);
     expect(after.status).toBe('failed');
+  });
+
+  test('неповторяемая ошибка снимает задачу сразу и закрывает итог кодом ошибки', async () => {
+    const { options, state, scheduler, clock, handlers, threadId } = await stand(() => {
+      throw new DomainError('invalid_input', 'плохой ввод');
+    });
+    const givenUp = options.lifecycle?.jobHooks?.onJobGivenUp;
+    const worker = new JobWorker({
+      scheduler,
+      clock,
+      audit: new MemoryAuditRepository(),
+      handlers,
+      log: () => undefined,
+      retryBaseDelayMs: NO_DELAY_MS,
+      random: () => 0.5,
+      notifyFailure: async ({ task, code }) => givenUp?.({ task, code }),
+    });
+    const payload = JSON.stringify({ agentId: PRICES_AGENT_ID, threadId, input: 'импорт' });
+    await scheduler.schedule(AGENT_RUN_JOB, payload, clock.now(), 'k:hash2');
+    await worker.tick();
+    expect((await readDiskSyncOutcome(state, threadId))?.reason).toBe('no_result:invalid_input');
+  });
+
+  test('повторяемый сбой до последней попытки итог не закрывает', async () => {
+    const { handlers, state, threadId } = await stand(failing);
+    const run = agentRun(handlers)(taskOf(threadId, MAX_JOB_ATTEMPTS - 1), new Date(0));
+    await expect(run).rejects.toThrow('шлюз недоступен');
+    expect((await readDiskSyncOutcome(state, threadId))?.status).toBe('queued');
   });
 });

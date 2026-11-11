@@ -7,8 +7,8 @@ import { buildPragmatika } from './support';
 /**
  * `PRICE_RESPONSIBLE_THREAD_ID` (SRC `compose-production.ts:750`): тред ответственного за прайсы
  * доходит до зависимостей агента прайсов; не задан - адресат менеджер. Регрессионная защита:
- * в сборке v2 переменная действует (в `STATUS.md` п. 8 теряется только ожидание планового запуска,
- * см. `lifecycle-disk-sync.test.ts`).
+ * в сборке v2 переменная действует, в том числе как тред ожиданий планового запуска
+ * (`waitThreadByAgentOf`, см. `lifecycle-disk-sync.test.ts`).
  */
 
 const RESPONSIBLE = 'responsible-thread';

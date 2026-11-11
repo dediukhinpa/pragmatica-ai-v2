@@ -7,10 +7,13 @@ import {
   type WorkflowStateStore,
 } from '@business-ai/core';
 import {
+  CHAT_ACCESS_CHECK_UNAVAILABLE_TEXT,
   chatButtonHandler,
+  type ChatAccessCheck,
   type ChatButtonHandler,
   type ChatFileHandler,
   type ChatHookContext,
+  type ChatIncomingHook,
   type ChatScenarioRule,
   type ChatStateBlock,
   type GreetingActionHandler,
@@ -22,6 +25,7 @@ import {
 } from './access-actions';
 import { recordWebConfirmation, parseWebConfirmButton } from './agents/documents/web-confirmation';
 import { DOCUMENTS_AGENT_ID } from './agents/documents/deps';
+import { noteEmployeeMessage } from './agents/documents/employee-messages';
 import { ORDER_CALC_AGENT_ID } from './agents/order-calc';
 import { activeRequestBlocks } from './agents/order-calc/active-request';
 import {
@@ -57,7 +61,6 @@ import {
 import { openMailProposalBlock } from './agents/suppliers/mail-proposal-store';
 import { SUPPLIER_HELP_TEXT } from './agents/suppliers/prompt';
 import { retiredPriceJumpButton } from './kit/app/chat-pump.owned';
-import { launchAgentTurn, type LaunchOutcome } from './chat-launch';
 import { pragmatikaRuntime, type PragmatikaRuntime } from './runtime';
 
 /** Тексты отказов и ответов на кнопки (как были в насосе чата до манифеста). */
@@ -86,10 +89,6 @@ export const CHAT_QUOTE_REPLACE_THREAD_TEXT =
   'Заменить КП можно только в чате, куда пришёл вопрос.';
 const CHAT_QUOTE_REPLACE_IDENTITY_TEXT =
   'Не удалось определить, кто нажал кнопку: замена не записана.';
-/** Решение записано; запись КП из ответа делает агент по следующей просьбе сотрудника. */
-export const CHAT_QUOTE_REPLACE_APPROVED_TEXT =
-  'Замена КП разрешена, решение записано на вас. Напишите агенту, чтобы он продолжил: КП будет ' +
-  'записано из этого ответа.';
 export const CHAT_SUPPLIER_CARD_DENIED_TEXT =
   'Подтверждать запись карточек поставщиков могут только руководители отделов.';
 export const CHAT_SUPPLIER_CARD_UNKNOWN_TEXT = 'Запрос не найден или устарел.';
@@ -108,8 +107,6 @@ const CHAT_WEB_CONFIRMED_TEXT =
 const CHAT_WEB_REJECTED_TEXT =
   'Данные из интернета не подтверждены, решение записано на вас. Документ не будет ' +
   'собран с этими значениями: пришлите верные.';
-const CHAT_CHOICE_DONE_RECORDED_TEXT =
-  'Выбор записан. Напишите агенту «продолжай»: он подготовит запросы выбранным поставщикам.';
 const CHAT_WEB_ALREADY_TEXT = 'Решение по этим данным уже записано ранее.';
 const CHAT_WEB_UNKNOWN_TEXT = 'Запрос на подтверждение данных не найден или устарел.';
 const CHAT_WEB_THREAD_TEXT = 'Подтвердить можно только в чате, куда пришёл запрос.';
@@ -174,18 +171,25 @@ async function rejectForeign(context: ChatHookContext, owner: string): Promise<s
   return 'foreign_scenario';
 }
 
+/** Код результата аудита для отказа: `denied` или `denied:<причина>` (как в прежнем насосе). */
+function deniedCode(verdict: ChatAccessCheck): string {
+  return verdict.reason === undefined ? 'denied' : `denied:${verdict.reason}`;
+}
+
 /**
  * Право на сценарий подтверждения: проверка под агентом-владельцем (нет правила или сбой
  * политики - отказ), затем отказ, если сценарий чужой для этого чата. Код результата для аудита,
- * когда событие обработано отказом; `null` - можно продолжать.
+ * когда событие обработано отказом (с причиной, в том числе `denied:directory_unavailable`);
+ * `null` - можно продолжать.
  */
 async function guardScenario(
   context: ChatHookContext,
   rule: ChatScenarioRule,
 ): Promise<string | null> {
-  if (!(await context.allowed(rule.action, rule.owner))) {
+  const verdict = await context.check(rule.action, rule.owner);
+  if (!verdict.allowed) {
     await context.say(rule.deniedText);
-    return 'denied';
+    return deniedCode(verdict);
   }
   return rejectForeign(context, rule.owner);
 }
@@ -300,43 +304,11 @@ const pickButton = chatButtonHandler<string>({
 });
 
 /**
- * Запустить ход агента после решения, записанного кодом (как `answer(...)` в прежнем насосе).
- * Платформа после проектной кнопки агента не запускает, поэтому ход ставит мост канала
- * (`chat-launch.ts`). Моста нет или насос событие не принял - сотрудник получает прежний текст
- * с просьбой написать агенту самому: решение уже записано, ничего не потеряно.
- */
-async function continueWithAgent(
-  context: ChatHookContext,
-  runtime: PragmatikaRuntime,
-  launch: { text: string; dedupeKey: string; fallbackText: string },
-): Promise<LaunchOutcome> {
-  const outcome = await launchAgentTurn(
-    {
-      threadId: context.threadId,
-      userId: context.userId,
-      botId: context.botId,
-      text: launch.text,
-      dedupeKey: launch.dedupeKey,
-    },
-    runtime.clock.now().getTime(),
-  );
-  if (outcome === 'unavailable' || outcome === 'not_accepted') {
-    await context.say(launch.fallbackText);
-  }
-  return outcome;
-}
-
-/** Код результата для аудита: ход не начат (нет моста, насос не принял) - виден в коде. */
-function launchCode(code: string, outcome: LaunchOutcome): string {
-  return outcome === 'unavailable' || outcome === 'not_accepted' ? `${code}_${outcome}` : code;
-}
-
-/**
  * Кнопка «Готово»: код завершает накопленный выбор и только после этого запускается агент
- * (возобновление или новый ход) с тем же вводом, что и в прежнем насосе: он фиксирует выбор
- * (`recordSelection` берёт набор из уже завершённого выбора) и рассылает запросы. Повтор
- * «Готово» при открытом вопросе (прошлый ход не дошёл до записи) запускает агента снова, но не
- * чаще раза в окно `LAUNCH_DEDUPE_WINDOW_MS`: двойное нажатие не задваивает ход.
+ * (`context.runAgent`: возобновление или новый ход) с тем же вводом, что и в прежнем насосе: он
+ * фиксирует выбор (`recordSelection` берёт набор из уже завершённого выбора) и рассылает
+ * запросы. Повтор «Готово» при открытом вопросе (прошлый ход не дошёл до записи) запускает
+ * агента снова; внутри одного нажатия второй вызов `runAgent` платформа гасит сама.
  */
 const pickDoneButton: ChatButtonHandler = {
   prefix: PICK_DONE_PREFIX,
@@ -359,12 +331,8 @@ const pickDoneButton: ChatButtonHandler = {
       await context.say(refusal);
       return code;
     }
-    const launched = await continueWithAgent(context, runtime, {
-      text: `Нажата кнопка: ${buttonId}`,
-      dedupeKey: `${PICK_DONE_PREFIX}:${context.threadId}:${token}`,
-      fallbackText: CHAT_CHOICE_DONE_RECORDED_TEXT,
-    });
-    return launchCode(code, launched);
+    await context.runAgent(`Нажата кнопка: ${buttonId}`);
+    return code;
   },
 };
 
@@ -403,12 +371,8 @@ const quoteReplaceButton = chatButtonHandler<string>({
       await context.say(QUOTE_REPLACE_REFUSALS[outcome.kind] ?? CHAT_QUOTE_REPLACE_UNKNOWN_TEXT);
       return code;
     }
-    const launched = await continueWithAgent(context, runtime, {
-      text: quoteReplaceAgentInput(outcome),
-      dedupeKey: `${QUOTE_REPLACE_PREFIX}:${context.threadId}:${token}`,
-      fallbackText: CHAT_QUOTE_REPLACE_APPROVED_TEXT,
-    });
-    return launchCode(code, launched);
+    await context.runAgent(quoteReplaceAgentInput(outcome));
+    return code;
   },
 });
 
@@ -486,9 +450,14 @@ const supplierCardButton = chatButtonHandler<SupplierCardPress>({
     // Личная заметка пишется только в связку нажавшего и в общую базу не попадает: право на
     // подтверждение карточек для неё не требуется.
     if (ref.kind !== 'pair_note') {
-      if (!(await context.allowed(ACTION_CONFIRM_SUPPLIER_CARD, ref.agentId))) {
-        await context.say(CHAT_SUPPLIER_CARD_DENIED_TEXT);
-        return 'denied';
+      const verdict = await context.check(ACTION_CONFIRM_SUPPLIER_CARD, ref.agentId);
+      if (!verdict.allowed) {
+        // Справочник руководителей недоступен: временный сбой, а не «вы не руководитель».
+        const unavailable = verdict.reason === 'directory_unavailable';
+        await context.say(
+          unavailable ? CHAT_ACCESS_CHECK_UNAVAILABLE_TEXT : CHAT_SUPPLIER_CARD_DENIED_TEXT,
+        );
+        return deniedCode(verdict);
       }
     }
     const foreign = await rejectForeign(context, ref.agentId);
@@ -514,6 +483,18 @@ export const PROJECT_BUTTONS: readonly ChatButtonHandler[] = [
   supplierCardButton,
   retiredPriceJumpButton,
 ];
+
+/**
+ * Текст входящего сообщения сотрудника агенту «Подготовка документов» (`chat.onIncoming`).
+ * Платформа зовёт хук для принятого события `message` (доступ разрешён, приветствие
+ * отправлено) с реальным текстом до псевдонимизации; по записи код проверяет, что реквизит в
+ * документе прислал сам сотрудник. Служебное событие без автора не пишется. Сбой записи хук
+ * не ловит: платформа сама пишет `chat_hook_failed` с кодом, ход агента не ломается.
+ */
+export const projectOnIncoming: ChatIncomingHook = async (event, services) => {
+  if (services.agentId !== DOCUMENTS_AGENT_ID || event.userId === '') return;
+  await noteEmployeeMessage(services.state, event.threadId, event.text);
+};
 
 /** Содержимое файла для разбора: диск читаем целиком, только если разборщик не умеет по пути. */
 async function bytesOf(file: ChatFile, runtime: PragmatikaRuntime): Promise<Uint8Array> {

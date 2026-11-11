@@ -5,12 +5,13 @@ import {
   FILE_OWNER_AGENT_ID,
   PROJECT_BUTTONS,
   PROJECT_GREETING_ACTIONS,
+  projectOnIncoming,
   projectStateBlock,
   supplierFileHandler,
 } from './chat-hooks';
 import { PRAGMATIKA_MODELS, PRAGMATIKA_PII_ALLOWED_WORDS, pragmatikaConfigSchema } from './config';
 import { pragmatikaEval } from './eval';
-import { PROJECT_EVENT_SEVERITY } from './event-severity';
+import { PROJECT_EVENT_SEVERITY, PROJECT_EVENT_SEVERITY_OVERRIDES } from './event-severity';
 import { PRICE_UPDATE_THREAD_ID } from './agents/prices/deps';
 import { ORDER_CALC_AGENT_ID } from './agents/order-calc';
 import { PROJECT_EXTERNAL_TEXT_TOOL_NAMES } from './agents/shared/external-text-tools.owned';
@@ -21,7 +22,7 @@ import {
 } from './kit/app/workflow-state-retention';
 import { DAY_MS } from './kit/domain/time';
 import { buildDealRequestPorts } from './adapters/deal-request-ports';
-import { bridgeChatFromPorts } from './chat-intake';
+import { diskSyncJobHooks, pricesWaitThreadOf } from './lifecycle-disk-sync';
 import { senderAllowlistOf } from './mail-sender-lookup';
 import { PRAGMATIKA_PORTS_KEY, buildPragmatikaPorts } from './ports';
 import { PROJECT_SCHEDULES } from './schedules';
@@ -62,19 +63,15 @@ export const pragmatikaProject = defineProject({
     fileHandlers: [supplierFileHandler],
     greetingActions: PROJECT_GREETING_ACTIONS,
     stateBlock: projectStateBlock,
+    onIncoming: projectOnIncoming,
   },
   agents: assemblePragmatikaAgents,
   schedules: PROJECT_SCHEDULES,
   // Разбор заявки по сделке идёт проектным читателем: платформенный CRM его не умеет.
-  ports: (env) => {
-    // Мост канала чата: текст сообщений для агента документов и запуск хода после кнопок.
-    // Ставится здесь, до сборки приложения: насос платформы этих хуков не даёт.
-    bridgeChatFromPorts(env);
-    return {
-      [PRAGMATIKA_PORTS_KEY]: buildPragmatikaPorts(env),
-      ...buildDealRequestPorts(env),
-    };
-  },
+  ports: (env) => ({
+    [PRAGMATIKA_PORTS_KEY]: buildPragmatikaPorts(env),
+    ...buildDealRequestPorts(env),
+  }),
   migrationsDir: 'db/app',
   eval: pragmatikaEval,
   unconfiguredText: UNCONFIGURED_TEXT,
@@ -88,10 +85,15 @@ export const pragmatikaProject = defineProject({
   // статический список MAIL_ALLOWED_SENDERS, и ответы поставщиков не скачиваются).
   senderAllowlist: senderAllowlistOf,
   eventSeverity: PROJECT_EVENT_SEVERITY,
+  eventSeverityOverrides: PROJECT_EVENT_SEVERITY_OVERRIDES,
   piiAllowedWords: PRAGMATIKA_PII_ALLOWED_WORDS,
   externalTextTools: [...PROJECT_EXTERNAL_TEXT_TOOL_NAMES],
   // Снятая недельная проверка прайсов: задача с этим тредом пропускается без вызова модели.
   retiredThreads: [PRICE_UPDATE_THREAD_ID],
+  // Вопросы агента прайсов при плановом запуске идут ответственному (иначе менеджеру).
+  waitThreadByAgentOf: pricesWaitThreadOf,
+  // Итог файла диска закрывается хуками платформы: конец хода и снятая воркером задача (G-8).
+  jobHooks: diskSyncJobHooks,
   staleScopes: [
     { scope: WORKFLOW_STATE_STALE_SCOPE },
     // Брошенные запросы карточек содержат ПДн контактов: чистятся вскоре после срока кнопки.

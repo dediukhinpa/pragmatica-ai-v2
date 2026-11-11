@@ -19,7 +19,12 @@ import type {
   ThreadState,
   WorkflowStateStore,
 } from '@business-ai/core';
-import { ChatPump, type ChatButtonHandler } from '@business-ai/core/compose';
+import {
+  ChatPump,
+  type ChatButtonHandler,
+  type ChatIncomingHook,
+  type ServiceLog,
+} from '@business-ai/core/compose';
 
 /** Тред и сотрудник тестов чата. */
 export const TEST_USER_ID = 'u-100';
@@ -115,6 +120,10 @@ export function buildPump(options: {
   buttons?: readonly ChatButtonHandler[];
   access?: AccessPolicy;
   audit?: AuditRepository;
+  /** Хук входящего сообщения (манифест `chat.onIncoming`). */
+  onIncoming?: ChatIncomingHook;
+  /** Журнал службы; по умолчанию молчит. */
+  log?: ServiceLog;
 }): ChatPump {
   const pump = new ChatPump({
     channel: options.channel,
@@ -131,10 +140,11 @@ export function buildPump(options: {
     audit: options.audit ?? new MemoryAuditRepository(),
     clock: new FixedClock(),
     ids: new SystemIdGenerator(),
-    log: () => undefined,
+    log: options.log ?? (() => undefined),
     state: options.state ?? new MemoryWorkflowStateStore(),
     idempotency: new MemoryIdempotencyStore(),
     ...(options.buttons === undefined ? {} : { buttonHandlers: options.buttons }),
+    ...(options.onIncoming === undefined ? {} : { onIncoming: options.onIncoming }),
   });
   pump.attach();
   return pump;

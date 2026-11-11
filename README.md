@@ -46,7 +46,6 @@ request):
 
 | File | What it restores |
 |---|---|
-| `src/chat-intake.ts`, `src/chat-launch.ts` | employee message text for the documents agent; the agent turn after the "done" and "replace quote" buttons (a bridge installed in `ports(env)`) |
 | `src/legacy-tools.ts`, `src/legacy-tool-texts.ts` | tool descriptions/schemas and shared prompt blocks exactly as the agents showed them to the model |
 | `src/lifecycle-disk-sync.ts`, `src/background-*.ts` | closing of unreported disk-sync runs; owner commands `bun run src/background-cli.ts <mail-info-backfill\|mail-trust-survey\|crm-suppliers-sync>` |
 | `src/mail-sender-lookup.ts` | mail senders admitted by the supplier base |

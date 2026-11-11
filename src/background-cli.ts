@@ -151,7 +151,9 @@ async function main(argv: readonly string[]): Promise<number> {
   const config = loadProductionConfig(process.env, project);
   // Постоянные идентификаторы и реестры - до сборки, как в основной точке запуска.
   applyIdentifierSettings(process.env);
-  registerEventSeverity(project.eventSeverity);
+  registerEventSeverity(project.eventSeverity, {
+    allowOverride: project.eventSeverityOverrides,
+  });
   setPiiAllowedWords([...project.piiAllowedWords, ...config.agents.piiAllowedWords]);
   const db = createPgClient({
     url: config.database.url,

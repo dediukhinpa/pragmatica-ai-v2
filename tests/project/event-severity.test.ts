@@ -2,7 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { knownEvents, registerEventSeverity, severityOf } from '@business-ai/adapters';
-import { PROJECT_EVENT_SEVERITY } from '../../src/event-severity';
+import {
+  PROJECT_EVENT_SEVERITY,
+  PROJECT_EVENT_SEVERITY_OVERRIDES,
+} from '../../src/event-severity';
+import { pragmatikaProject } from '../../src/project';
 
 const SRC_ROOT = join(import.meta.dir, '..', '..', 'src');
 const SEVERITIES = ['critical', 'serious', 'warning', 'info'];
@@ -54,14 +58,16 @@ describe('классы событий журнала', () => {
     }
   });
 
-  test('класс платформенного события проект не меняет (web_fetch_rate_limited, G-7b)', () => {
-    // В прежнем ядре это событие было `info`, в платформе - `warning`. Манифест принимает
-    // таблицу, но платформа отвергает другой класс платформенного события при запуске, поэтому
-    // вернуть `info` проектом нельзя; тест фиксирует границу и сломается, если её снимут.
-    expect(severityOf('web_fetch_rate_limited')).toBe('warning');
-    expect(() => registerEventSeverity({ web_fetch_rate_limited: 'info' })).toThrow(
+  test('класс события платформы меняется только по списку переопределений (G-7b)', () => {
+    // В прежнем ядре `web_fetch_rate_limited` был `info`, в платформе - `warning`. С 1.0.1
+    // манифест называет такие события в `eventSeverityOverrides`; без этого платформа
+    // отвергает чужой класс платформенного события.
+    expect(PROJECT_EVENT_SEVERITY_OVERRIDES).toEqual(['web_fetch_rate_limited']);
+    expect(pragmatikaProject.eventSeverityOverrides).toEqual(['web_fetch_rate_limited']);
+    expect(severityOf('web_fetch_rate_limited')).toBe('info');
+    expect(() => registerEventSeverity({ web_fetch_rate_limited: 'serious' })).toThrow(
       /уже имеет класс платформы/,
     );
-    expect(severityOf('web_fetch_rate_limited')).toBe('warning');
+    expect(severityOf('web_fetch_rate_limited')).toBe('info');
   });
 });

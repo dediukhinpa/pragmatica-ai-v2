@@ -3,13 +3,12 @@ import { MemoryFileSource, MemoryScheduler } from '@business-ai/adapters';
 import type { IdGenerator, ScheduledTask } from '@business-ai/core';
 import type { DefaultJobsOptions } from '@business-ai/core/compose';
 import { PRICE_DISK_SYNC_RUN_TASK } from '../../src/agents/prices/price-disk-sync';
-import { DISK_SYNC_RUN_JOB } from '../../src/lifecycle-disk-sync';
 import { clearPragmatikaRuntime, setPragmatikaRuntime } from '../../src/runtime';
 import { PRICE_DISK_SYNC_JOB, PROJECT_SCHEDULES } from '../../src/schedules';
 import { buildFullPricesDeps } from '../agents/prices-support';
 import { encode } from '../agents/prices-support';
 
-/** Подключение закрытия итога файла диска к плановым задачам проекта. */
+/** Запуски на файлы диска идут платформенной `agent.run`, проектной задачи для них нет. */
 
 const MTIME = 1_000;
 const FAR_FUTURE = new Date('2100-01-01T00:00:00Z');
@@ -28,15 +27,17 @@ function scheduleOf(name: string) {
   return found;
 }
 
-describe('запуск агента на файл диска - задача проекта', () => {
-  test('обработчик зарегистрирован, повторной постановки у него нет', () => {
-    const schedule = scheduleOf(DISK_SYNC_RUN_JOB);
-    expect(schedule.repeat).toBeUndefined();
-    expect(schedule.enabled).toBeUndefined();
-    expect(schedule.name).not.toBe(PRICE_DISK_SYNC_RUN_TASK);
+describe('запуск агента на файл диска - обычная задача платформы', () => {
+  test('проектной задачи запуска на файл нет: имя занято только платформой', () => {
+    expect(PROJECT_SCHEDULES.map((schedule) => schedule.name)).not.toContain(
+      PRICE_DISK_SYNC_RUN_TASK,
+    );
+    expect(PROJECT_SCHEDULES.map((schedule) => schedule.name)).not.toContain(
+      'prices.disk-sync-run',
+    );
   });
 
-  test('тик синхронизации диска ставит запуск задачей проекта, а не agent.run', async () => {
+  test('тик синхронизации диска ставит запуск платформенной agent.run', async () => {
     const prices = await buildFullPricesDeps();
     const scheduler = new MemoryScheduler(ids);
     const files = prices.files as MemoryFileSource;
@@ -57,6 +58,6 @@ describe('запуск агента на файл диска - задача пр
     files.put('Новый/прайс новый.csv', encode('Наименование,Цена\nГайка,5'), MTIME);
     await tick(NO_TASK, new Date(0));
     const names = (await scheduler.claimDue(FAR_FUTURE)).map((task) => task.name);
-    expect(names).toEqual([DISK_SYNC_RUN_JOB]);
+    expect(names).toEqual([PRICE_DISK_SYNC_RUN_TASK]);
   });
 });

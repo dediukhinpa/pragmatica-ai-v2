@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { FixedClock, MemoryAuditRepository, MemoryWorkflowStateStore } from '@business-ai/adapters';
-import { ChatEventNotAcceptedError, writeState, type ChatEvent } from '@business-ai/core';
+import { writeState } from '@business-ai/core';
+import type { ChatHookContext } from '@business-ai/core/compose';
 import { ORDER_CALC_AGENT_ID } from '../../src/agents/order-calc';
 import {
   pickDoneButtonId,
@@ -15,18 +16,11 @@ import {
   quoteReplaceToken,
 } from '../../src/agents/order-calc/quote-replacement';
 import type { ShortlistProposal } from '../../src/kit/domain/shortlist';
-import { wrapChatChannel } from '../../src/chat-intake';
 import {
   CHAT_CHOICE_NOTHING_TEXT,
   PROJECT_BUTTONS,
   quoteReplaceAgentInput,
 } from '../../src/chat-hooks';
-import {
-  LAUNCH_DEDUPE_WINDOW_MS,
-  clearChatLauncher,
-  launchAgentTurn,
-  setChatLauncher,
-} from '../../src/chat-launch';
 import {
   clearPragmatikaRuntime,
   setPragmatikaRuntime,
@@ -36,7 +30,6 @@ import {
   RecordingChannel,
   TEST_USER_ID,
   buildPump,
-  messageEvent,
   recordingRuntime,
 } from './chat-support';
 
@@ -57,60 +50,6 @@ beforeEach(() => {
 
 afterEach(() => {
   clearPragmatikaRuntime();
-  clearChatLauncher();
-});
-
-describe('launchAgentTurn: запуск хода агента из проекта', () => {
-  const request = {
-    threadId: THREAD,
-    userId: TEST_USER_ID,
-    botId: BOT,
-    text: 'Нажата кнопка: pickdone:abc',
-    dedupeKey: 'pickdone:abc',
-  } as const;
-
-  test('нет моста к насосу: ход не запускается, вызывающий отвечает сам', async () => {
-    expect(await launchAgentTurn(request, 0)).toBe('unavailable');
-  });
-
-  test('событие уходит насосу сообщением сотрудника в тот же тред', async () => {
-    const events: ChatEvent[] = [];
-    setChatLauncher(async (event) => {
-      events.push(event);
-    });
-    expect(await launchAgentTurn(request, 0)).toBe('launched');
-    expect(events).toEqual([
-      {
-        kind: 'message',
-        threadId: THREAD,
-        userId: TEST_USER_ID,
-        botId: BOT,
-        text: request.text,
-      },
-    ]);
-  });
-
-  test('двойное нажатие в окне не запускает ход дважды; потом и другой ключ - можно', async () => {
-    const events: ChatEvent[] = [];
-    setChatLauncher(async (event) => {
-      events.push(event);
-    });
-    expect(await launchAgentTurn(request, 0)).toBe('launched');
-    expect(await launchAgentTurn(request, LAUNCH_DEDUPE_WINDOW_MS - 1)).toBe('duplicate');
-    expect(await launchAgentTurn({ ...request, dedupeKey: 'other' }, 1)).toBe('launched');
-    expect(await launchAgentTurn(request, LAUNCH_DEDUPE_WINDOW_MS + 1)).toBe('launched');
-    expect(events).toHaveLength(3);
-  });
-
-  test('насос не принял событие: код причины, повтор потом разрешён', async () => {
-    let busy = true;
-    setChatLauncher(async () => {
-      if (busy) throw new ChatEventNotAcceptedError('busy');
-    });
-    expect(await launchAgentTurn(request, 0)).toBe('not_accepted');
-    busy = false;
-    expect(await launchAgentTurn(request, 1)).toBe('launched');
-  });
 });
 
 /** Вопрос выбора открыт в треде заказов; менеджер отметил поставщика. */
@@ -135,16 +74,9 @@ async function openChoice(pickSupplier: boolean): Promise<string> {
   return pickDoneButtonId(REQUEST_ID, VERSION);
 }
 
-/** Насос заказов на канале с мостом: нажатие кнопки идёт в обработчики проекта. */
-function ordersWorld(options: { bridge: boolean }) {
+/** Насос заказов: нажатие кнопки идёт в обработчики проекта. */
+function ordersWorld() {
   const channel = new RecordingChannel();
-  if (options.bridge) {
-    wrapChatChannel(channel, {
-      state,
-      agents: { chatAgentId: ORDER_CALC_AGENT_ID, chatBots: { [BOT]: ORDER_CALC_AGENT_ID } },
-      log: () => undefined,
-    });
-  }
   const { runtime, inputs } = recordingRuntime();
   const pump = buildPump({
     channel,
@@ -162,7 +94,7 @@ function ordersWorld(options: { bridge: boolean }) {
 describe('«Готово» запускает агента после кода (как в прежнем насосе)', () => {
   test('выбор записан кодом, затем ход в том же треде с прежним текстом запроса', async () => {
     const buttonId = await openChoice(true);
-    const world = ordersWorld({ bridge: true });
+    const world = ordersWorld();
     await world.press(buttonId);
     await world.pump.whenIdle();
     expect(world.inputs).toEqual([
@@ -172,35 +104,30 @@ describe('«Готово» запускает агента после кода (
     expect(world.channel.texts.map((item) => item.text)).toEqual(['готово']);
   });
 
-  test('двойное нажатие запускает ход один раз', async () => {
+  test('повторное нажатие после записи выбора: новый ход (окна 30 с больше нет)', async () => {
+    // Платформа защищает только повтор `runAgent` внутри одного нажатия; два разных нажатия
+    // «Готово» - два хода (агент идемпотентен: выбор уже завершён, запросы не задваиваются).
     const buttonId = await openChoice(true);
-    const world = ordersWorld({ bridge: true });
+    const world = ordersWorld();
     await world.press(buttonId);
     await world.press(buttonId);
     await world.pump.whenIdle();
-    expect(world.inputs).toHaveLength(1);
+    expect(world.inputs.map((item) => item.input)).toEqual([
+      `Нажата кнопка: ${buttonId}`,
+      `Нажата кнопка: ${buttonId}`,
+    ]);
   });
 
   test('ничего не выбрано: отказ текстом, агент не запускается', async () => {
     const buttonId = await openChoice(false);
-    const world = ordersWorld({ bridge: true });
+    const world = ordersWorld();
     await world.press(buttonId);
     await world.pump.whenIdle();
     expect(world.inputs).toEqual([]);
     expect(world.channel.texts.map((item) => item.text)).toEqual([CHAT_CHOICE_NOTHING_TEXT]);
   });
 
-  test('моста нет (канал без установки): прежний текст «напишите агенту»', async () => {
-    const buttonId = await openChoice(true);
-    const world = ordersWorld({ bridge: false });
-    await world.press(buttonId);
-    await world.pump.whenIdle();
-    expect(world.inputs).toEqual([]);
-    expect(world.channel.texts).toHaveLength(1);
-    expect(world.channel.texts[0]?.text).toContain('Напишите агенту');
-  });
-
-  test('моста нет: код результата для аудита называет причину', async () => {
+  test('код результата для аудита - итог выбора, без хвоста «нет моста»', async () => {
     const buttonId = await openChoice(true);
     const audit = new MemoryAuditRepository();
     const channel = new RecordingChannel();
@@ -217,40 +144,67 @@ describe('«Готово» запускает агента после кода (
     const event = { threadId: THREAD, userId: TEST_USER_ID, botId: BOT, buttonId } as const;
     await channel.emit({ kind: 'button', ...event });
     await pump.whenIdle();
-    expect((await audit.list(TEST_USER_ID)).at(-1)?.result).toBe(
-      'choice_finalized_unavailable',
-    );
+    expect((await audit.list(TEST_USER_ID)).at(-1)?.result).toBe('choice_finalized');
+  });
+});
+
+/** Контекст кнопки на заглушках: считает запуски агента и сказанные тексты. */
+function recordingContext() {
+  const launched: string[] = [];
+  const said: string[] = [];
+  const context: ChatHookContext = {
+    threadId: THREAD,
+    userId: TEST_USER_ID,
+    agentId: ORDER_CALC_AGENT_ID,
+    botId: BOT,
+    say: async (text) => {
+      said.push(text);
+    },
+    sendFile: async () => undefined,
+    allowed: async () => true,
+    check: async () => ({ allowed: true }),
+    runAgent: async (input) => {
+      launched.push(input);
+    },
+    resumeScheduledWaits: async () => undefined,
+    log: () => undefined,
+  };
+  return { context, launched, said };
+}
+
+describe('обработчики зовут context.runAgent ровно один раз на нажатие', () => {
+  test('«Готово»: один вызов с прежним текстом, сотруднику ничего не говорят', async () => {
+    const buttonId = await openChoice(true);
+    const { context, launched, said } = recordingContext();
+    const handler = PROJECT_BUTTONS.find((item) => item.prefix === 'pickdone');
+    expect(await handler?.handle(buttonId, context)).toBe('choice_finalized');
+    expect(launched).toEqual([`Нажата кнопка: ${buttonId}`]);
+    expect(said).toEqual([]);
   });
 
-  test('сообщение-запуск не принимается за текст сотрудника документов', async () => {
-    // Текст запроса агенту системный: перехват реквизитов его не записывает.
-    const channel = new RecordingChannel();
-    wrapChatChannel(channel, {
-      state,
-      agents: { chatAgentId: 'documents' },
-      log: () => undefined,
-    });
-    const seen: ChatEvent[] = [];
-    channel.onEvent(async (event) => {
-      seen.push(event);
-    });
-    const outcome = await launchAgentTurn(
-      {
-        threadId: 'documents/u-1',
-        userId: 'u-1',
-        botId: undefined,
-        text: 'Нажата кнопка: x',
-        dedupeKey: 'k',
-      },
-      0,
-    );
-    expect(outcome).toBe('launched');
-    expect(seen).toHaveLength(1);
-    expect(await state.get('documents:employee-text', 'documents/u-1')).toBeNull();
-    // Живое сообщение сотрудника, напротив, записывается.
-    const live = { threadId: 'documents/u-1', userId: 'u-1' };
-    await channel.emit(messageEvent('ИНН 7707083893', live));
-    expect(await state.get('documents:employee-text', 'documents/u-1')).not.toBeNull();
+  test('«Готово» без выбора: отказ текстом, runAgent не вызван', async () => {
+    const buttonId = await openChoice(false);
+    const { context, launched, said } = recordingContext();
+    const handler = PROJECT_BUTTONS.find((item) => item.prefix === 'pickdone');
+    await handler?.handle(buttonId, context);
+    expect(launched).toEqual([]);
+    expect(said).toEqual([CHAT_CHOICE_NOTHING_TEXT]);
+  });
+
+  test('«заменить КП»: один вызов с текстом из quoteReplaceAgentInput', async () => {
+    const buttonId = await openReplaceOffer();
+    const { context, launched, said } = recordingContext();
+    const handler = PROJECT_BUTTONS.find((item) => item.prefix === 'qrepl');
+    expect(await handler?.handle(buttonId, context)).toBe('quote_replace_approved');
+    expect(launched).toEqual([
+      quoteReplaceAgentInput({
+        kind: 'approved',
+        requestId: REQUEST_ID,
+        supplierId: 's1',
+        replyId: 'reply-7',
+      }),
+    ]);
+    expect(said).toEqual([]);
   });
 });
 
@@ -270,7 +224,7 @@ async function openReplaceOffer(): Promise<string> {
 describe('«заменить КП» запускает агента с подготовленным запросом', () => {
   test('решение записано кодом, затем ход с прежним текстом запроса', async () => {
     const buttonId = await openReplaceOffer();
-    const world = ordersWorld({ bridge: true });
+    const world = ordersWorld();
     await world.press(buttonId);
     await world.pump.whenIdle();
     const expected = quoteReplaceAgentInput({
@@ -290,20 +244,11 @@ describe('«заменить КП» запускает агента с подг�
   });
 
   test('предложение неизвестно: отказ текстом, агент не запускается', async () => {
-    const world = ordersWorld({ bridge: true });
+    const world = ordersWorld();
     await world.press(quoteReplaceButtonId('unknowntoken'));
     await world.pump.whenIdle();
     expect(world.inputs).toEqual([]);
     expect(world.channel.texts).toHaveLength(1);
-  });
-
-  test('моста нет: прежний текст «напишите агенту»', async () => {
-    const buttonId = await openReplaceOffer();
-    const world = ordersWorld({ bridge: false });
-    await world.press(buttonId);
-    await world.pump.whenIdle();
-    expect(world.inputs).toEqual([]);
-    expect(world.channel.texts[0]?.text).toContain('Напишите агенту');
   });
 });
 
