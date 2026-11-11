@@ -38,6 +38,7 @@ describe('манифест Прагматики', () => {
       'prices.disk-sync',
       'suppliers.mail-proposals',
       'suppliers.crm-sync',
+      'prices.disk-sync-run',
     ]);
   });
 

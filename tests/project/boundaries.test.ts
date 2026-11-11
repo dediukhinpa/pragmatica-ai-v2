@@ -10,6 +10,12 @@ const MAX_LINE = 100;
 /** Файлы корня src, написанные руками (остальное генерирует tools/sync-agents.sh). */
 const OWNED_ROOT_FILES = [
   'access-actions.ts',
+  'background-cli.ts',
+  'background-crm-sync.ts',
+  'background-mail-backfill.ts',
+  'background-mail-survey.ts',
+  'background-wiring.ts',
+  'lifecycle-disk-sync.ts',
   'chat-hooks.ts',
   'config.ts',
   'eval.ts',

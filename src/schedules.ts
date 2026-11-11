@@ -19,6 +19,11 @@ import { runPriceMailTriggers } from './agents/prices/price-mail-triggers';
 import { runStalePriceFilesCheck } from './agents/prices/stale-price-files';
 import { runSupplierMailProposals } from './agents/suppliers/mail-proposals';
 import type { PragmatikaConfig } from './config';
+import {
+  DISK_SYNC_RUN_JOB,
+  diskSyncRunHandler,
+  diskSyncRunScheduler,
+} from './lifecycle-disk-sync';
 import { pragmatikaRuntime } from './runtime';
 
 /** Синхронизация цен с диска (диск - источник правды). */
@@ -153,7 +158,8 @@ function priceDiskSyncHandler(options: DefaultJobsOptions): JobHandler {
     if (runtime === undefined || !runtime.priceDiskSyncEnabled) return;
     const prices = pricesDepsOf(options, runtime.prices);
     if (prices.state === undefined) return;
-    const { scheduler } = options.app;
+    // Запуски на файлы идут задачей проекта: её обработчик закрывает «неотчитанный» итог файла.
+    const scheduler = diskSyncRunScheduler(options.app.scheduler);
     const result = await runPriceDiskSync(prices, scheduler, {
       initialImport: runtime.priceDiskInitialImportEnabled,
     });
@@ -210,4 +216,7 @@ export const PROJECT_SCHEDULES: readonly ProjectSchedule[] = [
     enabled: (config) => projectOf(config).SUPPLIER_MAIL_PROPOSALS_ENABLED === 'true',
   },
   { name: SUPPLIER_CRM_SYNC_JOB, handler: () => async () => undefined },
+  // Запуск агента прайсов на файл диска: платформенный запуск + закрытие итога файла (G-8).
+  // Регистрируется всегда: задача в очереди переживает выключение флага синхронизации.
+  { name: DISK_SYNC_RUN_JOB, handler: diskSyncRunHandler },
 ];

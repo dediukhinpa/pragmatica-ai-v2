@@ -1,4 +1,5 @@
 import type { Clock, WorkflowStateStore } from '@business-ai/core';
+import type { BackgroundCommands } from './background-wiring';
 import type { OrderCalcDeps } from './agents/order-calc';
 import type { PricesDeps } from './agents/prices';
 import type { SupplierCardButtons } from './agents/suppliers/card-approval';
@@ -40,6 +41,8 @@ export interface PragmatikaRuntime {
   priceDiskInitialImportEnabled: boolean;
   supplierCards?: SupplierCardsRuntime | undefined;
   mailProposals?: MailProposalsRuntime | undefined;
+  /** Зависимости разовых команд владельца (`src/background-cli.ts`); службе не нужны. */
+  background?: BackgroundCommands | undefined;
 }
 
 /** Один процесс - одно приложение: последняя сборка и есть действующая. */

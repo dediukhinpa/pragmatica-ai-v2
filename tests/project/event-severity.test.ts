@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { knownEvents, severityOf } from '@business-ai/adapters';
+import { knownEvents, registerEventSeverity, severityOf } from '@business-ai/adapters';
 import { PROJECT_EVENT_SEVERITY } from '../../src/event-severity';
 
 const SRC_ROOT = join(import.meta.dir, '..', '..', 'src');
@@ -52,5 +52,16 @@ describe('классы событий журнала', () => {
       expect(SEVERITIES).toContain(severity);
       expect(severityOf(event)).toBe(severity);
     }
+  });
+
+  test('класс платформенного события проект не меняет (web_fetch_rate_limited, G-7b)', () => {
+    // В прежнем ядре это событие было `info`, в платформе - `warning`. Манифест принимает
+    // таблицу, но платформа отвергает другой класс платформенного события при запуске, поэтому
+    // вернуть `info` проектом нельзя; тест фиксирует границу и сломается, если её снимут.
+    expect(severityOf('web_fetch_rate_limited')).toBe('warning');
+    expect(() => registerEventSeverity({ web_fetch_rate_limited: 'info' })).toThrow(
+      /уже имеет класс платформы/,
+    );
+    expect(severityOf('web_fetch_rate_limited')).toBe('warning');
   });
 });

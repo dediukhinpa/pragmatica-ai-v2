@@ -126,6 +126,8 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   supplier_mail_proposal_unavailable: 'warning',
   supplier_mail_proposal_letters_unavailable: 'warning',
   mail_proposals_ignored: 'warning',
+  // Не удалось закрыть итог файла диска после хода (lifecycle-disk-sync): ждёт срока, как раньше.
+  disk_sync_close_failed: 'warning',
   // Этап 220b: сбой аудита при применении подтверждённого пункта отчёта (запись уже сделана).
   supplier_mail_backfill_audit_failed: 'warning',
   // Этап 163: названный поставщик без карточки - предложение, ответ сотрудника и заведённая
