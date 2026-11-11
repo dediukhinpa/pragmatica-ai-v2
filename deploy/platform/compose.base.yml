@@ -10,6 +10,11 @@
 #   docker compose --env-file images.lock --env-file .env -f <compose проекта> up -d
 #
 # Остальной текст шапки унаследован от deploy/docker-compose.yml и остаётся верным.
+# Образы сервисов необязательных профилей (mask, speech, agent-sandbox, telemetry) заданы через
+# `:-<заглушка>`, а не `:?`: compose интерполирует весь файл, включая выключенные профили, и
+# обязательная переменная ломала бы любую команду (в том числе откат на старый lock, где ключа
+# ещё нет). Заглушка - не существующий образ: при включённом профиле pull/up упадёт. Наличие
+# ключа в lock для включённых профилей проверяет `bai` до изменений (deploy/bai).
 # Размеры mem_limit рассчитаны на ВМ 16 ГБ: база (вместе с mask 1536m) 14864 МиБ (~14,5 ГиБ)
 # при пиках, не совпадающих по времени; при включённом профиле telemetry (сборщик alloy 384m
 # и прокси Docker API 64m) сумма 14864 + 448 = 15312 МиБ; лимит - потолок, а не резерв. tmpfs
@@ -123,7 +128,9 @@ services:
     <<: *hardened
     # Версия pgvector закреплена: миграция 014 требует >= 0.8 (hnsw.iterative_scan), а тег без
     # версии (pg16) плавает. Смена образа - только в пределах pg16 (docs/RUNBOOK.md).
-    image: ${POSTGRES_IMAGE:-${BAI_IMAGE_POSTGRES:?нет BAI_IMAGE_POSTGRES, передайте images.lock}}
+    # POSTGRES_IMAGE из старого .env здесь НЕ действует: образ берётся только из images.lock
+    # (проверенная подпись); bai снимает этот ключ и предупреждает (docs/BAI-CLI.md).
+    image: ${BAI_IMAGE_POSTGRES:?нет BAI_IMAGE_POSTGRES, передайте images.lock}
     networks: [backend]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-agentplatform}
@@ -308,7 +315,7 @@ services:
   mask:
     <<: *hardened
     profiles: [mask]
-    image: ${BAI_IMAGE_MASK:?нет BAI_IMAGE_MASK, передайте images.lock (--env-file images.lock)}
+    image: ${BAI_IMAGE_MASK:-bai-image-mask-missing-from-lock}
     networks: [backend]
     volumes:
       # Предметная настройка сервиса снаружи (словари, паттерны, корпуса): только чтение. Пустой
@@ -453,6 +460,12 @@ services:
       # tokens читает текст в documents (IMAGE_TEXT_OCR_IN_DOCUMENTS у app, по умолчанию true).
       # Пусто = documents.json из /config, иначе выключено; false - ручка закрыта (404).
       DOCUMENTS_IMAGE_TEXT_ENDPOINT: ${DOCUMENTS_IMAGE_TEXT_ENDPOINT:-true}
+      # Детектор текста на фото (/images/detect-text): ответ «текста нет» подтверждается на снимке,
+      # выпрямленном по OSD (повёрнутое фото с текстом больше не уходит в модель зрения как
+      # «без текста»). ВКЛЮЧЁН по умолчанию; 0/false/off возвращает прежнее поведение. Пусто =
+      # documents.json из /config, иначе включено. Цена: до двух лишних запусков Tesseract на
+      # фото без текста.
+      DOCUMENTS_IMAGE_TEXT_DETECT_ROTATION: ${DOCUMENTS_IMAGE_TEXT_DETECT_ROTATION:-}
       # Ручка /convert/docx (.doc и RTF в docx, LibreOffice): выключена; нужна сборка образа с
       # WITH_LIBREOFFICE=1, иначе ручка отвечает conversion_unavailable.
       DOCUMENTS_OFFICE_CONVERT_ENDPOINTS: ${DOCUMENTS_OFFICE_CONVERT_ENDPOINTS:-}
@@ -536,7 +549,7 @@ services:
   speech:
     <<: *hardened
     profiles: [speech]
-    image: ${BAI_IMAGE_SPEECH:?нет BAI_IMAGE_SPEECH, передайте images.lock (--env-file images.lock)}
+    image: ${BAI_IMAGE_SPEECH:-bai-image-speech-missing-from-lock}
     networks: [backend]
     environment:
       SPEECH_HOST: 0.0.0.0
@@ -703,7 +716,7 @@ services:
   sandbox:
     <<: *hardened
     profiles: [agent-sandbox]
-    image: ${BAI_IMAGE_SANDBOX:?нет BAI_IMAGE_SANDBOX, передайте images.lock (--env-file images.lock)}
+    image: ${BAI_IMAGE_SANDBOX:-bai-image-sandbox-missing-from-lock}
     network_mode: none
     user: "0:0"
     cap_add: [SETUID, SETGID]
@@ -760,7 +773,8 @@ services:
   # Исходящий mTLS-прокси к зарубежному шлюзу (см. nginx/mtls-proxy.conf.template).
   gateway-mtls:
     <<: *hardened
-    image: ${NGINX_IMAGE:-${BAI_IMAGE_NGINX:?нет BAI_IMAGE_NGINX, передайте images.lock}}
+    # NGINX_IMAGE из старого .env не действует: образ только из images.lock.
+    image: ${BAI_IMAGE_NGINX:?нет BAI_IMAGE_NGINX, передайте images.lock}
     networks: [backend, egress]
     environment:
       NGINX_ENVSUBST_FILTER: GATEWAY_
@@ -1139,8 +1153,9 @@ services:
   docker-socket-proxy:
     <<: *hardened
     profiles: [telemetry]
-    # Версия закреплена (без latest); переопределяется DOCKER_PROXY_IMAGE при обновлении.
-    image: ${DOCKER_PROXY_IMAGE:-${BAI_IMAGE_DOCKER_PROXY:?нет BAI_IMAGE_DOCKER_PROXY, передайте images.lock}}
+    # Образ - только из images.lock (digest с проверенной подписью). DOCKER_PROXY_IMAGE из
+    # старого .env не действует: прокси держит docker.sock, подменять его образ нельзя.
+    image: ${BAI_IMAGE_DOCKER_PROXY:-bai-image-docker-proxy-missing-from-lock}
     networks: [docker-api]
     # Образ 0.3.0 при старте пишет haproxy.cfg рядом с шаблоном, а корневая ФС read_only:
     # конфиг рендерится в tmpfs /run тем же sed, что в штатном entrypoint (IPv4+IPv6).
@@ -1202,8 +1217,8 @@ services:
   alloy:
     <<: *hardened
     profiles: [telemetry]
-    # Версия закреплена (без latest); переопределяется ALLOY_IMAGE при обновлении.
-    image: ${ALLOY_IMAGE:-${BAI_IMAGE_ALLOY:?нет BAI_IMAGE_ALLOY, передайте images.lock}}
+    # Образ - только из images.lock. ALLOY_IMAGE из старого .env не действует.
+    image: ${BAI_IMAGE_ALLOY:-bai-image-alloy-missing-from-lock}
     networks: [backend, telemetry-egress, docker-api]
     depends_on:
       docker-socket-proxy:
@@ -1294,7 +1309,7 @@ services:
   # --- одноразовые задачи (profile tools): docker compose --profile tools run --rm migrate ---
   migrate:
     # Тот же образ, что у postgres: psql и проверка версии pgvector в миграции 014.
-    image: ${POSTGRES_IMAGE:-${BAI_IMAGE_POSTGRES:?нет BAI_IMAGE_POSTGRES, передайте images.lock}}
+    image: ${BAI_IMAGE_POSTGRES:?нет BAI_IMAGE_POSTGRES, передайте images.lock}
     profiles: [tools]
     networks: [backend]
     depends_on:

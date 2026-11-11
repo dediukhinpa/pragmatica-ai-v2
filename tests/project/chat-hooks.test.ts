@@ -45,6 +45,12 @@ function fakeContext(options: { agentId?: string; allowed?: boolean; userId?: st
       asked.push({ action, agentId });
       return options.allowed ?? true;
     },
+    // С 1.0.1 платформа даёт причину отказа и запуск агента после кнопки (обязательные члены).
+    check: async (action, agentId) => {
+      asked.push({ action, agentId });
+      return { allowed: options.allowed ?? true };
+    },
+    runAgent: async () => undefined,
     resumeScheduledWaits: async () => undefined,
     log: () => undefined,
   };

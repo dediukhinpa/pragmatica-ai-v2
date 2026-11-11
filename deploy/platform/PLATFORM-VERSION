@@ -1,11 +1,12 @@
 # Закреплённая копия платформы, нужная compose. Править файлы этого каталога нельзя: обновление
 # версии — заменой копии целиком (git show <коммит>:<путь>) и пересчётом строк ниже вместе с
 # версией пакетов в package.json. Проверяет tests/deploy/test_platform_pin.py.
-PLATFORM_PACKAGES_VERSION=1.0.0
-PLATFORM_COMMIT=1d2790f83bd4abdd1adffefde8fcca5fb7b80bfa
-PLATFORM_TAG=v1.0.0
-# Репозиторий-источник: business-ai, выпуск 1.0.0 (тег v1.0.0). Файлы копии равны файлам
-# 0.1.0-dev.0b172b9f: выпуск изменил только номера версий пакетов.
+PLATFORM_PACKAGES_VERSION=1.0.1
+PLATFORM_COMMIT=9bbed56a9d726e52e5c48c4ebcf979b508747394
+PLATFORM_TAG=v1.0.1
+# Репозиторий-источник: business-ai, выпуск 1.0.1 (тег v1.0.1). Относительно 1.0.0 изменились
+# compose.base.yml (образы только из images.lock, заглушки образов необязательных профилей,
+# флаг поворота фото documents) и db/migrate.sh (stream-order.tsv); остальные файлы те же.
 # Пути источника: deploy/compose.base.yml, deploy/nginx/, deploy/alloy/, db/migrate.sh, db/platform/.
 # Дополнительно: deploy/docker/project-app.Dockerfile(.dockerignore) и deploy/images.lock.example
 # лежат в deploy/docker/ и deploy/ проекта (образцы платформы, правятся проектом).
@@ -16,8 +17,8 @@ sha256 6eac3eed849b5be6cbb72e9e21b9c829d764cacd4eeaf9b4850e22919fdaf5f7  alloy/s
 sha256 ac6e3367eb4b9366ddde1e425777370532c5dde9cdefd6a95caf6585499504f7  alloy/sinks/lib.alloy
 sha256 4b81c40e1f651b040af9a4debfffb566868013439867535804905dd49839ff67  alloy/sinks/local.alloy
 sha256 f93ebed53d46a00e149440c23854ad70ce3cdf3645e172b12c0d409f52f53691  alloy/sinks/remote.alloy
-sha256 64f0dc34a3f7d4d2581c0b072ceae69546e42a736933ebaae863fc563b534085  compose.base.yml
-sha256 6415497e8db458472be0c334ae6c129f59e3ccb8a0de3bfcdf9fab4ee3b6ca3f  db/migrate.sh
+sha256 bd1515260f8da9066f53e3bd416ba34a88e152ded26c308ec82d3932882de70b  compose.base.yml
+sha256 810d5ca01750549ff09d74bdcb50a3749c2b8d00a4c6b64395e6e32f10e92f2e  db/migrate.sh
 sha256 b50cd1e1cb33f27b03206b303bebe84abc01686b182c8975dab3e246df19eada  db/platform/001_core.sql
 sha256 5db5f3ab4a8ced39a618de6d7936336556d557f247f2098ef48cf487cb5fd2f4  db/platform/002_threads.sql
 sha256 3cebd39f7b7c0d7f059933c4f43e23de7836c01a5280bf09f0fd250b36566905  db/platform/003_knowledge.sql

@@ -19,13 +19,13 @@
     "e2e:names": "bun tools/e2e-test-names.ts e2e/tests"
   },
   "dependencies": {
-    "@business-ai/adapters": "1.0.0",
-    "@business-ai/core": "1.0.0",
+    "@business-ai/adapters": "1.0.1",
+    "@business-ai/core": "1.0.1",
     "zod": "3.25.76"
   },
   "devDependencies": {
-    "@business-ai/eval": "1.0.0",
-    "@business-ai/testing": "1.0.0",
+    "@business-ai/eval": "1.0.1",
+    "@business-ai/testing": "1.0.1",
     "@types/bun": "1.4.2",
     "@types/mailparser": "3.9.0",
     "@types/nodemailer": "8.0.2",

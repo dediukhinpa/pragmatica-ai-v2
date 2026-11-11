@@ -9,6 +9,12 @@
 # (APP_MIGRATIONS_DIR); внутри потока - по имени файла. Версия в учёте = `<поток>/<имя>`,
 # например `platform/005_workflow_state`.
 #
+# Исключение, которое задаёт только проект: файл `stream-order.tsv` рядом с его миграциями
+# (строки `app/<имя><TAB>platform/<имя>`) ставит проектную миграцию и все проектные до неё
+# РАНЬШЕ первой платформенной миграции с именем не меньше указанного (побайтово). Нужен,
+# когда новая платформенная миграция опирается на проектную, а на действующей базе она иначе
+# шла бы первой. Без файла порядок прежний; порядок внутри каждого потока не меняется.
+#
 # Совместимость со старым учётом (legacy-map.tsv, строки `старая_версия<TAB>новая_версия`):
 # новая версия считается применённой, если в schema_migrations есть она сама или ЛЮБАЯ
 # старая версия, отображаемая на неё. Раннер дописывает новые версии рядом со старыми и
@@ -42,6 +48,8 @@ APP_DIR="${APP_MIGRATIONS_DIR:-}"
 APP_MAP="${APP_LEGACY_MAP:-}"
 PLATFORM_MAP="$PLATFORM_DIR/legacy-map.tsv"
 MAP_FILE_NAME="legacy-map.tsv"
+# Файл порядка потоков проекта (см. шапку): лежит рядом с проектными миграциями.
+ORDER_FILE_NAME="stream-order.tsv"
 
 # Произвольное число для pg_advisory_xact_lock: защита от параллельного запуска.
 LOCK_ID=48151623
@@ -126,6 +134,77 @@ if [[ -n "$APP_DIR" ]]; then
   collect_stream app "$APP_DIR"
 fi
 
+# ---- Порядок потоков (stream-order.tsv проекта) ----------------------------------------
+
+# Файл читается только при наличии потока app. Строка `app/<имя>` TAB `platform/<имя>`:
+# проектная миграция (и все проектные до неё) идёт перед первой платформенной миграцией,
+# чьё имя не меньше указанного. Платформенной миграции с таким именем может не быть (образ
+# старее файла проекта): тогда ограничение пусто, ошибкой это не считается.
+STREAM_ORDER_USED=0
+
+apply_stream_order() {
+  local file="$APP_DIR/$ORDER_FILE_NAME" line_no=0 app_ver plat_bound extra
+  local target p app_ver_idx
+  [[ -n "$APP_DIR" && -f "$file" ]] || return 0
+  local -a plat=() app=() merged=()
+  local v
+  for v in "${VERSIONS[@]}"; do
+    if [[ "$v" == platform/* ]]; then plat+=("$v"); else app+=("$v"); fi
+  done
+  # cut[платформенная версия] - наибольший индекс проектной версии, идущей перед ней.
+  declare -A cut=()
+  declare -A app_index=()
+  local i
+  for i in "${!app[@]}"; do
+    app_index["${app[$i]}"]="$i"
+  done
+  while IFS=$'\t' read -r app_ver plat_bound extra || [[ -n "${app_ver:-}" ]]; do
+    line_no=$((line_no + 1))
+    app_ver="${app_ver%$'\r'}"
+    plat_bound="${plat_bound%$'\r'}"
+    if [[ -z "$app_ver" || "$app_ver" == \#* ]]; then
+      app_ver=""
+      continue
+    fi
+    [[ -z "${extra:-}" ]] || fail "$file:$line_no: ожидаются два поля через табуляцию"
+    [[ "$app_ver" =~ ^app/[A-Za-z0-9_.-]+$ ]] \
+      || fail "$file:$line_no: слева нужна версия вида app/<имя>: $app_ver"
+    [[ "$plat_bound" =~ ^platform/[A-Za-z0-9_.-]+$ ]] \
+      || fail "$file:$line_no: справа нужна версия вида platform/<имя>: $plat_bound"
+    [[ -n "${app_index[$app_ver]:-}" ]] \
+      || fail "$file:$line_no: в каталоге проекта нет миграции $app_ver (опечатка?)"
+    target=""
+    for p in "${plat[@]}"; do
+      if ! [[ "$p" < "$plat_bound" ]]; then
+        target="$p"
+        break
+      fi
+    done
+    app_ver_idx="${app_index[$app_ver]}"
+    if [[ -n "$target" ]] && (( app_ver_idx > ${cut[$target]:--1} )); then
+      cut["$target"]="$app_ver_idx"
+    fi
+    STREAM_ORDER_USED=1
+    app_ver=""
+  done <"$file"
+  [[ "$STREAM_ORDER_USED" == "1" ]] || return 0
+  local next_app=0
+  for p in "${plat[@]}"; do
+    while (( next_app <= ${cut[$p]:--1} )); do
+      merged+=("${app[$next_app]}")
+      next_app=$((next_app + 1))
+    done
+    merged+=("$p")
+  done
+  while (( next_app < ${#app[@]} )); do
+    merged+=("${app[$next_app]}")
+    next_app=$((next_app + 1))
+  done
+  VERSIONS=("${merged[@]}")
+}
+
+apply_stream_order
+
 # ---- Карты старых версий ---------------------------------------------------------------
 
 # KNOWN_LEGACY[старая]=1 - старая версия описана в какой-либо карте.
@@ -177,16 +256,29 @@ fi
 # записал бы старый раннер. Имя регистрируется как известная старая версия: иначе следующий
 # запуск счёл бы собственную запись неизвестной (код 3). Имя не должно совпасть с именем
 # другой миграции или старой версией из карты: в плоском учёте прежнего раннера это одна запись.
+#
+# Аргумент: 1 - совпадение имён ошибка (режим MIGRATE_LEGACY_NAMES=1, пишем такие имена сами);
+# 0 - обычный режим: однозначные имена регистрируются так же, а неоднозначные пропускаются
+# (запись с таким именем останется неизвестной, код 3). Без этого платформенная миграция,
+# применённая в режиме прежних имён (записана как `021_x`, карта её не знает: "новые
+# платформенные миграции в карту не вносятся"), после возврата к 0 останавливала бы раннер.
 register_derived_legacy_names() {
-  local version name
-  declare -A owner=()
+  local strict="$1" version name
+  declare -A owner=() ambiguous=()
   for version in "${VERSIONS[@]}"; do
     [[ -z "${OLDS_FOR[$version]:-}" ]] || continue
     name="${version#*/}"
     if [[ -n "${KNOWN_LEGACY[$name]:-}" || -n "${owner[$name]:-}" ]]; then
-      fail "режим MIGRATE_LEGACY_NAMES=1: имя $name совпадает у ${owner[$name]:-карты} и $version"
+      if [[ "$strict" == "1" ]]; then
+        fail "режим MIGRATE_LEGACY_NAMES=1: имя $name совпадает у ${owner[$name]:-карты} и $version"
+      fi
+      ambiguous["$name"]=1
+      continue
     fi
     owner["$name"]="$version"
+  done
+  for name in "${!ambiguous[@]}"; do
+    unset 'owner[$name]'
   done
   for name in "${!owner[@]}"; do
     version="${owner[$name]}"
@@ -200,9 +292,7 @@ legacy_names_of() {
   printf '%s\n' ${OLDS_FOR[$1]}
 }
 
-if [[ "$LEGACY_NAMES" == "1" ]]; then
-  register_derived_legacy_names
-fi
+register_derived_legacy_names "$LEGACY_NAMES"
 
 # ---- Учёт в базе -----------------------------------------------------------------------
 
@@ -324,28 +414,62 @@ append_legacy_versions() {
   done
 }
 
-# Версии, записанные прежними именами в этом запуске: одна старая запись может закрывать
-# несколько новых (смешанная миграция), вторая и далее не должна считаться чужим занятием.
-declare -A WRITTEN_NOW=()
+# Режим прежних имён: для каждой прежней записи - последняя из версий, ожидающих применения в
+# этом запуске (в порядке применения). Одна старая запись может закрывать несколько новых
+# (смешанная миграция); ставить её должна транзакция ПОСЛЕДНЕЙ половины, иначе при сбое
+# следующей половины запись уже есть, и повторный запуск молча пропустил бы её навсегда.
+declare -A LAST_PENDING_OF=()
 
 # Часть SQL занятия версии под блокировкой: печатает WITH claim ... \gset.
 claim_sql() {
-  local version="$1" name values="" expected=0
+  local version="$1" name values="" mine=0
   if [[ "$LEGACY_NAMES" == "1" ]]; then
     while IFS= read -r name; do
-      values+="${values:+,}('$name')"
-      [[ -n "${WRITTEN_NOW[$name]:-}" ]] || expected=$((expected + 1))
+      if [[ "${LAST_PENDING_OF[$name]:-}" == "$version" ]]; then
+        values+="${values:+,}('$name')"
+        mine=$((mine + 1))
+      fi
     done < <(legacy_names_of "$version")
+  fi
+  if [[ "$mine" -gt 0 ]]; then
     echo "WITH claim AS (INSERT INTO schema_migrations (version) VALUES $values"
-    echo "  ON CONFLICT DO NOTHING RETURNING 1) SELECT count(*) = $expected AS claimed FROM claim \\gset"
+    echo "  ON CONFLICT DO NOTHING RETURNING 1)"
+    echo "  SELECT count(*) = $mine AS claimed FROM claim \\gset"
   else
+    # Обычный режим, либо не последняя половина смешанной миграции: временная отметка
+    # новым именем версии. Она делает повторный запуск после сбоя следующей половины
+    # идемпотентным (эта половина второй раз не исполняется) и снимается транзакцией
+    # последней половины (release_markers_sql).
     echo "WITH claim AS (INSERT INTO schema_migrations (version) VALUES ('$version')"
     echo "  ON CONFLICT DO NOTHING RETURNING 1) SELECT count(*) = 1 AS claimed FROM claim \\gset"
   fi
 }
 
+# Режим прежних имён: транзакция последней половины записывает прежнюю запись и снимает отметки
+# остальных половин (они закрыты этой записью по карте), чтобы в учёте остались только прежние
+# имена. Отметки ставились предыдущим запуском, поэтому берутся все версии карты, не только
+# ожидающие в этом запуске.
+release_markers_sql() {
+  local version="$1" name other values="" mine=" "
+  [[ "$LEGACY_NAMES" == "1" ]] || return 0
+  while IFS= read -r name; do
+    [[ "${LAST_PENDING_OF[$name]:-}" == "$version" ]] && mine+="$name "
+  done < <(legacy_names_of "$version")
+  [[ "$mine" != " " ]] || return 0
+  for other in "${VERSIONS[@]}"; do
+    [[ "$other" != "$version" ]] || continue
+    for name in ${OLDS_FOR[$other]}; do
+      if [[ "$mine" == *" $name "* ]]; then
+        values+="${values:+,}'$other'"
+        break
+      fi
+    done
+  done
+  [[ -z "$values" ]] || echo "DELETE FROM schema_migrations WHERE version IN ($values);"
+}
+
 apply_one() {
-  local version="$1" file="${FILE_OF[$1]}" out name
+  local version="$1" file="${FILE_OF[$1]}" out
   echo "Применяю: $version"
   # Одна транзакция: блокировка, затем занятие версии и тело миграции. Проверка "применена
   # ли" сделана ДО блокировки: параллельный запуск мог применить эту же миграцию, пока мы
@@ -360,6 +484,7 @@ apply_one() {
     echo "\\if :claimed"
     cat "$file"
     echo
+    release_markers_sql "$version"
     echo "\\else"
     echo "\\echo $SKIP_MARK"
     echo "\\endif"
@@ -371,11 +496,6 @@ apply_one() {
     return 1
   fi
   [[ -z "$out" ]] || printf '%s\n' "$out"
-  if [[ "$LEGACY_NAMES" == "1" ]]; then
-    while IFS= read -r name; do
-      WRITTEN_NOW["$name"]=1
-    done < <(legacy_names_of "$version")
-  fi
   return 0
 }
 
@@ -383,7 +503,10 @@ run_apply() {
   ensure_table
   load_recorded
   check_unknown_legacy
-  local applied=0 version
+  local applied=0 version name
+  if [[ "$STREAM_ORDER_USED" == "1" ]]; then
+    echo "Порядок потоков изменён файлом проекта $ORDER_FILE_NAME (см. --plan)"
+  fi
   if [[ "$LEGACY_NAMES" == "1" ]]; then
     echo "Режим MIGRATE_LEGACY_NAMES=1: в schema_migrations пишутся прежние имена версий"
     # Ожидающие версии определены по состоянию на начало запуска: запись старого имени
@@ -393,6 +516,9 @@ run_apply() {
       version_status "$version"
       if [[ "$STATUS" == "pending" ]]; then
         pending+=("$version")
+        for name in ${OLDS_FOR[$version]}; do
+          LAST_PENDING_OF["$name"]="$version"
+        done
       else
         echo "Уже применена: $version"
       fi
