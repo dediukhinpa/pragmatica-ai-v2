@@ -28,6 +28,8 @@ const HAND_WRITTEN = [
   'tests/eval/register-eval.ts',
   'tests/eval/project-spec.test.ts',
   'e2e/lib/project-env.ts',
+  // Сценарий проекта (не из SRC): текст сообщения сотрудника через канал чата и мост проекта.
+  'e2e/tests/z-documents-employee-requisites-chat.test.ts',
   'e2e/register-project.ts',
   'e2e/bunfig.toml',
   'e2e/run.sh',
@@ -82,11 +84,12 @@ describe('eval и e2e, порождённые sync-eval-e2e, не правят �
 
   test('в порождённых каталогах нет файлов вне манифеста', () => {
     const known = new Set(rows.map((row) => row.path));
+    const handWritten = new Set(HAND_WRITTEN);
     const glob = new Bun.Glob('**/*');
     const extra: string[] = [];
     for (const prefix of GENERATED_ROOTS) {
       for (const file of glob.scanSync({ cwd: join(ROOT, prefix), onlyFiles: true })) {
-        if (!known.has(prefix + file)) extra.push(prefix + file);
+        if (!known.has(prefix + file) && !handWritten.has(prefix + file)) extra.push(prefix + file);
       }
     }
     expect(extra).toEqual([]);

@@ -15,6 +15,10 @@ const ROOT = join(import.meta.dir, '..', '..');
 const BASELINE_PATH = join(import.meta.dir, 'baseline-names.tsv');
 /** Сколько тестов в проектной части эталона (239 pass + 5 skip + 1 flaky минус платформа). */
 const BASELINE_PROJECT_TESTS = 110;
+/** Сценарии, которых нет в эталоне: написаны в v2 (через канал чата), а не взяты из SRC. */
+const PROJECT_ONLY_FILES: ReadonlySet<string> = new Set([
+  'tests/z-documents-employee-requisites-chat.test.ts',
+]);
 
 describe('tools/e2e-test-names: разбор имён', () => {
   test('вложенные describe склеиваются через « > »', () => {
@@ -70,7 +74,8 @@ describe('tools/e2e-test-names: сверка с эталоном', () => {
 });
 
 describe('e2e/tests проекта против эталона stage-0', () => {
-  const own = namesOfDir(join(ROOT, 'e2e/tests'));
+  const all = namesOfDir(join(ROOT, 'e2e/tests'));
+  const own = all.filter((t) => !PROJECT_ONLY_FILES.has(t.file));
   const baseline = parseBaseline(readFileSync(BASELINE_PATH, 'utf-8'));
   const result = compareWithBaseline(own, baseline);
 
@@ -84,6 +89,12 @@ describe('e2e/tests проекта против эталона stage-0', () => {
 
   test('в проекте нет тестов с именами вне эталона', () => {
     expect(result.extra).toEqual([]);
+  });
+
+  test('сценарии только v2 лежат в e2e/tests и не пропущены', () => {
+    const projectOnly = all.filter((t) => PROJECT_ONLY_FILES.has(t.file));
+    expect(projectOnly.length).toBeGreaterThanOrEqual(PROJECT_ONLY_FILES.size);
+    expect(projectOnly.filter((t) => t.status === 'skip')).toEqual([]);
   });
 
   test('пропущенные в эталоне тесты пропущены и в проекте', () => {
