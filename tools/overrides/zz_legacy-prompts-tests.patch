@@ -1,0 +1,42 @@
+--- tests/application/agents/order-completeness.test.ts
++++ tests/application/agents/order-completeness.test.ts
+@@ -11 +11,2 @@
+-import { type AgentDeclaration, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
++import { type AgentDeclaration, FILE_TOOL_PROMPT } from '@business-ai/core';
++import { SESSION_SUMMARY_PROMPT } from '../../../src/application/agents/shared/legacy-prompts.owned';
+--- tests/application/agents/order-digest-declaration.test.ts
++++ tests/application/agents/order-digest-declaration.test.ts
+@@ -7 +7,2 @@
+-import { type AgentDeclaration, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
++import { type AgentDeclaration, FILE_TOOL_PROMPT } from '@business-ai/core';
++import { SESSION_SUMMARY_PROMPT } from '../../../src/application/agents/shared/legacy-prompts.owned';
+--- tests/application/agents/order-intake.test.ts
++++ tests/application/agents/order-intake.test.ts
+@@ -9 +9,2 @@
+-import { createToolContext, toRunSpec, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
++import { createToolContext, toRunSpec, FILE_TOOL_PROMPT } from '@business-ai/core';
++import { SESSION_SUMMARY_PROMPT } from '../../../src/application/agents/shared/legacy-prompts.owned';
+--- tests/application/agents/prices-no-mail-send.test.ts
++++ tests/application/agents/prices-no-mail-send.test.ts
+@@ -5 +5,2 @@
+-import { type ToolContext, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
++import { type ToolContext, FILE_TOOL_PROMPT } from '@business-ai/core';
++import { SESSION_SUMMARY_PROMPT } from '../../../src/application/agents/shared/legacy-prompts.owned';
+--- tests/application/agents/search-conversation-history.test.ts
++++ tests/application/agents/search-conversation-history.test.ts
+@@ -4 +4,2 @@
+-import { HISTORY_SEARCH_DONE_EVENT, HISTORY_SEARCH_FAILED_EVENT, HISTORY_SEARCH_PROMPT, SEARCH_CONVERSATION_HISTORY_TOOL, createToolContext, searchConversationHistory, type ConversationHistoryHost } from '@business-ai/core';
++import { HISTORY_SEARCH_DONE_EVENT, HISTORY_SEARCH_FAILED_EVENT, SEARCH_CONVERSATION_HISTORY_TOOL, createToolContext, searchConversationHistory, type ConversationHistoryHost } from '@business-ai/core';
++import { HISTORY_SEARCH_PROMPT } from '../../../src/application/agents/shared/legacy-prompts.owned';
+--- tests/application/agents/session-summary-prompt.test.ts
++++ tests/application/agents/session-summary-prompt.test.ts
+@@ -6 +6,2 @@
+-import { FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
++import { FILE_TOOL_PROMPT } from '@business-ai/core';
++import { SESSION_SUMMARY_PROMPT } from '../../../src/application/agents/shared/legacy-prompts.owned';
+--- tests/application/agents/suppliers-declaration.test.ts
++++ tests/application/agents/suppliers-declaration.test.ts
+@@ -6 +6,2 @@
+-import { assertDeclarationValid, defineProject, findDigitSeries, type AgentDeclaration, type GreetingButtonAction, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
++import { assertDeclarationValid, defineProject, findDigitSeries, type AgentDeclaration, type GreetingButtonAction, FILE_TOOL_PROMPT } from '@business-ai/core';
++import { SESSION_SUMMARY_PROMPT } from '../../../src/application/agents/shared/legacy-prompts.owned';

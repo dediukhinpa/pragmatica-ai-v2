@@ -9,7 +9,7 @@
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 3938,
+        "inputTokens": 3937,
         "outputTokens": 24
       },
       "latencyMs": 400,

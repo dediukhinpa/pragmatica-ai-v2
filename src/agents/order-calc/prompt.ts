@@ -1,5 +1,5 @@
 import { allowedVatRatesText } from '../../kit/domain/vat';
-import { HISTORY_SEARCH_PROMPT } from '@business-ai/core';
+import { HISTORY_SEARCH_PROMPT } from '../shared/legacy-prompts.owned';
 import { WEB_SEARCH_PROMPT } from '../shared/web-search-prompt.owned';
 
 /**

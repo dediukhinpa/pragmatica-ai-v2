@@ -14,8 +14,8 @@ import {
   type AgentDeclaration,
   type GreetingButtonAction,
   FILE_TOOL_PROMPT,
-  SESSION_SUMMARY_PROMPT,
 } from '@business-ai/core';
+import { SESSION_SUMMARY_PROMPT } from '../../src/agents/shared/legacy-prompts.owned';
 import { createDocumentsAgent } from '../../src/agents/documents/declaration';
 import { createOrderCalcAgent } from '../../src/agents/order-calc/declaration';
 import { createSiteExportAgent } from '../../src/agents/site-export/declaration';

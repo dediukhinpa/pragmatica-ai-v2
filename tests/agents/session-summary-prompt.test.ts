@@ -3,7 +3,8 @@ import { createDocumentsAgent } from '../../src/agents/documents/declaration';
 import { createOrderCalcAgent } from '../../src/agents/order-calc/declaration';
 import { createPricesAgent } from '../../src/agents/prices/declaration';
 import { createSiteExportAgent } from '../../src/agents/site-export/declaration';
-import { FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
+import { FILE_TOOL_PROMPT } from '@business-ai/core';
+import { SESSION_SUMMARY_PROMPT } from '../../src/agents/shared/legacy-prompts.owned';
 
 const MODEL = 'alias-main';
 

@@ -11,7 +11,8 @@ import { createOrderCalcAgent } from '../../src/agents/order-calc/declaration';
 import { loadCompleteness } from '../../src/agents/order-calc/state';
 import { saveIntakeRequest } from '../../src/agents/order-calc/save-intake-request';
 import { searchKnowledgeSuppliers, searchWeb } from '../../src/agents/order-calc/search-sources';
-import { type AgentDeclaration, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
+import { type AgentDeclaration, FILE_TOOL_PROMPT } from '@business-ai/core';
+import { SESSION_SUMMARY_PROMPT } from '../../src/agents/shared/legacy-prompts.owned';
 import {
   COMPLETENESS_QUESTION_INTRO,
   REQUEST_VALUE_MAX_CHARS,

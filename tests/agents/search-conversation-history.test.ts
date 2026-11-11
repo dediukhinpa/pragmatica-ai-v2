@@ -4,12 +4,12 @@ import { severityOf } from '@business-ai/adapters';
 import {
   HISTORY_SEARCH_DONE_EVENT,
   HISTORY_SEARCH_FAILED_EVENT,
-  HISTORY_SEARCH_PROMPT,
   SEARCH_CONVERSATION_HISTORY_TOOL,
   createToolContext,
   searchConversationHistory,
   type ConversationHistoryHost,
 } from '@business-ai/core';
+import { HISTORY_SEARCH_PROMPT } from '../../src/agents/shared/legacy-prompts.owned';
 import { createDocumentsAgent } from '../../src/agents/documents/declaration';
 import { createOrderCalcAgent } from '../../src/agents/order-calc/declaration';
 import { createPricesAgent } from '../../src/agents/prices/declaration';

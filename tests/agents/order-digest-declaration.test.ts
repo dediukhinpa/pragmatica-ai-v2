@@ -8,7 +8,8 @@ import {
 import { createOrderCalcAgent } from '../../src/agents/order-calc/declaration';
 import { saveSent } from '../../src/agents/order-calc/state';
 import { scheduleReminder } from '../../src/agents/order-calc/schedule-reminder';
-import { type AgentDeclaration, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
+import { type AgentDeclaration, FILE_TOOL_PROMPT } from '@business-ai/core';
+import { SESSION_SUMMARY_PROMPT } from '../../src/agents/shared/legacy-prompts.owned';
 import { CTX } from './support';
 import { ORDER_REQUEST, REQUEST_ID, buildOrderDeps, type OrderTestDeps } from './order-support';
 

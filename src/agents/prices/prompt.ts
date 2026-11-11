@@ -4,7 +4,7 @@ import {
   PRICE_MAIL_TRIGGER_INTERVAL_DAYS,
 } from '../../kit/domain/monitoring';
 import { PRICE_FILE_STALE_MONTHS } from '../../kit/domain/price-file-date';
-import { HISTORY_SEARCH_PROMPT } from '@business-ai/core';
+import { HISTORY_SEARCH_PROMPT } from '../shared/legacy-prompts.owned';
 import { WEB_SEARCH_PROMPT } from '../shared/web-search-prompt.owned';
 import { SCRIPT_FALLBACK_STEP } from '@business-ai/core';
 import { MAX_NORMALIZED_ITEMS_LISTED } from './normalize-price-table';

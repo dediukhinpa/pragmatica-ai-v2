@@ -7,7 +7,8 @@ import {
 } from '../../src/agents/prices/prompt';
 import { createPricesAgent, type PricesAgentOptions } from '../../src/agents/prices/declaration';
 import { listStalePriceSuppliers } from '../../src/agents/prices/stale-price-suppliers';
-import { type ToolContext, FILE_TOOL_PROMPT, SESSION_SUMMARY_PROMPT } from '@business-ai/core';
+import { type ToolContext, FILE_TOOL_PROMPT } from '@business-ai/core';
+import { SESSION_SUMMARY_PROMPT } from '../../src/agents/shared/legacy-prompts.owned';
 import { SUPPLIER_ID } from './support';
 import {
   USER_1,

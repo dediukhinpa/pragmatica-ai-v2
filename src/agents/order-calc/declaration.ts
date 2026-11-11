@@ -1,4 +1,4 @@
-import { SESSION_SUMMARY_PROMPT } from '@business-ai/core';
+import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
 import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
 import type { AgentDeclaration } from '@business-ai/core';
 import { askManagerToChoose, recordManagerChoice } from './ask-manager-to-choose';

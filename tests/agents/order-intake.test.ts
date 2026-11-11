@@ -12,12 +12,8 @@ import { HANDOFF_TO_PRICES_PROMPT } from '../../src/agents/order-calc/handoff-to
 import { ORDER_CALC_PROMPT } from '../../src/agents/order-calc/prompt';
 import { type OrderCalcDeps } from '../../src/agents/order-calc/deps';
 import { createOrderCalcAgent } from '../../src/agents/order-calc/declaration';
-import {
-  createToolContext,
-  toRunSpec,
-  FILE_TOOL_PROMPT,
-  SESSION_SUMMARY_PROMPT,
-} from '@business-ai/core';
+import { createToolContext, toRunSpec, FILE_TOOL_PROMPT } from '@business-ai/core';
+import { SESSION_SUMMARY_PROMPT } from '../../src/agents/shared/legacy-prompts.owned';
 import { readIntakeSource } from '../../src/agents/order-calc/read-intake-source';
 import { saveIntakeRequest } from '../../src/agents/order-calc/save-intake-request';
 import { DomainError, type DomainErrorCode } from '@business-ai/core';
