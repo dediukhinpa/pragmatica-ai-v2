@@ -1,9 +1,11 @@
 # Закреплённая копия платформы, нужная compose. Править файлы этого каталога нельзя: обновление
 # версии — заменой копии целиком (git show <коммит>:<путь>) и пересчётом строк ниже вместе с
 # версией пакетов в package.json. Проверяет tests/deploy/test_platform_pin.py.
-PLATFORM_PACKAGES_VERSION=0.1.0-dev.0b172b9f
-PLATFORM_COMMIT=0b172b9f862fb4e03473bf7787ec93b26951aa5a
-# Репозиторий-источник: business-ai (ветка feature/platform-sync-pragmatika, голова этапа 5s).
+PLATFORM_PACKAGES_VERSION=1.0.0
+PLATFORM_COMMIT=1d2790f83bd4abdd1adffefde8fcca5fb7b80bfa
+PLATFORM_TAG=v1.0.0
+# Репозиторий-источник: business-ai, выпуск 1.0.0 (тег v1.0.0). Файлы копии равны файлам
+# 0.1.0-dev.0b172b9f: выпуск изменил только номера версий пакетов.
 # Пути источника: deploy/compose.base.yml, deploy/nginx/, deploy/alloy/, db/migrate.sh, db/platform/.
 # Дополнительно: deploy/docker/project-app.Dockerfile(.dockerignore) и deploy/images.lock.example
 # лежат в deploy/docker/ и deploy/ проекта (образцы платформы, правятся проектом).

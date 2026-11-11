@@ -17,6 +17,8 @@ VERSION_FILE = PLATFORM_DIR / "PLATFORM-VERSION"
 PACKAGE_JSON = loader.REPO_DIR / "package.json"
 SHA_LINE_RE = re.compile(r"^sha256 ([0-9a-f]{64})  (\S+)$")
 PACKAGE_SCOPE = "@business-ai/"
+# Номер выпуска платформы: три числа без суффикса (dev-версии содержат «-dev.»).
+RELEASE_VERSION_RE = r"\d+\.\d+\.\d+"
 # Предел времени git-запроса, секунд.
 GIT_TIMEOUT_SECONDS = 60
 
@@ -66,11 +68,19 @@ class PlatformPinTest(unittest.TestCase):
         self.assertEqual({pairs["PLATFORM_PACKAGES_VERSION"]}, pinned)
 
     def test_commit_is_full_sha(self) -> None:
-        """Коммит платформы записан полным хэшем, а короткая версия — его префикс."""
+        """Коммит платформы записан полным хэшем.
+
+        У dev-версии номер оканчивается префиксом коммита; у выпуска (X.Y.Z) записан тег
+        `v<версия>`, по которому находится тот же коммит.
+        """
         pairs, _ = parse_version_file()
         commit = pairs["PLATFORM_COMMIT"]
+        version = pairs["PLATFORM_PACKAGES_VERSION"]
         self.assertRegex(commit, r"^[0-9a-f]{40}$")
-        self.assertTrue(pairs["PLATFORM_PACKAGES_VERSION"].endswith(commit[:8]))
+        if re.fullmatch(RELEASE_VERSION_RE, version):
+            self.assertEqual(f"v{version}", pairs.get("PLATFORM_TAG"))
+        else:
+            self.assertTrue(version.endswith(commit[:8]))
 
     def test_matches_git_when_available(self) -> None:
         """Если задан BAI_REPO_DIR, файлы копии равны содержимому коммита платформы."""
