@@ -24,7 +24,7 @@ NEW_APP_FILE="$ROOT/tools/check_migrations_new_app.txt"
 COMPAT_SQL="$APP_DIR/026_knowledge_scope_compat.sql"
 
 PLATFORM_REPO="${PLATFORM_REPO:-$HOME/wt-bai-modular}"
-PLATFORM_REF="${PLATFORM_REF:-0b172b9}"
+PLATFORM_REF="${PLATFORM_REF:-v1.0.0}"
 SRC_REPO="${SRC_REPO:-$HOME/pragmatika-purchasing}"
 SRC_COMMIT="${SRC_COMMIT:-5ea7f2d308beb476fb8b6fe05e095587c9ee4f40}"
 # Ожидаемое число прежних миграций (001-042).

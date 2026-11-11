@@ -44,7 +44,7 @@ E2E_WAIT_SEC=60
 E2E_WAIT_TRIES=30
 
 PLATFORM_REPO="${PLATFORM_REPO:-$HOME/wt-bai-modular}"
-PLATFORM_REF="${PLATFORM_REF:-0b172b9}"
+PLATFORM_REF="${PLATFORM_REF:-v1.0.0}"
 SRC_REPO="${SRC_REPO:-$HOME/pragmatika-purchasing}"
 SRC_COMMIT="${SRC_COMMIT:-5ea7f2d308beb476fb8b6fe05e095587c9ee4f40}"
 BASELINE_SCHEMA="${BASELINE_SCHEMA:-$BAI_HOME/stage-0/baseline/migrations/schema-from-migrations.sql}"
