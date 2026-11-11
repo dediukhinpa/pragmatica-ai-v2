@@ -17,6 +17,7 @@ holds only what is specific to the project. Russian version: [README.ru.md](READ
 | `deploy/` | `compose.yml` (project `pragmatika`), `.env.example` |
 | `eval/`, `e2e/` | eval cases and recordings, end-to-end scenarios |
 | `tools/` | `sync-agents.sh` and its helpers, baseline helpers |
+| `tools/build-app-image.sh` | builds, pushes and signs the `app` image on the platform base image and writes the project `images.lock` (test: `tools/build-app-image.test.sh`) |
 
 ## Do not edit `src/agents/**` by hand
 

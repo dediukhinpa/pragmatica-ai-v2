@@ -17,6 +17,7 @@ English: [README.md](README.md).
 | `deploy/` | `compose.yml` (проект `pragmatika`), `.env.example` |
 | `eval/`, `e2e/` | кейсы и записи eval, сквозные сценарии |
 | `tools/` | `sync-agents.sh` и помощники, инструменты эталона |
+| `tools/build-app-image.sh` | сборка, публикация и подпись образа `app` поверх базы платформы, запись `images.lock` проекта (тест: `tools/build-app-image.test.sh`) |
 
 ## Файлы `src/agents/**` руками не правим
 
