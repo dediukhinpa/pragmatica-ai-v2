@@ -240,6 +240,12 @@ services:
       # Чтение привязки задачи к сделке (UF_CRM_TASK) и разбор ссылок портала: в старом коде без флага.
       B24_TASK_DEAL_LINK: ${B24_TASK_DEAL_LINK:-true}
       B24_PORTAL_LINKS: ${B24_PORTAL_LINKS:-true}
+      # Этап 177 прежнего кода: пределы запроса поиска и черновика письма - предупреждения, а не
+      # отказы, и подсказка модели о скрипте после ошибки разбора файла шли всегда. В платформе
+      # это отдельные флаги с выключенным умолчанием: включены, чтобы поведение осталось прежним.
+      WEB_SEARCH_LIMIT_WARNINGS: ${WEB_SEARCH_LIMIT_WARNINGS:-true}
+      EMAIL_DRAFT_LIMIT_WARNINGS: ${EMAIL_DRAFT_LIMIT_WARNINGS:-true}
+      AGENT_SCRIPT_ERROR_FALLBACK: ${AGENT_SCRIPT_ERROR_FALLBACK:-true}
       # xlsx-шаблоны через сервис documents (/xlsx/*): использовались всегда.
       TEMPLATE_WORKBOOK_ENABLED: ${TEMPLATE_WORKBOOK_ENABLED:-true}
       # В базе true, на бою отправка по кнопке была выключена.

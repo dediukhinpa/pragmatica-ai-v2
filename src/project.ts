@@ -22,6 +22,7 @@ import {
 import { DAY_MS } from './kit/domain/time';
 import { buildDealRequestPorts } from './adapters/deal-request-ports';
 import { bridgeChatFromPorts } from './chat-intake';
+import { senderAllowlistOf } from './mail-sender-lookup';
 import { PRAGMATIKA_PORTS_KEY, buildPragmatikaPorts } from './ports';
 import { PROJECT_SCHEDULES } from './schedules';
 
@@ -83,6 +84,9 @@ export const pragmatikaProject = defineProject({
     supplierMailProposals: project.SUPPLIER_MAIL_PROPOSALS_ENABLED,
     documentKinds: (project.DOCUMENTS_ENABLED_KINDS ?? []).join(',') || 'all',
   }),
+  // Допуск отправителей почты по базе поставщиков, как до манифеста (без него - только
+  // статический список MAIL_ALLOWED_SENDERS, и ответы поставщиков не скачиваются).
+  senderAllowlist: senderAllowlistOf,
   eventSeverity: PROJECT_EVENT_SEVERITY,
   piiAllowedWords: PRAGMATIKA_PII_ALLOWED_WORDS,
   externalTextTools: [...PROJECT_EXTERNAL_TEXT_TOOL_NAMES],
