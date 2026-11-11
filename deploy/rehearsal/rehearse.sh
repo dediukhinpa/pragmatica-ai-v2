@@ -814,6 +814,10 @@ PY
     -m labops_pii.rekey --db /data/pseudonymizer.sqlite3 --dry-run 2>&1)" || rc=$?
   printf '%s\n' "$out" | grep -E 'всего строк|расшифровка|найден' \
     >"$RES/pseudonymizer-selfcheck.txt" || true
+  # При сбое в файл идут последние строки вывода (текст ошибки), обрезанные по длине.
+  if ((rc != 0)) && [[ ! -s "$RES/pseudonymizer-selfcheck.txt" ]]; then
+    printf '%s\n' "$out" | tail -3 | cut -c1-200 >"$RES/pseudonymizer-selfcheck.txt"
+  fi
   if ((rc == 0)); then
     check "хранилище: самопроверка" ok \
       "$(tail -1 "$RES/pseudonymizer-selfcheck.txt"); источник: $STORE_SOURCE"
