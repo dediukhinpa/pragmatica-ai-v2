@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DIRECTORY_DEPARTMENT_PREFIX } from '@business-ai/core';
 import { emptyAsUnset, flag, positiveInt, splitList } from '@business-ai/core/compose';
+import { dealFieldMapSchema } from './adapters/deal-field-map';
 import { DEFAULT_PRICE_MIN_COSINE } from './kit/adapters/postgres/price-repository';
 import {
   PRICE_STALE_PREFIX_SEPARATOR,
@@ -83,15 +84,21 @@ export function isSiteTemplatePath(value: string): boolean {
   return value.split('/').every((part) => part !== '' && part !== '.' && part !== '..');
 }
 
-/** Карта полей сделки: JSON в строке; значение в сообщение об ошибке не попадает. */
-const dealFieldMapEnvSchema = z.string().transform((raw, ctx): unknown => {
-  try {
-    return JSON.parse(raw) as unknown;
-  } catch {
-    ctx.addIssue({ code: 'custom', message: 'некорректный JSON' });
-    return z.NEVER;
-  }
-});
+/**
+ * Карта полей сделки: JSON в строке, дальше строгая схема карты. Ошибка называет переменную,
+ * значение в сообщение об ошибке не попадает.
+ */
+const dealFieldMapEnvSchema = z
+  .string()
+  .transform((raw, ctx): unknown => {
+    try {
+      return JSON.parse(raw) as unknown;
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'некорректный JSON' });
+      return z.NEVER;
+    }
+  })
+  .pipe(dealFieldMapSchema);
 
 /** Предметные переменные окружения Прагматики (платформенные описаны в пакете платформы). */
 export const pragmatikaConfigSchema = z.object({
@@ -192,8 +199,8 @@ export const pragmatikaConfigSchema = z.object({
   /** Синхронный вызов агента как инструмента (долговечные шаги, права, аудит). */
   AGENT_CALL_ENABLED: flag(),
   /**
-   * Карта полей сделки (JSON). Платформа карту не читает: значение проверяется как JSON и
-   * сохранено для совместимости окружения (см. отчёт: пробел платформы).
+   * Карта полей сделки (JSON по `dealFieldMapSchema`): откуда позиции заявки по сделке. Читает
+   * проектный разбор заявки (`DealPurchaseRequestReader`), платформа карту не знает.
    */
   BITRIX24_DEAL_FIELD_MAP: emptyAsUnset(dealFieldMapEnvSchema.optional()),
   /** Инструменты приёма заявки (из текста, ссылки на задачу или сделку). */

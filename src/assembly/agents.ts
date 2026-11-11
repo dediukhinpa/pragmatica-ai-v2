@@ -15,7 +15,6 @@ import {
   type ProjectAgents,
   type ProjectContext,
 } from '@business-ai/core';
-import { createOperatorAlerter, composeHttpApp } from '@business-ai/core/compose';
 import { ORDER_CALC_AGENT_ID } from '../agents/order-calc';
 import { createOrderCalcAgent } from '../agents/order-calc/declaration';
 import type { OrderCalcDeps } from '../agents/order-calc';
@@ -31,9 +30,12 @@ import { createSupplierCardService } from '../agents/suppliers/card-approval';
 import type { SupplierCardsDeps } from '../agents/suppliers/deps';
 import type { SupplierCardsAgentOptions } from '../agents/suppliers/tools';
 import type { SupplierMailProposalsDeps } from '../agents/suppliers/mail-proposal-store';
+import { buildBackgroundCommands } from '../background-wiring';
 import { HttpSignatoryInflector } from '../adapters/http-signatory-inflector';
+import { dealRequestsOf } from '../adapters/deal-request-ports';
 import { PlatformBackedCrm } from '../adapters/platform-crm';
 import { assertCrossChecks, type PragmatikaConfig } from '../config';
+import { restoreLegacyTools } from '../legacy-tools';
 import { HttpContractAmender } from '../kit/adapters/http/http-contract-amender';
 import { HttpPriceFileEditor } from '../kit/adapters/http/http-price-file-editor';
 import {
@@ -48,8 +50,8 @@ import {
   type MailProposalsRuntime,
   type SupplierCardsRuntime,
 } from '../runtime';
-import { PROJECT_EXTERNAL_TEXT_TOOL_NAMES } from '../agents/shared/external-text-tools.owned';
 import { attachModelAdapters } from './model-adapters';
+import { projectModels } from './project-models';
 import { supplierTemplateLoader } from './supplier-template-loader';
 
 /** Контекст сборки Прагматики (типизирован предметными переменными проекта). */
@@ -228,6 +230,12 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     priceDiskInitialImportEnabled: project.PRICE_DISK_INITIAL_IMPORT_ENABLED === 'true',
     supplierCards,
     mailProposals: proposals,
+    // Разовые команды владельца (проход по ящику, обследование, CRM); модель - при вызове.
+    background: buildBackgroundCommands(ctx, {
+      mailConnected,
+      classifier: () =>
+        new ModelSupplierMailClassifier(modelsOf(ctx), ctx.modelOf(PRICES_AGENT_ID)),
+    }),
   });
   return {
     declarations: declarationsOf(ctx, cardsOption, proposals !== undefined),
@@ -332,7 +340,8 @@ function wireOrderIntake(
     ids.push(id);
   };
   if (project.ORDER_CALC_INTAKE_ENABLED === 'true') {
-    orderCalc.crm = new PlatformBackedCrm(ports.crm);
+    // Разбор заявки по сделке (карта полей) даёт проектный читатель на клиенте портала платформы.
+    orderCalc.crm = new PlatformBackedCrm(ports.crm, dealRequestsOf(ports.extra));
     if (ports.tasks === undefined || ports.portalLinks === undefined) {
       ctx.markUnconfigured('portalIntake');
     } else {
@@ -463,29 +472,14 @@ function isMailConnected(ctx: Context): boolean {
   );
 }
 
-/** Шлюз модели для вызовов вне агентского цикла (платформа его в сервисах не отдаёт). */
-function modelsOf(ctx: Context): ReturnType<typeof composeHttpApp>['outOfLoopModels'] {
-  const { config, services } = ctx;
-  const alerter = createOperatorAlerter({
-    chat: services.chat,
-    threadId: managerThreadOf(ctx),
-    clock: services.clock,
+/** Шлюз модели для вызовов вне агентского цикла: один на сборку (платформа его не отдаёт). */
+function modelsOf(ctx: Context): ReturnType<typeof projectModels> {
+  return projectModels({
+    config: ctx.config,
+    services: ctx.services,
+    alertThreadId: managerThreadOf(ctx),
   });
-  // Токены в аргументах веб-поиска восстанавливаются без проверки ПДн только со шлюзовым поиском.
-  const piiAllowed = services.webSearchQueryPiiAllowed ? PII_ALLOWED_TOOLS : undefined;
-  return composeHttpApp(
-    config,
-    undefined,
-    alerter,
-    piiAllowed,
-    services.telemetry,
-    config.modelPrices,
-    new Set(PROJECT_EXTERNAL_TEXT_TOOL_NAMES),
-  ).outOfLoopModels;
 }
-
-/** Внешние инструменты, которым токены восстанавливаются без проверки ПДн (веб-поиск). */
-const PII_ALLOWED_TOOLS: ReadonlySet<string> = new Set(['searchInternet']);
 
 /** Карточки поставщиков: общий набор зависимостей модуля, сервис нажатий и шаблон-файл. */
 function wireSupplierCards(
@@ -669,7 +663,7 @@ function declarationsOf(
   const dataScript = services.scriptSandbox === undefined ? {} : { dataScript: true };
   const mailbox = config.agents.employeeMailboxEnabled;
   const monitoring = config.agents.monitoringEnabled;
-  return [
+  const declarations = [
     createPricesAgent({
       model: ctx.modelOf(PRICES_AGENT_ID),
       ...dataScript,
@@ -707,4 +701,8 @@ function declarationsOf(
       ...cardsOption,
     }),
   ];
+  // Инструменты и общие блоки промпта - как в прежней сборке (модель настроена на них).
+  return restoreLegacyTools(declarations, {
+    limitWarnings: config.agents.feedbackLimitWarnings,
+  });
 }

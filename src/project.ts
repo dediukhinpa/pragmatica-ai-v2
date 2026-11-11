@@ -20,6 +20,8 @@ import {
   WORKFLOW_STATE_STALE_SCOPE,
 } from './kit/app/workflow-state-retention';
 import { DAY_MS } from './kit/domain/time';
+import { buildDealRequestPorts } from './adapters/deal-request-ports';
+import { bridgeChatFromPorts } from './chat-intake';
 import { PRAGMATIKA_PORTS_KEY, buildPragmatikaPorts } from './ports';
 import { PROJECT_SCHEDULES } from './schedules';
 
@@ -62,7 +64,16 @@ export const pragmatikaProject = defineProject({
   },
   agents: assemblePragmatikaAgents,
   schedules: PROJECT_SCHEDULES,
-  ports: (env) => ({ [PRAGMATIKA_PORTS_KEY]: buildPragmatikaPorts(env) }),
+  // Разбор заявки по сделке идёт проектным читателем: платформенный CRM его не умеет.
+  ports: (env) => {
+    // Мост канала чата: текст сообщений для агента документов и запуск хода после кнопок.
+    // Ставится здесь, до сборки приложения: насос платформы этих хуков не даёт.
+    bridgeChatFromPorts(env);
+    return {
+      [PRAGMATIKA_PORTS_KEY]: buildPragmatikaPorts(env),
+      ...buildDealRequestPorts(env),
+    };
+  },
   migrationsDir: 'db/app',
   eval: pragmatikaEval,
   unconfiguredText: UNCONFIGURED_TEXT,

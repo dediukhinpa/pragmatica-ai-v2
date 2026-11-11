@@ -74,14 +74,16 @@ describe('предметная схема окружения', () => {
     ).toBe(false);
   });
 
-  test('карта полей сделки: только проверка JSON', () => {
-    expect(configWith({ BITRIX24_DEAL_FIELD_MAP: '{"a":"b"}' }).BITRIX24_DEAL_FIELD_MAP).toEqual({
-      a: 'b',
-    });
+  test('карта полей сделки: JSON по строгой схеме карты', () => {
     expect(
-      pragmatikaConfigSchema.safeParse({ ...REQUIRED_ENV, BITRIX24_DEAL_FIELD_MAP: '{не json' })
-        .success,
-    ).toBe(false);
+      configWith({ BITRIX24_DEAL_FIELD_MAP: '{"defaultUnit":"кг"}' }).BITRIX24_DEAL_FIELD_MAP,
+    ).toEqual({ items: { source: 'productRows' }, defaultUnit: 'кг' });
+    for (const bad of ['{не json', '{"a":"b"}']) {
+      expect(
+        pragmatikaConfigSchema.safeParse({ ...REQUIRED_ENV, BITRIX24_DEAL_FIELD_MAP: bad })
+          .success,
+      ).toBe(false);
+    }
   });
 
   test('флаги принимают только true или false', () => {
