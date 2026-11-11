@@ -18,6 +18,9 @@ RUN if [ -n "$PROJECT_EXTRA_DEPS" ]; then bun add --production --no-save $PROJEC
 WORKDIR /app/project
 COPY package.json /app/project/package.json
 COPY src /app/project/src
+# Миграции проекта (включая legacy-map.tsv и stream-order.tsv): `bai update` берёт их из образа
+# `app` по пути /app/project/db/app, версия миграций всегда равна версии образа.
+COPY db/app /app/project/db/app
 USER bun
 # Точка входа проекта вызывает runMain(project) из @business-ai/core/compose. Healthcheck задан
 # в compose.base.yml (в образе нет curl/wget).

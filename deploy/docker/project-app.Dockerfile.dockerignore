@@ -2,3 +2,7 @@
 !package.json
 !src/
 !src/**
+# Миграции проекта едут в образе: bai update берёт их оттуда (BAI_APP_MIGRATIONS_IMAGE_PATH).
+!db/
+!db/app/
+!db/app/**

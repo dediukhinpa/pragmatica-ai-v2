@@ -6,7 +6,7 @@
 #
 # Что делает:
 #   1. строго разбирает lock платформы (--base-lock): нужны BAI_VERSION и BAI_IMAGE_APP_BASE;
-#   2. собирает образ из ЗАКОММИЧЕННОГО дерева (git archive HEAD: package.json, src,
+#   2. собирает образ из ЗАКОММИЧЕННОГО дерева (git archive HEAD: package.json, src, db/app,
 #      deploy/docker) поверх базового образа по digest, ставит метки OCI и bai.*;
 #   3. с --push публикует образ и узнаёт digest; без --push только собирает образ локально
 #      (pragmatika-app:<версия>) и lock-out НЕ пишет: digest реестра до публикации неизвестен;
@@ -78,7 +78,7 @@ readonly TRIVY_SEVERITIES="HIGH,CRITICAL"
 
 # Что попадает в контекст сборки (из HEAD) и где в нём Dockerfile.
 readonly DOCKERFILE_REL="deploy/docker/project-app.Dockerfile"
-readonly CONTEXT_PATHS=(package.json src deploy/docker)
+readonly CONTEXT_PATHS=(package.json src db/app deploy/docker)
 
 PROJECT_DIR="${BAI_PROJECT_DIR:-$ROOT}"
 BUILD_DIR="${BAI_BUILD_DIR:-$PROJECT_DIR/build/app-image}"
@@ -318,7 +318,8 @@ build_image() {
   # Контекст - закоммиченное дерево (git archive): неотслеженные файлы, node_modules и .env не
   # попадают в образ, а метка revision точно описывает собранное. Рядом с Dockerfile лежит его
   # .dockerignore (его читает BuildKit); классический сборщик его игнорирует, но лишние файлы
-  # из deploy/docker в образ всё равно не копируются: Dockerfile берёт только package.json и src.
+  # из deploy/docker в образ всё равно не копируются: Dockerfile берёт только package.json, src
+  # и db/app (миграции проекта: bai update читает их из образа).
   CONTEXT_DIR="$(mktemp -d "$BUILD_DIR/context.XXXXXX")"
   git -C "$PROJECT_DIR" archive --format=tar HEAD "${CONTEXT_PATHS[@]}" \
     | tar -x -C "$CONTEXT_DIR" || die "не удалось выгрузить контекст из HEAD"

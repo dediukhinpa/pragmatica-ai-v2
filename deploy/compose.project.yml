@@ -137,6 +137,10 @@ services:
       DOCUMENTS_TEMPLATE_ENDPOINTS: ${DOCUMENTS_TEMPLATE_ENDPOINTS:-true}
       DOCUMENTS_UNAMBIGUOUS_FRACTIONS: ${DOCUMENTS_UNAMBIGUOUS_FRACTIONS:-true}
       DOCUMENTS_RENDER_CATEGORY: ${DOCUMENTS_RENDER_CATEGORY:-pragmatika-own-document}
+      # Платформа 1.0.1 включает по умолчанию проверку «текста нет» на выпрямленном снимке
+      # (до двух лишних запусков Tesseract на фото без текста). Бой этого не делает, поэтому
+      # здесь выключено; включение - явным DOCUMENTS_IMAGE_TEXT_DETECT_ROTATION=true.
+      DOCUMENTS_IMAGE_TEXT_DETECT_ROTATION: ${DOCUMENTS_IMAGE_TEXT_DETECT_ROTATION:-false}
     mem_limit: 4312m
     tmpfs: !override
       - /tmp:size=64m

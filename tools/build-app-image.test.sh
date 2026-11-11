@@ -105,12 +105,13 @@ echo "$PASSWORD_MARKER" >"$KEYDIR/cosign.password"
 
 # --- проект: временный git-репозиторий -------------------------------------------------------
 PROJ="$WORK/project"
-mkdir -p "$PROJ/src" "$PROJ/deploy/docker"
+mkdir -p "$PROJ/src" "$PROJ/db/app" "$PROJ/deploy/docker"
 echo '{"name":"proj","private":true}' >"$PROJ/package.json"
 echo 'export const committed = 1;' >"$PROJ/src/main.ts"
+echo 'SELECT 1;' >"$PROJ/db/app/001_base.sql"
 echo 'FROM scratch' >"$PROJ/deploy/docker/project-app.Dockerfile"
 IGNORE_FILE="$PROJ/deploy/docker/project-app.Dockerfile.dockerignore"
-printf '*\n!package.json\n!src/\n!src/**\n' >"$IGNORE_FILE"
+printf '*\n!package.json\n!src/\n!src/**\n!db/\n!db/app/\n!db/app/**\n' >"$IGNORE_FILE"
 echo 'вне контекста' >"$PROJ/README.md"
 git -C "$PROJ" init -q
 git -C "$PROJ" add -A
@@ -219,6 +220,7 @@ check "Dockerfile из контекста" 1 \
     || true)"
 check "контекст: package.json из HEAD" 1 "$(count '^\./package.json$' "$LISTING")"
 check "контекст: src/main.ts из HEAD" 1 "$(count '^\./src/main.ts$' "$LISTING")"
+check "контекст: миграции db/app из HEAD" 1 "$(count '^\./db/app/001_base.sql$' "$LISTING")"
 check "контекст: Dockerfile и .dockerignore" 2 \
   "$(count '^\./deploy/docker/project-app.Dockerfile' "$LISTING")"
 check "контекст: неотслеженный файл не попал" 0 "$(count 'uncommitted' "$LISTING")"
