@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CaseFileError, loadCases, parseCase } from '@business-ai/eval';
 import { DEFAULT_CASES_DIR, AGENT_IDS } from '../../eval/paths';
@@ -70,8 +70,18 @@ describe('схема кейса', () => {
     expect(() => parse({ ...MINIMAL, expect: expectation })).toThrow(/регулярное/);
   });
 
-  test('expectedManagerChoice есть только у расчёта заказа', () => {
-    expect(() => parse({ ...MINIMAL, expectedManagerChoice: 's1' })).toThrow(CaseFileError);
+  test('метка выбора лежит в ожиданиях под именем expectedChoice', () => {
+    const expectation = { maxSteps: 3, expectedChoice: 's1' };
+    expect(parse({ ...MINIMAL, expect: expectation }).expect.expectedChoice).toBe('s1');
+  });
+
+  test('метка выбора в состоянии order-calc называется expectedChoice, прежнее имя отвергается', () => {
+    const file = join(DEFAULT_CASES_DIR, 'order-calc', 'order-calc-shortlist-pick.json');
+    const source = JSON.parse(readFileSync(file, 'utf8')) as { state: Record<string, unknown> };
+    expect(parse(source).state).toMatchObject({ expectedChoice: 's1' });
+    const { expectedChoice, ...rest } = source.state;
+    const legacy = { ...source, state: { ...rest, expectedManagerChoice: expectedChoice } };
+    expect(() => parse(legacy)).toThrow(CaseFileError);
   });
 
   test('id с недопустимыми символами отвергается', () => {

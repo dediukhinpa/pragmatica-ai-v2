@@ -21,7 +21,7 @@
         "outputTokens": 18
       },
       "latencyMs": 400,
-      "requestHash": "be6e561fd10574583139aa2a786d558fdfbdf8aa86b4924a393293d89521bb6c"
+      "requestHash": "b00cfc4d27aec97411847ba2af5a9d989a0dd55094b1f47a67bc4555b2668d34"
     },
     {
       "content": "Шаблона «акт сверки» нет. Какой шаблон взять или положить его на диск?",
@@ -32,7 +32,7 @@
         "outputTokens": 18
       },
       "latencyMs": 400,
-      "requestHash": "a47fce08dd5a6b1af41e7ed045e4fd0d37e2c7a68f55f96befd57bc5b3863dc0"
+      "requestHash": "4aab5b261627c862cb80c87774c69df5d5e80c810375b980c8b4117f323d53a4"
     }
   ],
   "synthetic": true

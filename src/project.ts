@@ -21,6 +21,7 @@ import {
   WORKFLOW_STATE_STALE_SCOPE,
 } from './kit/app/workflow-state-retention';
 import { DAY_MS } from './kit/domain/time';
+import { LEGACY_PROJECT_PROMPTS } from './legacy-tool-texts';
 import { buildDealRequestPorts } from './adapters/deal-request-ports';
 import { diskSyncJobHooks, pricesWaitThreadOf } from './lifecycle-disk-sync';
 import { senderAllowlistOf } from './mail-sender-lookup';
@@ -74,6 +75,9 @@ export const pragmatikaProject = defineProject({
   }),
   migrationsDir: 'db/app',
   eval: pragmatikaEval,
+  // Внутренние тексты платформы (чтение страниц, зрение, сводка сессий, подсказка скрипта) -
+  // прежние, дословно: модели и шлюзу они знакомы, нейтральные редакции платформы иные (G-20).
+  prompts: LEGACY_PROJECT_PROMPTS,
   unconfiguredText: UNCONFIGURED_TEXT,
   describe: (project) => ({
     supplierCards: project.SUPPLIER_CARDS_ENABLED,

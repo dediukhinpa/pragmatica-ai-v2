@@ -65,7 +65,7 @@
         "snippet": "Арматура и сетка"
       }
     ],
-    "expectedManagerChoice": "s1"
+    "expectedChoice": "s1"
   },
   "expect": {
     "maxSteps": 7,

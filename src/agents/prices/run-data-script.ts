@@ -5,6 +5,7 @@ import {
 } from '@business-ai/core';
 import { z } from 'zod';
 import { requirePort } from '@business-ai/core';
+import { LEGACY_RUN_DATA_SCRIPT_PRESENTATION } from '../shared/common-tools.owned';
 import type { PricesDeps } from './deps';
 import { parseSource } from './parse-cache';
 import { openPriceSource, sourceSizeOf } from './price-sources';
@@ -93,6 +94,7 @@ const SUPPLIER_ID_MAX_CHARS = 100;
 
 /** `runDataScript` агента прайсов: вид `price_items` регистрируется в реестре платформы. */
 export const runDataScript = createRunDataScriptTool<PricesDeps>(openPricesDataSource, {
+  presentation: LEGACY_RUN_DATA_SCRIPT_PRESENTATION,
   resultKinds: [
     {
       name: 'price_items',

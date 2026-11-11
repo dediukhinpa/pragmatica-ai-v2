@@ -1,12 +1,9 @@
 import {
   DATA_SCRIPT_PROMPT,
-  DomainError,
   FILE_TOOL_PROMPT,
   RECORD_FEEDBACK_TOOL,
   RUN_DATA_SCRIPT_TOOL,
   SCRIPT_REQUIRED_MESSAGE,
-  SEARCH_CONVERSATION_HISTORY_TOOL,
-  SEARCH_INTERNET_TOOL,
   withFeedbackTool,
   type AgentDeclaration,
   type AgentValidator,
@@ -19,33 +16,20 @@ import {
   LEGACY_DATA_SCRIPT_PROMPT,
   LEGACY_EMPLOYEE_LANGUAGE_PROMPT,
   LEGACY_FILE_TOOL_PROMPT,
-  LEGACY_HISTORY_SEARCH_NOTICE,
   LEGACY_REPLY_FORMAT_PROMPT,
-  LEGACY_RUN_DATA_SCRIPT_DESCRIPTION,
-  LEGACY_SCRIPT_EXHAUSTED_MESSAGE,
-  LEGACY_SCRIPT_RECONCILE_HINT,
   LEGACY_SCRIPT_REQUIRED_MESSAGE,
-  LEGACY_SEARCH_HISTORY_DESCRIPTION,
-  LEGACY_SEARCH_INTERNET_DESCRIPTION,
 } from './legacy-tool-texts';
 
 /**
- * Возврат инструментов и общих блоков промпта к виду прежней сборки Прагматики. Платформа даёт
- * те же инструменты в нейтральной редакции (другие описания, схема `runDataScript`, `createFile`
- * заканчивает ход сама), а модель была настроена на прежние. Инструменты платформы -
- * обычные объекты: проект собирает из них копию с прежними полями, сама платформа не
- * меняется. Где платформа держит текст у себя (внутренние запросы зрения, чтения страниц,
- * сводки сессии), проект его подменить не может - это записано в `platform-gaps.md`.
+ * Возврат `createFile` и общих блоков промпта к виду прежней сборки Прагматики. Описания,
+ * перечень видов и подсказки `runDataScript`, описания поиска по истории и поиска в интернете
+ * задаются штатно (параметр `presentation` фабрик платформы,
+ * `agents/shared/common-tools.owned.ts`), внутренние тексты платформы - полем `prompts`
+ * манифеста. Здесь остаётся то, чего платформа не настраивает: порядок полей ввода
+ * `runDataScript`, ключ отправки `createFile` (вход плюс тред вместо предшественника хода),
+ * конец хода после файла, подмена платформенных блоков промпта и подсказка валидатора скрипта.
  */
 
-/** Самый длинный код скрипта, символов (как в прежней схеме `runDataScript`). */
-const SCRIPT_CODE_MAX_CHARS = 30_000;
-/** Самая длинная ссылка на данные, символов. */
-const FILE_REF_MAX_CHARS = 600;
-/** Самый длинный идентификатор поставщика, символов. */
-const SUPPLIER_ID_MAX_CHARS = 100;
-/** Виды результата скрипта для модели в прежней схеме (`value` песочница знает как `json`). */
-const LEGACY_RESULT_KINDS = ['price_items', 'table', 'value'] as const;
 /** Имя инструмента, чья ключевая отправка файла зависит от прежнего ключа. */
 const CREATE_FILE_TOOL = 'createFile';
 
@@ -62,7 +46,21 @@ export interface LegacyToolsOptions {
   limitWarnings?: boolean;
 }
 
-/** Схема ввода `runDataScript` прежней сборки. */
+/** Самый длинный код скрипта, символов (как в схеме платформы и прежней сборки). */
+const SCRIPT_CODE_MAX_CHARS = 30_000;
+/** Самая длинная ссылка на данные, символов. */
+const FILE_REF_MAX_CHARS = 600;
+/** Самый длинный идентификатор поставщика, символов. */
+const SUPPLIER_ID_MAX_CHARS = 100;
+/** Виды результата скрипта в прежнем порядке (совпадает с `presentation.resultKindNames`). */
+const LEGACY_RESULT_KINDS = ['price_items', 'table', 'value'] as const;
+
+/**
+ * Схема ввода `runDataScript` прежней сборки. Платформа ставит `resultKind` последним полем, а
+ * прежняя схема держала его третьим; порядок полей входит в отпечаток запроса записей eval и
+ * в то, что видит модель, поэтому порядок возвращается (содержимое полей то же, что даёт
+ * `presentation` у фабрики).
+ */
 const legacyRunDataScriptInput = z.object({
   code: z.string().min(1).max(SCRIPT_CODE_MAX_CHARS),
   fileRef: z.string().trim().min(1).max(FILE_REF_MAX_CHARS).optional(),
@@ -73,37 +71,9 @@ const legacyRunDataScriptInput = z.object({
   onEmployeeRequest: z.boolean().optional(),
 });
 
-const legacyScriptError = z.object({
-  code: z.string(),
-  type: z.string().nullable(),
-  line: z.number().int().nullable(),
-  policy: z.string().nullable(),
-});
-
-/** Схема вывода `runDataScript` прежней сборки: вид результата - перечень, а не строка. */
-const legacyRunDataScriptOutput = z.object({
-  ok: z.boolean(),
-  resultKind: z.enum(LEGACY_RESULT_KINDS),
-  /** `value`: JSON, который вернул скрипт. `table`: строки (до предела). */
-  value: z.unknown().optional(),
-  rowCount: z.number().int().optional(),
-  /** `table`: строки обрезаны по пределу размера. */
-  truncated: z.boolean().optional(),
-  /** `price_items`: сводка обработчика (по умолчанию число позиций и образец). */
-  summary: z.record(z.string(), z.unknown()).optional(),
-  /** Ошибка скрипта: код, тип встроенного исключения, строка; текстов ошибок нет. */
-  error: legacyScriptError.optional(),
-  /** Сколько попыток осталось в серии; нет - счёта нет. */
-  attemptsLeft: z.number().int().optional(),
-  /** Серия попыток исчерпана без результата. */
-  scriptDidNotHelp: z.boolean().optional(),
-  /** Парсер обрезал файл: скрипт видел не всё. */
-  parserTruncated: z.boolean().optional(),
-  message: z.string().optional(),
-});
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+/** `runDataScript`: описание, виды и подсказки заданы `presentation`, здесь лишь порядок полей. */
+function legacyRunDataScript(tool: AnyToolDefinition): AnyToolDefinition {
+  return { ...tool, inputSchema: legacyRunDataScriptInput };
 }
 
 /**
@@ -129,72 +99,9 @@ function legacyCreateFile(tool: AnyToolDefinition): AnyToolDefinition {
   };
 }
 
-/** Код ошибки ответа `runDataScript`: результат `price_items` не прошёл сверку. */
-const RECONCILE_FAILED_CODE = 'reconcile_failed';
-
-/**
- * Подсказки модели в неудачном ответе `runDataScript` прежней сборки: серия попыток исчерпана
- * и сверка не пройдена. Остальные подсказки платформы совпадают с прежними. Ответ узнаётся по
- * его полям, а не по тексту платформы.
- */
-function legacyScriptMessage(output: unknown): unknown {
-  if (!isRecord(output) || output['ok'] !== false) return output;
-  if (output['scriptDidNotHelp'] === true) {
-    return { ...output, message: LEGACY_SCRIPT_EXHAUSTED_MESSAGE };
-  }
-  const error = output['error'];
-  if (isRecord(error) && error['code'] === RECONCILE_FAILED_CODE) {
-    return { ...output, message: LEGACY_SCRIPT_RECONCILE_HINT };
-  }
-  return output;
-}
-
-/**
- * `runDataScript` прежней сборки: описание и схемы как раньше (вид `price_items` вместо
- * `rows`, поля `supplierId` и `onEmployeeRequest`). Исполняет платформенная реализация: вид
- * `price_items` у каждого агента объявлен в её реестре видов, лишние поля она отбрасывает.
- */
-function legacyRunDataScript(tool: AnyToolDefinition): AnyToolDefinition {
-  return {
-    ...tool,
-    description: LEGACY_RUN_DATA_SCRIPT_DESCRIPTION,
-    inputSchema: legacyRunDataScriptInput,
-    outputSchema: legacyRunDataScriptOutput,
-    async execute(rawInput, deps, context) {
-      const parsed = legacyRunDataScriptInput.safeParse(rawInput);
-      if (!parsed.success) {
-        throw new DomainError(
-          'invalid_input',
-          `Инструмент ${RUN_DATA_SCRIPT_TOOL}: неверные аргументы. ${parsed.error.message}`,
-        );
-      }
-      return legacyScriptMessage(await tool.execute(parsed.data, deps, context));
-    },
-  };
-}
-
-/** `searchConversationHistory` прежней сборки: описание и пометка в ответе с КП и сделками. */
-function legacySearchHistory(tool: AnyToolDefinition): AnyToolDefinition {
-  return {
-    ...tool,
-    description: LEGACY_SEARCH_HISTORY_DESCRIPTION,
-    async execute(input, deps, context) {
-      const output = await tool.execute(input, deps, context);
-      return isRecord(output) ? { ...output, notice: LEGACY_HISTORY_SEARCH_NOTICE } : output;
-    },
-  };
-}
-
-/** `searchInternet` прежней сборки: описание. Схемы те же. */
-function legacySearchInternet(tool: AnyToolDefinition): AnyToolDefinition {
-  return { ...tool, description: LEGACY_SEARCH_INTERNET_DESCRIPTION };
-}
-
 const TOOL_RESTORERS: Readonly<Record<string, (tool: AnyToolDefinition) => AnyToolDefinition>> = {
   [CREATE_FILE_TOOL]: legacyCreateFile,
   [RUN_DATA_SCRIPT_TOOL]: legacyRunDataScript,
-  [SEARCH_CONVERSATION_HISTORY_TOOL]: legacySearchHistory,
-  [SEARCH_INTERNET_TOOL]: legacySearchInternet,
 };
 
 /**

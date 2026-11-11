@@ -28,7 +28,7 @@
         "outputTokens": 40
       },
       "latencyMs": 400,
-      "requestHash": "a7fdbbe5b9d40e5c14e9a0de76286e565fb6733088c6021c75399f8167e39602"
+      "requestHash": "12ca00b7c4657deb5dfb26e266f94604c49940b7b97caac4b12d7ade8e5eb3da"
     },
     {
       "content": "",
@@ -47,7 +47,7 @@
         "outputTokens": 19
       },
       "latencyMs": 400,
-      "requestHash": "aed78c871d3bb75b31928af21dbb41b621f76c17df9069971f86e929e06284fb"
+      "requestHash": "84f48ab32789be74ea9660cefde861547e363d0ad8802bc456a5d794c5c6a689"
     },
     {
       "content": "",
@@ -67,7 +67,7 @@
         "outputTokens": 27
       },
       "latencyMs": 400,
-      "requestHash": "fbf22f75f1c71d7f698340fc838b19a965c6253ad78ec77921854fcb1e0b42d7"
+      "requestHash": "48d67fefcde40a2a2f742c7ee360b099d75bb5138b5037a628cdbad6bd0cb68d"
     },
     {
       "content": "",
@@ -91,7 +91,7 @@
         "outputTokens": 34
       },
       "latencyMs": 400,
-      "requestHash": "e9d47fe993c7dcf58a9a92b9f83672564fae14174ff6ac2fb3b16af36b3f39fb"
+      "requestHash": "d04759e726f97085d5e56a6aad64c28a48d554ea7884976ee2c61145acfe9d6d"
     },
     {
       "content": "",
@@ -114,7 +114,7 @@
         "outputTokens": 26
       },
       "latencyMs": 400,
-      "requestHash": "0e7bf2c8b96fe4fa30366736d90d1cea6cb6ed3f8ad1b6bd1948f129fef6e020"
+      "requestHash": "a3628c8da5dd9a7e79ce777929d0903740b4c46e08e34056cf4b770f6382fbe3"
     },
     {
       "content": "Выбор записан: шорт-лист подтверждён менеджером",
@@ -125,7 +125,7 @@
         "outputTokens": 13
       },
       "latencyMs": 400,
-      "requestHash": "b6cbdf41c9dc1c7e57ddb736219acb53d9adbfed9f41c4e83d98f3e50fb76309"
+      "requestHash": "6cede648db39b1e3fbfab9a524a690e5208451826d3d1760864d1dcdb42a368a"
     }
   ],
   "synthetic": true

@@ -1,3 +1,4 @@
+import { searchConversationHistory, searchInternet } from '../shared/common-tools.owned';
 import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
 import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
 import type { AgentDeclaration } from '@business-ai/core';
@@ -9,8 +10,6 @@ import { compareQuotesTool } from './compare-quotes';
 import { confirmQuoteReplacement } from './confirm-quote-replacement';
 import { DATA_SCRIPT_PROMPT } from '@business-ai/core';
 import { runDataScript } from './run-data-script';
-import { searchConversationHistory } from '@business-ai/core';
-import { searchInternet } from '@business-ai/core';
 import { ORDER_CALC_AGENT_ID } from './deps';
 import {
   HANDOFF_TO_PRICES_PROMPT,

@@ -1,4 +1,5 @@
 import { createRunDataScriptTool, openIntakeDataSource } from '@business-ai/core';
+import { LEGACY_RUN_DATA_SCRIPT_PRESENTATION } from '../shared/common-tools.owned';
 import { priceItemsSummaryKind } from '../shared/price-items-kind.owned';
 import type { DocumentsDeps } from './deps';
 
@@ -9,4 +10,5 @@ import type { DocumentsDeps } from './deps';
  */
 export const runDataScript = createRunDataScriptTool<DocumentsDeps>(openIntakeDataSource, {
   resultKinds: [priceItemsSummaryKind<DocumentsDeps>()],
+  presentation: LEGACY_RUN_DATA_SCRIPT_PRESENTATION,
 });

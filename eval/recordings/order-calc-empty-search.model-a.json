@@ -28,7 +28,7 @@
         "outputTokens": 40
       },
       "latencyMs": 400,
-      "requestHash": "26c5083d38eadb8626ceaecbcbfa589cbfc6e1e8396a08a7509e5d9fa42bbcf2"
+      "requestHash": "6a7b27e6e2838103c939299f0b80748e5266efa91194cba4fa79f7905561722b"
     },
     {
       "content": "",
@@ -47,7 +47,7 @@
         "outputTokens": 19
       },
       "latencyMs": 400,
-      "requestHash": "d57e761f79bc18a17161a7ace06416242d7b6137df76b209f9447f9ace98ebfe"
+      "requestHash": "1a64227e35d6986606de8126742749c6a347262e4ccdc3becd55a48fd99822f7"
     },
     {
       "content": "",
@@ -67,7 +67,7 @@
         "outputTokens": 27
       },
       "latencyMs": 400,
-      "requestHash": "41b43ae0aab6750572946fbb5fe00e47bc1c567dd255631e9e3c6efd8e05b5ab"
+      "requestHash": "50a005954155a13c316bdc34269b8c914eebe9e0f7e6a4d5b1262a59847b2b62"
     },
     {
       "content": "Повторю поиск по уточнению менеджера",
@@ -78,7 +78,7 @@
         "outputTokens": 10
       },
       "latencyMs": 400,
-      "requestHash": "fc5f4d4ac0beedb79d948c6655e9adab91f9695772b6a2455a411c6b5fd78cf9"
+      "requestHash": "42def0f881821fd23666d796a4f7716b70be3b2095d16d9a892970b515c10bca"
     }
   ],
   "synthetic": true

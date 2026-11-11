@@ -21,7 +21,7 @@
         "outputTokens": 18
       },
       "latencyMs": 400,
-      "requestHash": "524515cdedcec6589fbd32215622253b6dcbf8f68623db3599a379709a64b344"
+      "requestHash": "7b69d216d61dadd3f27f4c2ff0159f643869c87b6a15ef5de5cfaf6d9cf95a57"
     },
     {
       "content": "",
@@ -63,7 +63,7 @@
         "outputTokens": 106
       },
       "latencyMs": 400,
-      "requestHash": "8bb48f729b79320351409cab52b70b8bb39de12a23c363e33ba7dba7fcbc1df4"
+      "requestHash": "60c1c237179f11706c23bca286bb8956d400548553cd8921d65cfe6c99ba93ea"
     },
     {
       "content": "КП выпущено, но взято из интернета и не подтверждено: покупатель. Подтверждаете эти данные?",
@@ -74,7 +74,7 @@
         "outputTokens": 24
       },
       "latencyMs": 400,
-      "requestHash": "d9cf1defb4dfc5b7135cb6f890cffa9acc2bfca243961022f40042e52f97bd66"
+      "requestHash": "cc51c7a461684fb14cb332322ff039ccd5254e4685f7d7a2efd2ae663e219223"
     }
   ],
   "synthetic": true

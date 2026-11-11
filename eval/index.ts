@@ -12,6 +12,7 @@ import {
   toPricesCase,
   toSiteExportCase,
 } from './cases';
+import { withShortlistProposal } from './environments/choice-proposal';
 import { buildDocumentsEnvironment } from './environments/documents';
 import { buildHandoffEnvironment } from './environments/handoff';
 import { buildOrderCalcEnvironment } from './environments/order-calc';
@@ -50,8 +51,12 @@ function buildEnvironment(testCase: EvalCase, model: string): Promise<EvalEnviro
       return buildPricesEnvironment(toPricesCase(testCase), model);
     case 'documents':
       return buildDocumentsEnvironment(toDocumentsCase(testCase), model);
-    case 'order-calc':
-      return buildOrderCalcEnvironment(toOrderCalcCase(testCase), model);
+    case 'order-calc': {
+      const orderCalcCase = toOrderCalcCase(testCase);
+      return buildOrderCalcEnvironment(orderCalcCase, model).then((env) =>
+        withShortlistProposal(env, orderCalcCase),
+      );
+    }
     case 'site-export':
       return buildSiteExportEnvironment(toSiteExportCase(testCase), model);
     default:

@@ -21,7 +21,7 @@
         "outputTokens": 19
       },
       "latencyMs": 400,
-      "requestHash": "23bc27846e241e4e1831911b6c37a8534944005effbef786e421f7ce4f14c18b"
+      "requestHash": "d92fa82a3157963555dd39e0908076a2bc3dd78458de2eb6acb39391349f1725"
     },
     {
       "content": "Готово: наши реквизиты вписаны в сторону заказчика, номер договора остался прежним.",
@@ -32,7 +32,7 @@
         "outputTokens": 22
       },
       "latencyMs": 400,
-      "requestHash": "44a0b5437030f28c15adc17df77abc96e7a11b83dabf7c4d4d3772b73614c737"
+      "requestHash": "a29fa67e7a0642c95853db5df93c0cb8c38c350ad1c2d5e3a4ffb8fbb702f42f"
     }
   ],
   "synthetic": true

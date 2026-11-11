@@ -19,7 +19,7 @@
         "outputTokens": 15
       },
       "latencyMs": 400,
-      "requestHash": "0d8d4bbd760017bde5db54a9a2f093d21825c540c9fc50aaf06eec5b25349c4b"
+      "requestHash": "ba0693f0770fbc2c40877232204e9cf04c9c66c47ca09060994c1e10756cddec"
     },
     {
       "content": "Фото визитки прочитать не удалось, карточку не завёл. Пришлите данные визитки текстом: название, ИНН, телефон и почту.",
@@ -30,7 +30,7 @@
         "outputTokens": 30
       },
       "latencyMs": 400,
-      "requestHash": "48750521ab153b95e640418f70bfa8a00fb985ad88a115c1fcd8154a26d2b0fd"
+      "requestHash": "bfd7f59351c063b8c5221ae22432538f9258fd025abda3e3147857daae40449a"
     }
   ],
   "synthetic": true

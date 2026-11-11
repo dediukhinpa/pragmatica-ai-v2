@@ -21,7 +21,7 @@
         "outputTokens": 17
       },
       "latencyMs": 400,
-      "requestHash": "44e23a682691804395b2ea87c1ebd4eec032d6ab3162b69797fc1843ac429289"
+      "requestHash": "db580a20a4e4e313d59f0d34e7b3dd2aeaf6b6ba351b2614d48fc76c860fcd15"
     },
     {
       "content": "",
@@ -41,7 +41,7 @@
         "outputTokens": 27
       },
       "latencyMs": 400,
-      "requestHash": "4924b0f174863f27c115f1e1de5e626a67b8f99071f1d9245637203c883993d8"
+      "requestHash": "80388619f2c1ad9d1da9675b8832c8352d8de8750973a388437b61ffeb8745b7"
     },
     {
       "content": "Договор подготовлен по данным из запроса, пропуски отмечены маркерами. Поставщика «Новый Поставщик» нет в базе. Добавить в базу?",
@@ -52,7 +52,7 @@
         "outputTokens": 33
       },
       "latencyMs": 400,
-      "requestHash": "1bd746a854585eca75780bfcfb81e576d99cb132ae79a9418d6d86f2404d1534"
+      "requestHash": "da2e26fcb81c5e7345bff0109f6b059742dc1094c8c417fe108c4022b6cd27cc"
     }
   ],
   "synthetic": true

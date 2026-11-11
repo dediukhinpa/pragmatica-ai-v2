@@ -24,7 +24,7 @@
         "outputTokens": 26
       },
       "latencyMs": 400,
-      "requestHash": "12413248fe25c59aa7cc11fd6601f78d1a65b44ef502e387a5c21eabdfb67354"
+      "requestHash": "fe395d3882c84a3a887d98cd3b5b0c790e93d7b00301f200be96ccd92a0c748a"
     },
     {
       "content": "Передача помощнику «Актуализация прайса (ИИ агент)» поставлена: итог придёт сообщением.",
@@ -35,7 +35,7 @@
         "outputTokens": 23
       },
       "latencyMs": 400,
-      "requestHash": "da3190464b93b6dc713a249fe8ddccdc0a9e94c549b50f76f436c599fd9b5890"
+      "requestHash": "ff2cb123b5d29d5b4ed028508856dce63d9c0c82aeb624b1f17c311cfd42339e"
     }
   ],
   "synthetic": true

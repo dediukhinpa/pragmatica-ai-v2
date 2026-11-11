@@ -1,3 +1,4 @@
+import { searchConversationHistory } from '../shared/common-tools.owned';
 import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
 import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
 import type { AgentDeclaration } from '@business-ai/core';
@@ -21,7 +22,6 @@ import {
 import { prepareSupplierDocument } from './prepare-supplier-document';
 import { ATTACHMENT_ONLY_SCRIPT_PROMPT, DATA_SCRIPT_PROMPT } from '@business-ai/core';
 import { runDataScript } from './run-data-script';
-import { searchConversationHistory } from '@business-ai/core';
 import { searchInternetForDocuments } from './search-internet';
 import { askToConfirmWebFields, recordWebFieldsDecision } from './web-confirmation';
 import {

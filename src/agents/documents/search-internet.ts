@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '@business-ai/core';
-import { searchInternet } from '@business-ai/core';
+import { searchInternet } from '../shared/common-tools.owned';
 import type { DocumentsDeps } from './deps';
 import { noteWebSearchText } from './web-confirmation';
 

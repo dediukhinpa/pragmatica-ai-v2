@@ -44,7 +44,7 @@
         "outputTokens": 108
       },
       "latencyMs": 650,
-      "requestHash": "be6e561fd10574583139aa2a786d558fdfbdf8aa86b4924a393293d89521bb6c"
+      "requestHash": "b00cfc4d27aec97411847ba2af5a9d989a0dd55094b1f47a67bc4555b2668d34"
     },
     {
       "content": "Акт сверки выпущен",
@@ -55,7 +55,7 @@
         "outputTokens": 5
       },
       "latencyMs": 650,
-      "requestHash": "5f2fe554d2fed952f20900e60116147293d1011905773d4204543137960b44c7"
+      "requestHash": "a70d65da734e9e3c4080d20848498c1e2410e93fa617b37ba8d78a0b336eeca9"
     }
   ],
   "synthetic": true

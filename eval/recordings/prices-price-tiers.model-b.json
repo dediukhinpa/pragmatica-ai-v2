@@ -35,7 +35,7 @@
         "outputTokens": 49
       },
       "latencyMs": 650,
-      "requestHash": "2c6de26e8038c1808229c904b1eb4a2cea9d4e04bdde18dfb842625c0aa5369c"
+      "requestHash": "9d41b5ea009f0989c27e29f770b73d309446259fbacc3c9f1010cae750f6d738"
     },
     {
       "content": "",
@@ -69,7 +69,7 @@
         "outputTokens": 67
       },
       "latencyMs": 650,
-      "requestHash": "96e91f5f13fb18e7d10db7f157df0db3f56d6ea5e00d167e19cbd5d341f0fe57"
+      "requestHash": "dc76f22c5812ce10c53e9e289293e43f21acf739e0f6e5c9fc357c253c2ce17f"
     },
     {
       "content": "",
@@ -92,7 +92,7 @@
         "outputTokens": 35
       },
       "latencyMs": 650,
-      "requestHash": "e5f22bd7cd36e1cb35d3d9f9302309df69d6368006950ee27df3571ab993ce74"
+      "requestHash": "23bc5f1dfca1071be6bfaf1824379f8847fabf3dc49efda7f855f0785965837f"
     },
     {
       "content": "Прайс обновлён, менеджеру отправлена сводка",
@@ -103,7 +103,7 @@
         "outputTokens": 12
       },
       "latencyMs": 650,
-      "requestHash": "3e71fca8bd68fffaa662d9d8c84759fa70d89deec135cc3993c63b6b28f2407f"
+      "requestHash": "25749c4c82bbe6c477c0075346b4bf32f38bb4a875e1a479921a3d5269eef2c5"
     }
   ],
   "synthetic": true

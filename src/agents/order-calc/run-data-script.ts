@@ -6,6 +6,7 @@ import {
   type DataScriptSource,
 } from '@business-ai/core';
 import { requirePort } from '@business-ai/core';
+import { LEGACY_RUN_DATA_SCRIPT_PRESENTATION } from '../shared/common-tools.owned';
 import { priceItemsSummaryKind } from '../shared/price-items-kind.owned';
 import type { OrderCalcDeps } from './deps';
 import { loadReplyAttachment } from './reply-reading';
@@ -37,4 +38,5 @@ async function openOrderCalcDataSource(
 /** `runDataScript` агента заказов. */
 export const runDataScript = createRunDataScriptTool<OrderCalcDeps>(openOrderCalcDataSource, {
   resultKinds: [priceItemsSummaryKind<OrderCalcDeps>()],
+  presentation: LEGACY_RUN_DATA_SCRIPT_PRESENTATION,
 });

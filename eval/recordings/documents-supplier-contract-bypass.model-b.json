@@ -21,7 +21,7 @@
         "outputTokens": 17
       },
       "latencyMs": 650,
-      "requestHash": "a2c7a9967fcb6f01441fd1a7a12ba608553432a43c88612a545d0bc2f48c65fb"
+      "requestHash": "72ef7abb091808ca67b506b0ad4a3946dd65743606f3366ff21b792541cf9ee0"
     },
     {
       "content": "",
@@ -64,7 +64,7 @@
         "outputTokens": 110
       },
       "latencyMs": 650,
-      "requestHash": "1e320d77726cf19c33363950f7487d7829ff1b1bc012ae0de3fe8639f5a7ee8e"
+      "requestHash": "853d43aa6849b747f67468f6b30aa34e373f3a4d5fdcbc58f9af7b4b7e881b47"
     },
     {
       "content": "Документ выпущен с предупреждениями: нужен поставщик из базы и сверка с КП.",
@@ -75,7 +75,7 @@
         "outputTokens": 20
       },
       "latencyMs": 650,
-      "requestHash": "41666caf3d65b5cfee0219ffc136bb5926ce2939dc60f113b54629a6339fc89b"
+      "requestHash": "5bea25785a7bef3ce7eef50bc65de46a6856cceb7634a54c200f19f209473e60"
     }
   ],
   "synthetic": true

@@ -71,7 +71,7 @@
         "address": "zakupki@pragmatika-company.test"
       }
     ],
-    "expectedManagerChoice": "s1"
+    "expectedChoice": "s1"
   },
   "expect": {
     "maxSteps": 10,

@@ -318,6 +318,34 @@ describe('runDataScript: подсказки в неудачном ответе �
   });
 });
 
+describe('runDataScript: отказ для скана прежней сборки', () => {
+  test('файл без текстового слоя: отказ называет сотрудника, а не пользователя', async () => {
+    const { app } = buildPragmatika(FULL_ENV);
+    const tool = app.registry.get('documents').tools.find((item) => item.name === 'runDataScript');
+    const deps = await buildDocumentsDeps();
+    const intake = new MemoryIntakeStore();
+    await intake.put(CTX.threadId, 'scan.pdf', new TextEncoder().encode('%PDF'));
+    deps.intake = intake;
+    deps.scriptSandbox = { run: async () => ({ ok: true, result: [], stats: STATS }) };
+    deps.parser = {
+      parse: async () => ({
+        text: '',
+        tables: [],
+        needsOcr: true,
+        hasHiddenContent: false,
+        hiddenSheets: [],
+        truncated: false,
+        warnings: [],
+      }),
+    };
+    const run = tool?.execute({ code: 'x', resultKind: 'value' }, deps, CTX);
+    await expect(run).rejects.toMatchObject({
+      code: 'invalid_input',
+      message: 'Файл без текстового слоя (скан): разобрать скриптом нельзя, сообщи сотруднику.',
+    });
+  });
+});
+
 describe('поиск по истории: пометка в ответе прежней сборки', () => {
   test('notice называет КП и сделки', async () => {
     const { app } = buildPragmatika(FULL_ENV);

@@ -1,9 +1,8 @@
+import { searchConversationHistory, searchInternet } from '../shared/common-tools.owned';
 import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
 import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
 import type { AgentDeclaration } from '@business-ai/core';
 import { searchSuppliers } from '../../kit/application/search-suppliers';
-import { searchConversationHistory } from '@business-ai/core';
-import { searchInternet } from '@business-ai/core';
 import { PRICES_AGENT_ID } from './deps';
 import { listPriceFiles } from './list-price-files';
 import { normalizePriceTable } from './normalize-price-table';

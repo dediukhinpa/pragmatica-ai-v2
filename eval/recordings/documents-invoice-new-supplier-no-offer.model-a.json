@@ -22,7 +22,7 @@
         "outputTokens": 27
       },
       "latencyMs": 400,
-      "requestHash": "4b88b42897e6ca0e2cfa65c39f3e8b7fbdbf5cb57e100e5be2e81c82d6e1edcf"
+      "requestHash": "4dcc0267f21473be62da981a9abe5819def096fe91ee599e485661b52163294d"
     },
     {
       "content": "Счёт подготовлен по данным из запроса.",
@@ -33,7 +33,7 @@
         "outputTokens": 10
       },
       "latencyMs": 400,
-      "requestHash": "ebf1de3d6c62c7fdab97bee2eaadbc66b51e64561407808f5c623194482886b0"
+      "requestHash": "70ea88cebe7245b1dbffda1071a7e40ec8633d3ea713dade9872c5b7aa011cc7"
     }
   ],
   "synthetic": true

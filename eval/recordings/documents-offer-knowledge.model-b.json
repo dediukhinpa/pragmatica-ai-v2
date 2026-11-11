@@ -21,7 +21,7 @@
         "outputTokens": 18
       },
       "latencyMs": 650,
-      "requestHash": "21f6590c004b6d3d4955cdf837ded96d6b15cd780aabf14d992a7a94464426d1"
+      "requestHash": "3636d42f201e340644ede779a1216b5ccdbfa577554410ad26cc1894b126e50b"
     },
     {
       "content": "",
@@ -63,7 +63,7 @@
         "outputTokens": 108
       },
       "latencyMs": 650,
-      "requestHash": "8bb48f729b79320351409cab52b70b8bb39de12a23c363e33ba7dba7fcbc1df4"
+      "requestHash": "60c1c237179f11706c23bca286bb8956d400548553cd8921d65cfe6c99ba93ea"
     },
     {
       "content": "КП выпущено: данные из базы знаний",
@@ -74,7 +74,7 @@
         "outputTokens": 9
       },
       "latencyMs": 650,
-      "requestHash": "2e19b61d326504dabd15c1062ee34a78cc2a950df44b5fd152e68e55347a3475"
+      "requestHash": "9ba8d95434826488ef069f604014fe7cb64275d5a3035d3648bf4950c586fca1"
     }
   ],
   "synthetic": true

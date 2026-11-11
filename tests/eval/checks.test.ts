@@ -138,12 +138,41 @@ describe('evaluateRun', () => {
   });
 });
 
-// Пробел платформы: раннер платформы не считает выбор менеджера (проверка `manager_choice`,
-// `EvalEnvironment.proposal`, `Evaluation.managerChoice`). Метка `expectedManagerChoice` лежит в
-// состоянии кейсов order-calc как данные; тесты прежнего раннера ждут расширения платформы.
+// Выбор человека считает раннер платформы: метка `expectedChoice` в ожиданиях кейса сверяется с
+// `EvalEnvironment.proposal` (в Прагматике это шорт-лист агента «Поиск поставщика»).
+const CHOICE_LABEL = 's1';
+const choiceEnv = (candidateIds: string[] | null): EvalEnvironment => ({
+  ...ENV,
+  proposal: async () => (candidateIds === null ? null : { candidateIds }),
+});
+const choiceRun = (candidateIds: string[] | null) =>
+  evaluateRun(baseCase({ expectedChoice: CHOICE_LABEL }), FACTS, choiceEnv(candidateIds));
+
 describe('метка выбора менеджера', () => {
-  test.todo('метка в шорт-листе, но не первая', () => undefined);
-  test.todo('метки нет в шорт-листе или шорт-листа нет: проверка падает', () => undefined);
+  test('метка в шорт-листе, но не первая', async () => {
+    const evaluation = await choiceRun(['s2', CHOICE_LABEL, 'ext-1']);
+    expect(evaluation.checks.find((c) => c.name === 'choice')?.passed).toBe(true);
+    expect(evaluation.choice).toEqual({
+      expected: CHOICE_LABEL,
+      proposed: ['s2', CHOICE_LABEL, 'ext-1'],
+      inShortlist: true,
+      top1: false,
+    });
+  });
+
+  test('метки нет в шорт-листе или шорт-листа нет: проверка падает', async () => {
+    for (const candidateIds of [['s2', 'ext-1'], [], null]) {
+      const evaluation = await choiceRun(candidateIds);
+      expect(evaluation.checks.find((c) => c.name === 'choice')?.passed).toBe(false);
+      expect(evaluation.choice?.inShortlist).toBe(false);
+    }
+  });
+
+  test('кейс без метки: проверки выбора нет', async () => {
+    const evaluation = await evaluateRun(baseCase({}), FACTS, choiceEnv(['s1']));
+    expect(evaluation.checks.some((c) => c.name === 'choice')).toBe(false);
+    expect(evaluation.choice).toBeNull();
+  });
 });
 
 describe('проверки после хода (turnChecks, R4-AGT-12)', () => {

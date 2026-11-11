@@ -24,7 +24,7 @@
         "outputTokens": 26
       },
       "latencyMs": 400,
-      "requestHash": "dd9a19043c47ab9cb7d745795d0fbd53042040537611c9f6e0794337ac77ccb5"
+      "requestHash": "7c61a7a2423661405e0ca6b3899c3dee32f75e456f10d42950bb2e3afc499633"
     },
     {
       "content": "Передать агенту «Актуализация прайса (ИИ агент)» не удалось: у вас нет доступа к этому помощнику.",
@@ -35,7 +35,7 @@
         "outputTokens": 25
       },
       "latencyMs": 400,
-      "requestHash": "115ed69daeab8b1f936034bfc144ba4e6cf341340865214f4b9a1f4bf5aca395"
+      "requestHash": "d01d7bca7944f76db7798931186396581529d13f3b3885264d55d2beec21577c"
     }
   ],
   "synthetic": true
