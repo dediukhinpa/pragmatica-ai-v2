@@ -36,3 +36,17 @@ bun install
 bun run typecheck
 bun test
 ```
+
+## Project code that stands in for platform hooks
+
+The platform does not yet offer some hooks the old core had; the project restores that behaviour
+in its own files (each gap is described in the release notes of the stage as a platform patch
+request):
+
+| File | What it restores |
+|---|---|
+| `src/chat-intake.ts`, `src/chat-launch.ts` | employee message text for the documents agent; the agent turn after the "done" and "replace quote" buttons (a bridge installed in `ports(env)`) |
+| `src/legacy-tools.ts`, `src/legacy-tool-texts.ts` | tool descriptions/schemas and shared prompt blocks exactly as the agents showed them to the model |
+| `src/lifecycle-disk-sync.ts`, `src/background-*.ts` | closing of unreported disk-sync runs; owner commands `bun run src/background-cli.ts <mail-info-backfill\|mail-trust-survey\|crm-suppliers-sync>` |
+| `src/mail-sender-lookup.ts` | mail senders admitted by the supplier base |
+| `src/adapters/deal-*.ts` | purchase request parsed from a CRM deal (`BITRIX24_DEAL_FIELD_MAP`) |
