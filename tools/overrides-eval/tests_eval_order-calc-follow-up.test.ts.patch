@@ -17,3 +17,28 @@
    const sessions = replaySessions(DEFAULT_RECORDINGS_DIR);
  
    async function runModelA(turned: OrderCalcCase) {
+@@ -77,6 +77,24 @@
+     expect(run.passed).toBe(true);
+   });
+ 
++  test('метка хранится в состоянии кейса, метрика в данных выключена (вывод eval прежний)', async () => {
++    expect(testCase.state.expectedChoice).toBe('s1');
++    expect(testCase.expect.expectedChoice).toBeUndefined();
++    const run = await runModelA(testCase);
++    expect(run.checks.some((c) => c.name === 'choice')).toBe(false);
++    expect(run.choice).toBeUndefined();
++  });
++
++  test('с меткой в ожиданиях метрика считается по шорт-листу агента (s1 в списке, не первым)', async () => {
++    const labeled = { ...testCase, expect: { ...testCase.expect, expectedChoice: 's1' } };
++    const run = await runModelA(labeled);
++    expect(run.checks.find((c) => c.name === 'choice')?.passed).toBe(true);
++    expect(run.choice?.expected).toBe('s1');
++    expect(run.choice?.inShortlist).toBe(true);
++    expect(run.choice?.top1).toBe(false);
++    expect(run.choice?.proposed.slice(0, 2)).toEqual(['s2', 's1']);
++  });
++
+   test('ход, до которого прогон не дошёл, проваливает проверку', async () => {
+     const withTurn = {
+       ...testCase,

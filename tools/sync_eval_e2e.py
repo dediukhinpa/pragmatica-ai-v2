@@ -307,14 +307,15 @@ def kit_manifest_paths(manifest: Path) -> set[str]:
 def move_manager_choice(data: bytes) -> bytes:
     """Метка выбора менеджера: из корня кейса в `state` (схема кейса платформы строгая).
 
-    В старом eval метку читал раннер (`expectedManagerChoice` в корне кейса). Раннер платформы
-    её не знает, а корень кейса проверяет строго, поэтому метка переезжает в состояние агента
-    «Поиск поставщика»: данные сохранены, проверку `manager_choice` платформа не считает.
+    В старом eval метку читал раннер (`expectedManagerChoice` в корне кейса). Корень кейса
+    платформы проверяется строго, поэтому метка переезжает в состояние агента «Поиск
+    поставщика» под именем платформы `expectedChoice`. Метрику платформы (`expect.expectedChoice`
+    и предложение окружения) данные не включают: пока метка лежит в состоянии, вывод eval прежний.
     """
     case = json.loads(data.decode("utf-8"))
     if "expectedManagerChoice" not in case:
         return data
-    case["state"]["expectedManagerChoice"] = case.pop("expectedManagerChoice")
+    case["state"]["expectedChoice"] = case.pop("expectedManagerChoice")
     return (json.dumps(case, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
 

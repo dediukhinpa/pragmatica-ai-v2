@@ -38,6 +38,11 @@ MAX_LINE = 100
 LONG_IMPORT_RE = re.compile(
     r"^(?P<kw>import|export)(?P<type> type)? \{ (?P<names>.+?) \} from (?P<rest>['\"].+;)$"
 )
+# Импорты файлов проекта вне сгенерированного дерева (`src/*.ts` v2): спецификатор в патче уже
+# записан в раскладке v2 и переносу не подлежит. Ключ - (файл в старой раскладке, спецификатор).
+PROJECT_SPECS = {
+    ("src/application/agents/shared/common-tools.owned.ts", "../../legacy-tool-texts"),
+}
 # Пути-литералы относительно файла теста: `join(import.meta.dir, '../x')` и
 # `new URL('../x', import.meta.url)`. Цель - файл или каталог в любом месте дерева.
 PATH_LITERAL_RES = (
@@ -139,6 +144,8 @@ def main() -> None:
             nonlocal unresolved
             spec = m.group("spec")
             target = resolve(files, old, spec)
+            if target is None and (old, spec) in PROJECT_SPECS:
+                return m.group(0)
             if target is None:
                 unresolved += 1
                 LOG.warning("не найден: %s -> %s", old, spec)
