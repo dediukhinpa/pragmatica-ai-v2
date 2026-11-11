@@ -60,7 +60,7 @@ PSEUDO_UID=10001
 SECRET_BYTES=24
 FAILURE_LOG_LINES=20
 SMOKE_THREAD="rehearsal-smoke"
-SMOKE_TEXT="Контакт для проверки: rehearsal.smoke@example.test"
+SMOKE_TEXT="Контакт для проверки: rehearsal.smoke@example.org"
 # Шаблоны docker inspect и запросов, вынесенные ради длины строк.
 INSPECT_BATTLE_FORMAT='{{.Name}} {{.Id}} {{.State.Status}} {{.State.StartedAt}}'
 INSPECT_BATTLE_FORMAT+=' {{.RestartCount}} {{.Image}}'
@@ -85,7 +85,7 @@ const post = async (path, body) => (await fetch(base + path, {
 const text = process.env.SMOKE_TEXT, thread_id = process.env.SMOKE_THREAD;
 const m = await post("/pseudonymize", { thread_id, text });
 const r = await post("/restore", { thread_id, text: m.text });
-const masked = m.text !== text && !m.text.includes("example.test");
+const masked = m.text !== text && !m.text.includes("example.org");
 console.log(`masked=${masked} restored=${r.text === text}`);'
 
 # Значения по умолчанию подставляются после чтения --battle-config (иначе файл бы не действовал).
