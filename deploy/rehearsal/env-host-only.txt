@@ -9,3 +9,7 @@ _HOST_FILE$
 # Сроки хранения и имя тома приёма читают maintenance.sh и backup-lib.sh старого дерева на хосте.
 _RETENTION_DAYS$
 ^INTAKE_VOLUME$
+# С платформы 1.0.1 образы postgres, nginx, docker-proxy и alloy берутся только из images.lock;
+# старые ключи боевого .env базой не читаются (bai их снимает и предупреждает), это не потеря
+# настройки.
+^(POSTGRES_IMAGE|NGINX_IMAGE|DOCKER_PROXY_IMAGE|ALLOY_IMAGE)$
