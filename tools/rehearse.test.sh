@@ -44,7 +44,7 @@ chmod +x "$BIN/docker"
 
 printf 'MemTotal: 16000000 kB\nMemAvailable: %s kB\n' 8000000 >"$TMP/meminfo.ok"
 printf 'MemTotal: 16000000 kB\nMemAvailable: %s kB\n' 1000000 >"$TMP/meminfo.low"
-echo "BAI_VERSION=1.0.0" >"$TMP/images.lock"
+echo "BAI_VERSION=1.0.1" >"$TMP/images.lock"
 echo "BAI_IMAGE_POSTGRES=pg@sha256:aa" >>"$TMP/images.lock"
 echo "BAI_IMAGE_PSEUDONYMIZER=ps@sha256:bb" >>"$TMP/images.lock"
 echo "BAI_IMAGE_APP=app@sha256:cc" >>"$TMP/images.lock"
@@ -74,6 +74,12 @@ assert "справка: есть описание использования" "g
 rc=0
 bash "$SCRIPT" --nonsense >"$TMP/bad.log" 2>&1 || rc=$?
 assert "неизвестный аргумент: код 2" "[[ $rc -eq $EXIT_USAGE ]]"
+
+# 1a. Бэкап боя в S3 - только по явному --backup-sh (7u): умолчание не пишет в сторону боя.
+assert "справка: --backup-sh есть, умолчание не пишет в бой" \
+  "grep -q -- '--backup-sh' '$TMP/help.log' && grep -q '^USE_BACKUP_SH=0' '$SCRIPT'"
+assert "флаг --backup-sh включает бэкап" "grep -q -- '--backup-sh) USE_BACKUP_SH=1' '$SCRIPT'"
+assert "старый --no-backup-sh принимается" "grep -q -- '--no-backup-sh) USE_BACKUP_SH=0' '$SCRIPT'"
 
 # 2. Мало памяти: отказ, код 3, сообщение, ни одной изменяющей команды docker.
 rc=0
@@ -116,6 +122,8 @@ tar -xzf "$archive" -C "$TMP/unpack"
 for f in summary.md checks.tsv preflight.txt versions.txt rehearsal.log; do
   assert "в архиве есть $f" "[[ -f '$TMP/unpack/results/$f' ]]"
 done
+assert "в архиве есть units-old-tree.tsv (аудит юнитов, 1.0.1)" \
+  "[[ -f '$TMP/unpack/results/units-old-tree.tsv' ]]"
 assert "архив не содержит дампов и env" \
   "! find '$TMP/unpack' -name '*.dump' -o -name '*.env' -o -name '*.sqlite3' | grep -q ."
 assert "рабочий каталог запуска убран" "! compgen -G '$TMP/home-pass/.reh/run-*/work'"

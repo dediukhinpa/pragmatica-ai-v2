@@ -4,7 +4,7 @@
 # `pragmatika-rehearsal` (свои контейнеры, тома и сети, без опубликованных портов).
 #
 # Использование:
-#   bash rehearse.sh [--battle-config ФАЙЛ] [--age-identity ФАЙЛ] [--no-backup-sh]
+#   bash rehearse.sh [--battle-config ФАЙЛ] [--age-identity ФАЙЛ] [--backup-sh]
 #                    [--lock ФАЙЛ] [--images-tar ФАЙЛ] [--out-dir КАТАЛОГ] [--keep]
 #                    [--preflight-only] [--help]
 #
@@ -13,8 +13,9 @@
 #   1. предусловия: память, диск, docker compose, образы по digest из images.lock; нехватка -
 #      отказ с кодом 3, бой не тронут;
 #   2. снимок боевых контейнеров (в конце сверяется: бой не менялся);
-#   3. свежий бэкап штатным deploy/scripts/backup.sh боя и рабочий дамп БД (из архива бэкапа,
-#      если дан закрытый ключ age, иначе pg_dump с чтением из боевого контейнера);
+#   3. рабочий дамп БД: pg_dump с чтением из боевого контейнера. Штатный бэкап боя
+#      deploy/scripts/backup.sh (с загрузкой в S3 по боевому .env) идёт ТОЛЬКО с явным
+#      --backup-sh; если дан и закрытый ключ age, дамп берётся из архива этого бэкапа;
 #   4. восстановление в Postgres репетиции, `migrate --plan`, применение, сравнение схемы с
 #      ожидаемой схемой v2;
 #   5. копия тома хранилища псевдонимизатора, самопроверка хранилища (без значений), старт
@@ -103,7 +104,8 @@ BATTLE_PSEUDO_VOLUME="${BATTLE_PSEUDO_VOLUME:-}"
 BATTLE_PG_USER="${BATTLE_PG_USER:-}"
 BATTLE_PG_DB="${BATTLE_PG_DB:-}"
 
-USE_BACKUP_SH=1
+# Бэкап в S3 боевым backup.sh - запись в сторону боя: только по явному --backup-sh.
+USE_BACKUP_SH=0
 KEEP=0
 PREFLIGHT_ONLY=0
 LOCK_FILE=""
@@ -121,6 +123,8 @@ while (($#)); do
   case "$1" in
     --battle-config) BATTLE_CONFIG="${2:?--battle-config ФАЙЛ}"; shift ;;
     --age-identity) BATTLE_AGE_IDENTITY="${2:?--age-identity ФАЙЛ}"; shift ;;
+    --backup-sh) USE_BACKUP_SH=1 ;;
+    # Прежний флаг: теперь это и так умолчание, оставлен для старых команд.
     --no-backup-sh) USE_BACKUP_SH=0 ;;
     --lock) LOCK_FILE="${2:?--lock ФАЙЛ}"; shift ;;
     --images-tar) IMAGES_TAR="${2:?--images-tar ФАЙЛ}"; shift ;;
@@ -473,13 +477,52 @@ ensure_images() {
 }
 
 # ---------------------------------------------------------------------------------------------
+# Юниты systemd, которые остаются на старом дереве (платформа 1.0.1, только чтение)
+# ---------------------------------------------------------------------------------------------
+# bai-units.sh переводит на установленную платформу только stack, backup и backup-verify. Остальные
+# юниты ссылаются на старое дерево: перед его удалением в них правят пути (пункт чек-листа
+# этапа 8, UPGRADE.md платформы 1.0.1, п. 2). Список помогает не забыть, ничего не меняет.
+UNITS_MANAGED=(stack backup backup-verify)
+UNITS_UNMANAGED=(healthwatch maintenance cert-expiry telemetry-probe container-metrics)
+audit_old_tree_units() {
+  phase "юниты systemd и старое дерево (только чтение)"
+  local prefix="${BATTLE_UNIT_PREFIX:-pragmatika}" file="$RES/units-old-tree.tsv"
+  local base unit text refs role stale=0
+  printf 'юнит\tкто переводит\tссылок на старое дерево\n' >"$file"
+  if ! command -v systemctl >/dev/null 2>&1; then
+    check "юниты systemd" warn "systemctl недоступен: список для этапа 8 не снят"
+    phase_end
+    return 0
+  fi
+  for base in "${UNITS_MANAGED[@]}" "${UNITS_UNMANAGED[@]}"; do
+    unit="$prefix-$base.service"
+    role="чек-лист этапа 8"
+    [[ " ${UNITS_MANAGED[*]} " == *" $base "* ]] && role="bai-units.sh"
+    if ! text="$(systemctl cat "$unit" 2>/dev/null)"; then
+      printf '%s\t%s\tнет юнита\n' "$unit" "$role" >>"$file"
+      continue
+    fi
+    refs="$(grep -cF -- "$BATTLE_CODE_DIR" <<<"$text" || true)"
+    printf '%s\t%s\t%s\n' "$unit" "$role" "$refs" >>"$file"
+    if [[ "$role" != "bai-units.sh" ]] && ((refs > 0)); then stale=$((stale + 1)); fi
+  done
+  if ((stale > 0)); then
+    check "юниты systemd" warn \
+      "$stale юнит(ов) со старым деревом вне bai-units.sh (units-old-tree.tsv)"
+  else
+    check "юниты systemd" ok "юнитов со старым деревом вне bai-units.sh не найдено"
+  fi
+  phase_end
+}
+
+# ---------------------------------------------------------------------------------------------
 # 2-3. Бэкап боя и рабочий дамп
 # ---------------------------------------------------------------------------------------------
 run_battle_backup() {
   phase "бэкап боя штатным backup.sh"
   BACKUP_ARCHIVE=""
   if ((!USE_BACKUP_SH)); then
-    check "бэкап backup.sh" warn "пропущен флагом --no-backup-sh"
+    check "бэкап backup.sh" warn "не запрашивался (нужен --backup-sh); дамп снят pg_dump"
     phase_end
     return 0
   fi
@@ -956,6 +999,7 @@ main() {
   preflight
   snapshot_battle "$RES/battle-before.txt"
   [[ -s "$RES/battle-before.txt" ]] || log "снимок боя пуст (нет контейнеров с меткой проекта)"
+  audit_old_tree_units
   if ((PREFLIGHT_ONLY)); then
     log "флаг --preflight-only: предусловия пройдены, дальше не иду"
     return 0
