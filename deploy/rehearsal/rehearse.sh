@@ -1218,6 +1218,44 @@ for line in sys.stdin:
   fi
 }
 
+# Тома данных боя, в которые app пишет (app v2 создаёт каталоги /var/lib/pragmatika/* не в образе,
+# а правами тома). Владельца боевых томов читаем только на чтение (`:ro`); пишет ли в них uid app
+# (его uid, gid и дополнительные группы), считает скрипт в контейнере app. Новые тома репетиции
+# root:root: проверка относится к ТОМАМ БОЯ, которые переедут с данными.
+APP_WRITE_VOLUMES=(intake-data file-spool documents-exchange)
+APP_WRITE_SCRIPT='p="$1"
+[ -d "$p" ] || { echo "нет каталога"; exit 2; }
+set -- $(stat -c "%u %g %a" "$p"); ou=$1; og=$2; mode=$3; bits=$((0$mode)); w=0
+[ "$ou" = "$(id -u)" ] && [ $((bits & 0200)) -ne 0 ] && w=1
+for g in $(id -G); do [ "$og" = "$g" ] && [ $((bits & 020)) -ne 0 ] && w=1; done
+[ $((bits & 02)) -ne 0 ] && w=1
+echo "владелец $ou:$og режим $mode, uid app пишет: $([ $w = 1 ] && echo да || echo нет)"
+[ $w = 1 ]'
+
+check_battle_volume_owners() {
+  local vol name out bad=() good=()
+  for name in "${APP_WRITE_VOLUMES[@]}"; do
+    vol="${BATTLE_PROJECT}_$name"
+    if ! docker volume inspect "$vol" >/dev/null 2>&1; then
+      bad+=("$name: тома нет")
+      continue
+    fi
+    printf 'dc run -v %s:/bv:ro (чтение владельца тома)\n' "$vol" >>"$BATTLE_CALLS"
+    if out="$(dc run --rm --no-deps -T -v "$vol:/bv:ro" --entrypoint sh app \
+      -c "$APP_WRITE_SCRIPT" sh /bv 2>>"$LOG_FILE")"; then
+      good+=("$name")
+    else
+      bad+=("$name: ${out:0:80}")
+    fi
+  done
+  if ((${#bad[@]})); then
+    check "тома боя пишутся uid app" warn "${bad[*]};" \
+      "образ v2 не создаёт /var/lib/pragmatika/*, права берутся от тома: проверить до переключения"
+  else
+    check "тома боя пишутся uid app" ok "${good[*]}"
+  fi
+}
+
 # Диагностика отказа app: что видит процесс контейнера. Только пути, uid:gid, права, коды;
 # содержимое файлов не читается. Файл проходит leak-scan вместе с остальными результатами.
 collect_app_diagnostics() {
@@ -1258,6 +1296,7 @@ start_services() {
   # 2. Проверки псевдонимизатора не зависят от app.
   check_pseudonymizer
   # 3. Файлы app до старта: понятный отказ с именем переменной, а не цикл перезапусков.
+  check_battle_volume_owners
   if check_app_files && check_app_once; then
     if ! dc up -d app >>"$LOG_FILE" 2>&1; then
       capture_failure_log app
@@ -1275,7 +1314,11 @@ start_services() {
   ((app_ok)) || collect_app_diagnostics
   # 4. /ready приложения: из одноразового контейнера по сети backend.
   local body
-  body="$(reh_oneshot "container:$PROJECT-app-1" "$READY_JS" || true)"
+  if ! docker inspect "$PROJECT-app-1" >/dev/null 2>&1; then
+    body="app не запускался (контейнера нет)"
+  else
+    body="$(reh_oneshot "container:$PROJECT-app-1" "$READY_JS" || true)"
+  fi
   if [[ "$body" == 200* ]]; then
     check "/ready app" ok "$body"
   else
