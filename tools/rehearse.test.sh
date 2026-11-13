@@ -149,6 +149,8 @@ assert "диагностика восстановления попадает в 
 assert "memory.events контейнеров собираются" "grep -q 'memory-events.txt' '$SCRIPT'"
 assert "лимит памяти postgres по умолчанию 3g" \
   "grep -q 'REHEARSAL_PG_MEM_LIMIT:-3g' '$OVERLAY'"
+assert "shm postgres репетиции по умолчанию 1g (DSM сборки HNSW ~ maintenance_work_mem)" \
+  "grep -q 'shm_size: \${REHEARSAL_PG_SHM:-1g}' '$OVERLAY'"
 assert "тома сверяются по объявлениям compose (volumes-diff), не по config без профилей" \
   "grep -q 'volumes-diff' '$SCRIPT' && ! grep -q 'dc config --volumes' '$SCRIPT'"
 assert "env-names получает список снятых переменных" \

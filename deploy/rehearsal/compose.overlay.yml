@@ -27,7 +27,13 @@ services:
     <<: *rehearsal
     volumes: !override
       - pgdata:/var/lib/postgresql/data
-    shm_size: 256mb
+    # /dev/shm контейнера. Параллельная сборка HNSW кладёт граф в динамическую общую память
+    # (DSM) размером около maintenance_work_mem (512MB -> сегмент ~509 МиБ); при 256mb сборка
+    # индексов падала с «could not resize shared memory segment ... No space left on device»
+    # (попытка 2 G6). Как в базе: shm_size >= 1,25 x maintenance_work_mem (512 x 1,25 = 640 ->
+    # 1g). shm входит в mem_limit: shared_buffers (512MB) + shm (1g) = 1,5 ГиБ из 3g, остаток -
+    # процессы. Проверку держит tests/deploy/test_postgres_shm.py (значения берёт из файлов).
+    shm_size: ${REHEARSAL_PG_SHM:-1g}
     # Настройки легче боевых (бой: shared_buffers 1GB, maintenance_work_mem 1GB, лимит 4g):
     # репетиция идёт на хосте, где память почти занята боем. Числа памяти Postgres поэтому
     # с боевыми не сравниваются, сравниваются app и pseudonymizer.
