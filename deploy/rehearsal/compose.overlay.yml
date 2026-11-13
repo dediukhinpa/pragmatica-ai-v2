@@ -31,7 +31,9 @@ services:
     # Настройки легче боевых (бой: shared_buffers 1GB, maintenance_work_mem 1GB, лимит 4g):
     # репетиция идёт на хосте, где память почти занята боем. Числа памяти Postgres поэтому
     # с боевыми не сравниваются, сравниваются app и pseudonymizer.
-    mem_limit: ${REHEARSAL_PG_MEM_LIMIT:-2g}
+    # Лимит 3g (попытка 1 с 2g упёрлась в потолок по memory.peak, а он считает и страничный
+    # кэш). Проверка памяти в rehearse.sh идёт по anon, file пишется в memory.tsv отдельно.
+    mem_limit: ${REHEARSAL_PG_MEM_LIMIT:-3g}
     command: !override
       - postgres
       - -c

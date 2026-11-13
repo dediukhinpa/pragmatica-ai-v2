@@ -47,7 +47,8 @@ EXPECTED_AGENTS=4
 EXPECTED_AGENT_NAMES="prices documents order-calc site-export"
 MIB=1024
 KIB_PER_MIB=1024
-DEFAULT_MIN_AVAILABLE_MIB=3072
+# Свободная память хоста: лимит postgres репетиции 3g + app, pseudonymizer, заглушка (~1 ГиБ).
+DEFAULT_MIN_AVAILABLE_MIB=4096
 DEFAULT_MIN_DISK_MIB=6144
 DISK_FACTOR_FOR_DB=3
 HEALTH_WAIT_S=240
@@ -60,6 +61,8 @@ PG_DB_DEFAULT="pragmatika"
 PSEUDO_UID=10001
 SECRET_BYTES=24
 FAILURE_LOG_LINES=20
+PG_LOG_TAIL_LINES=400
+DMESG_LINES=20
 SMOKE_THREAD="rehearsal-smoke"
 SMOKE_TEXT="Контакт для проверки: rehearsal.smoke@example.org"
 # Шаблоны docker inspect и запросов, вынесенные ради длины строк.
@@ -68,7 +71,15 @@ INSPECT_BATTLE_FORMAT+=' {{.RestartCount}} {{.Image}}'
 HEALTH_FORMAT='{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}'
 EXTENSIONS_SQL="SELECT string_agg(extname || ' ' || extversion, ', ' ORDER BY extname)"
 EXTENSIONS_SQL+=" FROM pg_extension"
+# Роли боя - только имена (без системных pg_*); запрос идёт в транзакции только для чтения.
+ROLES_SQL="SELECT rolname FROM pg_roles WHERE rolname !~ '^pg_' ORDER BY rolname"
+READ_ONLY_PGOPTIONS='-c default_transaction_read_only=on'
+# Число объектов с правами (ACL) вне системных схем: сверка боя и копии.
+ACL_COUNT_SQL="SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace"
+ACL_COUNT_SQL+=" WHERE c.relacl IS NOT NULL AND n.nspname NOT IN"
+ACL_COUNT_SQL+=" ('pg_catalog', 'information_schema', 'pg_toast')"
 COUNT_UNKNOWN_PY='import json, sys; print(len(json.load(open(sys.argv[1]))["unknown_to_v2"]))'
+COUNT_RETIRED_PY='import json, sys; print(len(json.load(open(sys.argv[1]))["retired_known"]))'
 # Проверки внутри контейнера app (bun): /ready, /health псевдонимизатора, маскирование.
 READY_JS="const r = await fetch('http://127.0.0.1:8088/ready');
 console.log(r.status + ' ' + (await r.text()));
@@ -245,12 +256,51 @@ snapshot_battle() { # snapshot_battle <файл>
   docker inspect -f "$INSPECT_BATTLE_FORMAT" "${ids[@]}" 2>/dev/null | sort >"$1" || true
 }
 
+# Каталог cgroup контейнера по полному id (systemd-драйвер или cgroupfs); пусто - не найден.
+cgroup_dir() { # cgroup_dir <полный id>
+  local dir
+  for dir in "/sys/fs/cgroup/system.slice/docker-$1.scope" "/sys/fs/cgroup/docker/$1"; do
+    if [[ -d "$dir" ]]; then printf '%s' "$dir"; return 0; fi
+  done
+  return 0
+}
+
+# Одна строка «имя anon file» (байты) из memory.stat: anon - память процессов, file - кэш.
+sample_cgroup_anon() { # sample_cgroup_anon <полный id> <имя>
+  local dir
+  dir="$(cgroup_dir "$1")"
+  [[ -n "$dir" && -r "$dir/memory.stat" ]] || return 0
+  awk -v n="$2" '$1 == "anon" {a = $2} $1 == "file" {f = $2} END {print n "\t" a "\t" f}' \
+    "$dir/memory.stat"
+}
+
+# Диагностика сбоя восстановления и памяти (без данных): отфильтрованный журнал pg_restore,
+# число объектов дампа по типам, события памяти cgroup, флаг OOM, ошибки в журнале postgres.
+collect_diagnostics() {
+  local tools="$REH_DIR/rehearse_tools.py"
+  if [[ -f "$WORK/pg-restore.log" ]]; then
+    python3 -I "$tools" restore-log --log "$WORK/pg-restore.log" \
+      --out "$RES/pg-restore-errors.txt" 2>>"$LOG_FILE" || true
+  fi
+  if ((STARTED_STACK)) && docker ps -aq --filter "name=$PROJECT-postgres-1" 2>/dev/null | grep -q .
+  then
+    docker logs --tail "$PG_LOG_TAIL_LINES" "$PROJECT-postgres-1" >"$WORK/postgres.log" 2>&1 \
+      || true
+    python3 -I "$tools" restore-log --log "$WORK/postgres.log" \
+      --out "$RES/postgres-log-errors.txt" 2>>"$LOG_FILE" || true
+  fi
+  dmesg 2>/dev/null | grep -iE 'out of memory|oom-kill|killed process' \
+    | tail -n "$DMESG_LINES" | cut -c1-300 >"$RES/host-oom.txt" || true
+}
+
 collect_memory() {
-  local ids name id peak
+  local ids name id full dir peak
   [[ -n "$SAMPLER_PID" ]] && kill "$SAMPLER_PID" 2>/dev/null || true
   SAMPLER_PID=""
+  collect_diagnostics
   [[ -f "$WORK/mem-samples.txt" ]] || return 0
-  : >"$WORK/mem-limits.tsv" && : >"$WORK/mem-cgroup.tsv"
+  : >"$WORK/mem-limits.tsv" && : >"$WORK/mem-cgroup.tsv" && : >"$WORK/mem-events.tsv"
+  : >"$RES/memory-events.txt"
   mapfile -t ids < <(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" || true)
   for id in "${ids[@]}"; do
     name="$(docker inspect -f '{{.Name}}' "$id")"
@@ -258,21 +308,29 @@ collect_memory() {
     docker inspect -f '{{.HostConfig.Memory}}' "$id" \
       | sed "s|^|$name\t|" >>"$WORK/mem-limits.tsv"
     full="$(docker inspect -f '{{.Id}}' "$id")"
-    for path in "/sys/fs/cgroup/system.slice/docker-$full.scope/memory.peak" \
-      "/sys/fs/cgroup/docker/$full/memory.peak"; do
-      if [[ -r "$path" ]]; then
-        peak="$(cat "$path")"
-        printf '%s\t%s\n' "$name" "$peak" >>"$WORK/mem-cgroup.tsv"
-        break
-      fi
-    done
+    dir="$(cgroup_dir "$full")"
+    local oom_kill=0
+    if [[ -n "$dir" && -r "$dir/memory.peak" ]]; then
+      peak="$(cat "$dir/memory.peak")"
+      printf '%s\t%s\n' "$name" "$peak" >>"$WORK/mem-cgroup.tsv"
+    fi
+    # Последний образец anon/file перед остановкой sampler-а.
+    sample_cgroup_anon "$full" "$name" >>"$WORK/mem-anon.tsv" || true
+    if [[ -n "$dir" && -r "$dir/memory.events" ]]; then
+      sed "s|^|$name\t|; s| |\t|" "$dir/memory.events" >>"$RES/memory-events.txt"
+      oom_kill="$(awk '$1 == "oom_kill" {print $2}' "$dir/memory.events")"
+    fi
+    # cgroup пересоздаётся при перезапуске контейнера, поэтому смотрим и флаг Docker.
+    docker inspect -f '{{if .State.OOMKilled}}1{{else}}0{{end}}	{{.RestartCount}}' "$id" \
+      | sed "s|^|$name\t${oom_kill:-0}\t|" >>"$WORK/mem-events.tsv"
   done
   if python3 -I "$REH_DIR/rehearse_tools.py" mem-peaks --samples "$WORK/mem-samples.txt" \
-    --limits "$WORK/mem-limits.tsv" --cgroup "$WORK/mem-cgroup.tsv" --out "$RES/memory.tsv" \
+    --limits "$WORK/mem-limits.tsv" --cgroup "$WORK/mem-cgroup.tsv" \
+    --anon "$WORK/mem-anon.tsv" --events "$WORK/mem-events.tsv" --out "$RES/memory.tsv" \
     2>>"$LOG_FILE"; then
-    check "память" ok "пики контейнеров ниже лимитов (memory.tsv)"
+    check "память" ok "пик anon ниже 90 % лимитов, OOM-убийств нет (memory.tsv)"
   else
-    check "память" fail "пик контейнера дошёл до лимита или не измерен (memory.tsv)"
+    check "память" fail "anon не ниже 90 % лимита, OOM-убийство или нет замеров (memory.tsv)"
   fi
 }
 
@@ -655,40 +713,45 @@ PY
     ${secrets:+--secrets "$secrets"} \
     --compose-files "$STACK/deploy/platform/compose.base.yml" "$STACK/deploy/compose.project.yml" \
     "$STACK/deploy/compat.env" --host-only-file "$REH_DIR/env-host-only.txt" \
+    --retired-file "$REH_DIR/env-retired.txt" \
     ${EXPECTED_ENV_NAMES:+--expected-names "$EXPECTED_ENV_NAMES"} \
     --out "$RES/env-names.json" 2>>"$LOG_FILE"
   # Тома боя против томов v2: имена должны совпасть (иначе при выкатке данные «потеряются»).
   compare_volumes
-  local unknown
+  local unknown retired
   unknown="$(python3 -I -c "$COUNT_UNKNOWN_PY" "$RES/env-names.json")"
+  retired="$(python3 -I -c "$COUNT_RETIRED_PY" "$RES/env-names.json")"
   if ((unknown > 0)); then
     check "имена env боя" warn "$unknown имён боя неизвестны compose v2 (env-names.json):" \
       "при выкатке они не дойдут до контейнеров"
   else
-    check "имена env боя" ok "все имена боя известны compose v2 или относятся к скриптам хоста"
+    check "имена env боя" ok "все имена боя известны compose v2, относятся к скриптам хоста" \
+      "или сняты ($retired: код их не читает, env-retired.txt)"
   fi
   phase_end
 }
 EXPECTED_ENV_NAMES=""
 [[ ! -f "$HERE/expected-env-names.txt" ]] || EXPECTED_ENV_NAMES="$HERE/expected-env-names.txt"
 
+# Тома боя против ВСЕХ томов, объявленных compose v2 (со всеми профилями: speech, telemetry,
+# mask, agent-sandbox, tools). `docker compose config --volumes` без профилей такие тома
+# опускает (ложный fail попытки 1), поэтому имена читаются из объявлений compose-файлов.
 compare_volumes() {
-  local battle_vols v2_vols
+  local battle_vols missing
   battle_vols="$(battle_docker volume ls -q \
     --filter "label=com.docker.compose.project=$BATTLE_PROJECT" \
     | sed "s/^${BATTLE_PROJECT}_//" | sort | tr '\n' ' ')"
-  v2_vols="$(dc config --volumes 2>/dev/null | sort | tr '\n' ' ' || true)"
-  # Проверяются тома, которые есть у боя: каждый должен существовать и в v2.
-  local missing="" v
-  for v in $battle_vols; do
-    [[ " $v2_vols " == *" $v "* ]] || missing+="$v "
-  done
-  if [[ -z "$battle_vols" ]]; then
-    check "тома боя и v2" warn "у боевого проекта $BATTLE_PROJECT нет томов с меткой compose"
-  elif [[ -n "$missing" ]]; then
-    check "тома боя и v2" fail "у боя есть тома, которых нет в compose v2: $missing"
+  printf '%s\n' $battle_vols >"$RES/volumes-battle.txt"
+  if missing="$(python3 -I "$REH_DIR/rehearse_tools.py" volumes-diff --battle "$battle_vols" \
+    --compose-files "$STACK/deploy/platform/compose.base.yml" "$STACK/deploy/compose.project.yml" \
+    --out "$RES/volumes-v2.txt" 2>>"$LOG_FILE")"; then
+    if [[ -z "$battle_vols" ]]; then
+      check "тома боя и v2" warn "у боевого проекта $BATTLE_PROJECT нет томов с меткой compose"
+    else
+      check "тома боя и v2" ok "все тома боя ($battle_vols) есть в compose v2 (все профили)"
+    fi
   else
-    check "тома боя и v2" ok "все тома боя ($battle_vols) есть в compose v2"
+    check "тома боя и v2" fail "у боя есть тома, которых нет в compose v2: $missing"
   fi
 }
 
@@ -717,11 +780,58 @@ start_sampler() {
       if ((${#ids[@]})); then
         docker stats --no-stream --format '{{.Name}} {{.MemUsage}}' "${ids[@]}" 2>/dev/null \
           | awk '{print $1, $2}' >>"$WORK/mem-samples.txt" || true
+        local full name
+        while read -r full name; do
+          sample_cgroup_anon "$full" "$name" >>"$WORK/mem-anon.tsv" || true
+        done < <(docker ps --no-trunc --format '{{.ID}} {{.Names}}' \
+          --filter "label=com.docker.compose.project=$PROJECT" 2>/dev/null || true)
       fi
       sleep "$SAMPLE_INTERVAL_S"
     done
   ) &
   SAMPLER_PID=$!
+}
+
+# Отфильтрованный журнал pg_restore в результаты (ERROR/FATAL/pg_restore:, без данных COPY).
+collect_restore_log() {
+  python3 -I "$REH_DIR/rehearse_tools.py" restore-log --log "$WORK/pg-restore.log" \
+    --out "$RES/pg-restore-errors.txt" 2>>"$LOG_FILE" || true
+}
+
+# Роли боя (только имена, из боевого кластера в транзакции только для чтения) создаются в
+# Postgres репетиции без паролей и без права входа: дамп содержит GRANT на эти роли, а в
+# чистом postgres их нет. Это заодно репетиция ACL для переезда.
+create_battle_roles() {
+  if ! battle_docker exec -e PGOPTIONS="$READ_ONLY_PGOPTIONS" "$BATTLE_PG_CONTAINER" \
+    psql -U "$BATTLE_PG_USER" -d "$BATTLE_PG_DB" -tA -c "$ROLES_SQL" >"$WORK/battle-roles.txt" \
+    2>>"$LOG_FILE"; then
+    check "роли боя" warn "список ролей из боевого кластера не получен: GRANT могут не пройти"
+    return 0
+  fi
+  cp "$WORK/battle-roles.txt" "$RES/battle-roles.txt"
+  python3 -I "$REH_DIR/rehearse_tools.py" roles-sql --names-file "$WORK/battle-roles.txt" \
+    --out "$WORK/roles.sql" 2>>"$LOG_FILE"
+  if psql_reh -q <"$WORK/roles.sql" >>"$LOG_FILE" 2>&1; then
+    check "роли боя" ok "роли NOLOGIN без паролей: $(wc -l <"$WORK/roles.sql") (battle-roles.txt)"
+  else
+    check "роли боя" fail "роли боя не созданы в Postgres репетиции (rehearsal.log)"
+    die "$EXIT_FAILED" "нет ролей боя"
+  fi
+}
+
+# Число объектов с правами в бою и в копии: ACL должны перенестись дампом.
+compare_acl_counts() {
+  local battle_n reh_n
+  battle_n="$(battle_docker exec -e PGOPTIONS="$READ_ONLY_PGOPTIONS" "$BATTLE_PG_CONTAINER" \
+    psql -U "$BATTLE_PG_USER" -d "$BATTLE_PG_DB" -tAc "$ACL_COUNT_SQL" 2>/dev/null \
+    | tr -d '[:space:]' || true)"
+  reh_n="$(psql_reh -tAc "$ACL_COUNT_SQL" | tr -d '[:space:]')"
+  if [[ -n "$battle_n" && "$battle_n" == "$reh_n" ]]; then
+    check "права (ACL) после восстановления" ok "объектов с правами: $reh_n, как в бою"
+  else
+    check "права (ACL) после восстановления" warn \
+      "в бою ${battle_n:-?} объектов с правами, в копии $reh_n (бой мог измениться после дампа)"
+  fi
 }
 
 restore_database() {
@@ -730,21 +840,34 @@ restore_database() {
   PG_DB_REH="$(env_value "$RUN_DIR/rehearsal.env" POSTGRES_DB)"
   PG_USER_REH="${PG_USER_REH:-$PG_USER_DEFAULT}"
   PG_DB_REH="${PG_DB_REH:-$PG_DB_DEFAULT}"
-  : >"$WORK/mem-samples.txt"
+  : >"$WORK/mem-samples.txt" && : >"$WORK/mem-anon.tsv"
   STARTED_STACK=1
   dc up -d postgres >>"$LOG_FILE" 2>&1 || die "$EXIT_FAILED" "postgres репетиции не стартовал"
   start_sampler
   wait_healthy postgres "$HEALTH_WAIT_S" || die "$EXIT_FAILED" "postgres репетиции не стал healthy"
-  local t0
+  create_battle_roles
+  # Оглавление дампа по типам (число объектов, без имён): видно, сколько в нём ACL и данных.
+  dc exec -T postgres pg_restore -l <"$DUMP_FILE" >"$WORK/dump-toc.txt" 2>>"$WORK/pg-restore.log" \
+    || true
+  python3 -I "$REH_DIR/rehearse_tools.py" toc-summary --list-file "$WORK/dump-toc.txt" \
+    --out "$RES/dump-toc-summary.tsv" 2>>"$LOG_FILE" || true
+  local t0 rc=0
   t0="$(date +%s)"
-  if dc exec -T postgres pg_restore -U "$PG_USER_REH" -d "$PG_DB_REH" --no-owner \
-    --exit-on-error <"$DUMP_FILE" >>"$WORK/pg-restore.log" 2>&1; then
+  # Без --exit-on-error: pg_restore доходит до конца и собирает ВСЕ ошибки (за одну репетицию
+  # видна полная картина, а не первая); итог тот же - любая ошибка даёт код 1 и провал проверки.
+  # ACL не отключается (--no-acl нет): права на роли боя должны восстанавливаться, как при
+  # переезде; иначе проблема ACL всплыла бы только на переключении.
+  dc exec -T postgres pg_restore -U "$PG_USER_REH" -d "$PG_DB_REH" --no-owner \
+    <"$DUMP_FILE" >>"$WORK/pg-restore.log" 2>&1 || rc=$?
+  collect_restore_log
+  if ((rc == 0)); then
     check "восстановление БД" ok "pg_restore за $(($(date +%s) - t0)) с"
   else
-    check "восстановление БД" fail "pg_restore не удался (код $?)"
+    check "восстановление БД" fail "pg_restore не удался (код $rc): pg-restore-errors.txt"
     die "$EXIT_FAILED" "БД не восстановлена"
   fi
   rm -f "$DUMP_FILE" # рабочая копия дампа с данными больше не нужна
+  compare_acl_counts
   # Число применённых миграций: боевая БД и копия.
   local battle_n reh_n
   battle_n="$(battle_docker exec "$BATTLE_PG_CONTAINER" psql -U "$BATTLE_PG_USER" \

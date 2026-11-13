@@ -134,6 +134,26 @@ rc=0
 run cfg "$TMP/meminfo.ok" --battle-config "$TMP/battle.cfg" --preflight-only || rc=$?
 assert "battle-config: проект боя из файла" "grep -q 'бой pragmatika-cfgtest' '$TMP/out-cfg.log'"
 
+# 6б. Починка после отказа G6 (7f): роли боя, ACL, диагностика, память по anon, тома.
+OVERLAY="$ROOT/deploy/rehearsal/compose.overlay.yml"
+assert "роли боя создаются до pg_restore" \
+  "awk '/^  create_battle_roles\$/{r=NR} /pg_restore -U/{p=NR} END{exit !(r && p && r < p)}' '$SCRIPT'"
+assert "роли боя читаются в транзакции только для чтения" \
+  "grep -q \"default_transaction_read_only=on\" '$SCRIPT'"
+assert "ACL не отключаются (нет --no-acl и --no-privileges у pg_restore)" \
+  "! grep -E 'pg_restore.*(--no-acl|--no-privileges|-x )' '$SCRIPT'"
+assert "pg_restore собирает все ошибки (нет --exit-on-error)" \
+  "! grep -v '^ *#' '$SCRIPT' | grep -q -- '--exit-on-error'"
+assert "диагностика восстановления попадает в результаты" \
+  "grep -q 'restore-log --log' '$SCRIPT' && grep -q 'pg-restore-errors.txt' '$SCRIPT'"
+assert "memory.events контейнеров собираются" "grep -q 'memory-events.txt' '$SCRIPT'"
+assert "лимит памяти postgres по умолчанию 3g" \
+  "grep -q 'REHEARSAL_PG_MEM_LIMIT:-3g' '$OVERLAY'"
+assert "тома сверяются по объявлениям compose (volumes-diff), не по config без профилей" \
+  "grep -q 'volumes-diff' '$SCRIPT' && ! grep -q 'dc config --volumes' '$SCRIPT'"
+assert "env-names получает список снятых переменных" \
+  "grep -q -- '--retired-file' '$SCRIPT' && [[ -f '$ROOT/deploy/rehearsal/env-retired.txt' ]]"
+
 # 7. Сам скрипт: синтаксис и длина строк.
 assert "bash -n" "bash -n '$SCRIPT'"
 assert "строки rehearse.sh не длиннее $LIMIT" \
