@@ -265,13 +265,14 @@ cgroup_dir() { # cgroup_dir <полный id>
   return 0
 }
 
-# Одна строка «имя anon file» (байты) из memory.stat: anon - память процессов, file - кэш.
+# Строка «имя anon shmem file» (байты) из memory.stat: anon - память процессов, shmem - общая
+# память (shared_buffers Postgres), file - страничный кэш (ядро вытесняет сам).
 sample_cgroup_anon() { # sample_cgroup_anon <полный id> <имя>
   local dir
   dir="$(cgroup_dir "$1")"
   [[ -n "$dir" && -r "$dir/memory.stat" ]] || return 0
-  awk -v n="$2" '$1 == "anon" {a = $2} $1 == "file" {f = $2} END {print n "\t" a "\t" f}' \
-    "$dir/memory.stat"
+  awk -v n="$2" '$1 == "anon" {a = $2} $1 == "shmem" {m = $2} $1 == "file" {f = $2}
+    END {print n "\t" a "\t" m "\t" f}' "$dir/memory.stat"
 }
 
 # Диагностика сбоя восстановления и памяти (без данных): отфильтрованный журнал pg_restore,
@@ -328,9 +329,9 @@ collect_memory() {
     --limits "$WORK/mem-limits.tsv" --cgroup "$WORK/mem-cgroup.tsv" \
     --anon "$WORK/mem-anon.tsv" --events "$WORK/mem-events.tsv" --out "$RES/memory.tsv" \
     2>>"$LOG_FILE"; then
-    check "память" ok "пик anon ниже 90 % лимитов, OOM-убийств нет (memory.tsv)"
+    check "память" ok "пик anon+shmem ниже 90 % лимитов, OOM-убийств нет (memory.tsv)"
   else
-    check "память" fail "anon не ниже 90 % лимита, OOM-убийство или нет замеров (memory.tsv)"
+    check "память" fail "anon+shmem не ниже 90 % лимита, OOM-убийство или нет замеров (memory.tsv)"
   fi
 }
 
@@ -811,8 +812,12 @@ create_battle_roles() {
   cp "$WORK/battle-roles.txt" "$RES/battle-roles.txt"
   python3 -I "$REH_DIR/rehearse_tools.py" roles-sql --names-file "$WORK/battle-roles.txt" \
     --out "$WORK/roles.sql" 2>>"$LOG_FILE"
+  local before after
+  before="$(psql_reh -tAc "SELECT count(*) FROM pg_roles" | tr -d '[:space:]')"
   if psql_reh -q <"$WORK/roles.sql" >>"$LOG_FILE" 2>&1; then
-    check "роли боя" ok "роли NOLOGIN без паролей: $(wc -l <"$WORK/roles.sql") (battle-roles.txt)"
+    after="$(psql_reh -tAc "SELECT count(*) FROM pg_roles" | tr -d '[:space:]')"
+    check "роли боя" ok "в списке боя $(wc -l <"$WORK/roles.sql"), создано $((after - before))" \
+      "(NOLOGIN, без паролей; battle-roles.txt)"
   else
     check "роли боя" fail "роли боя не созданы в Postgres репетиции (rehearsal.log)"
     die "$EXIT_FAILED" "нет ролей боя"

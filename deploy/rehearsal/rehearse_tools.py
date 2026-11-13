@@ -8,7 +8,7 @@
 Команды:
   env-build     собрать .env репетиции из боевых .env и secrets.env
   env-names     сверить имена боевого окружения с именами, которые знает compose v2
-  mem-peaks     пики памяти контейнеров против лимитов (по anon, file отдельно)
+  mem-peaks     пики памяти контейнеров против лимитов (anon+shmem, страничный кэш отдельно)
   restore-log   строки ERROR/FATAL/pg_restore: из журнала pg_restore без данных
   toc-summary   число объектов дампа по типам из `pg_restore -l` (имён объектов нет)
   roles-sql     SQL создания ролей боя (NOLOGIN, без паролей) в Postgres репетиции
@@ -54,6 +54,8 @@ QUOTED_RE = re.compile(r"\"[^\"]*\"|'[^']*'|\([^)]*\)")
 HIDDEN = "<скрыто>"
 # Доля лимита памяти по anon, с которой проверка памяти проваливается.
 ANON_FAIL_SHARE = 0.9
+# Столбцы образца memory.stat: anon, shmem, file.
+MEM_STAT_COLUMNS = 3
 # Типы записей оглавления pg_restore -l (длинные раньше коротких).
 TOC_TYPES = (
     "TABLE DATA", "SEQUENCE SET", "SEQUENCE OWNED BY", "FK CONSTRAINT", "DEFAULT ACL",
@@ -234,12 +236,33 @@ def read_tsv_ints(path: str | None, columns: int) -> dict[str, list[int]]:
     return result
 
 
+def read_memory_stat_samples(path: str | None) -> dict[str, list[int]]:
+    """Образцы memory.stat «имя<TAB>anon<TAB>shmem<TAB>file»: для имени
+    [пик anon, пик shmem, пик file, пик anon+shmem в одном образце]."""
+    result: dict[str, list[int]] = {}
+    if not path or not Path(path).is_file():
+        return result
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        parts = line.split("\t")
+        if len(parts) < MEM_STAT_COLUMNS + 1 or not all(
+            x.strip().isdigit() for x in parts[1:MEM_STAT_COLUMNS + 1]
+        ):
+            continue
+        anon, shmem, cache = (int(x) for x in parts[1:MEM_STAT_COLUMNS + 1])
+        old = result.get(parts[0], [0, 0, 0, 0])
+        result[parts[0]] = [max(old[0], anon), max(old[1], shmem), max(old[2], cache),
+                            max(old[3], anon + shmem)]
+    return result
+
+
 def cmd_mem_peaks(args: argparse.Namespace) -> int:
     """Пики памяти контейнеров против лимита.
 
-    Проверка идёт по anon (память процессов), а не по memory.peak: тот считает и страничный
-    кэш (file), который ядро вытесняет само, и сам по себе OOM не означает. В таблицу пишутся
-    обе величины. Провал: anon не ниже ANON_FAIL_SHARE лимита или было OOM-убийство.
+    Проверка идёт по памяти, которую ядро не вытеснит: anon (память процессов) плюс shmem
+    (общая память, у Postgres это shared_buffers; в cgroup v2 она не входит в anon). Страничный
+    кэш (file) ядро вытесняет само, а memory.peak его включает и сам по себе OOM не означает,
+    поэтому в таблице он отдельным столбцом и в проверке не участвует. Провал: невытесняемая
+    память не ниже ANON_FAIL_SHARE лимита или было OOM-убийство.
     """
     stats: dict[str, int] = {}
     for line in Path(args.samples).read_text(encoding="utf-8").splitlines():
@@ -247,28 +270,27 @@ def cmd_mem_peaks(args: argparse.Namespace) -> int:
         if len(parts) >= 2:
             stats[parts[0]] = max(stats.get(parts[0], 0), parse_size(parts[1]))
     cgroup = read_tsv_ints(args.cgroup, 1)
-    anon = read_tsv_ints(args.anon, 2)  # anon, file (образцы memory.stat)
+    stat = read_memory_stat_samples(args.anon)
     events = read_tsv_ints(args.events, 3)  # oom_kill, OOMKilled, RestartCount
     limits = read_tsv_ints(args.limits, 1)
-    rows = ["контейнер\tпик_всего_МиБ\tпик_anon_МиБ\tпик_file_МиБ\tлимит_МиБ"
-            "\tдоля_anon_%\toom_kill\tисточник"]
+    rows = ["контейнер\tпик_всего_МиБ\tпик_anon_МиБ\tпик_shmem_МиБ\tпик_file_МиБ"
+            "\tпик_anon+shmem_МиБ\tлимит_МиБ\tдоля_anon+shmem_%\toom_kill\tисточник"]
     status = EXIT_OK
-    for name in sorted(set(stats) | set(cgroup) | set(anon)):
+    for name in sorted(set(stats) | set(cgroup) | set(stat)):
         total = cgroup[name][0] if name in cgroup else stats.get(name, 0)
-        if name in anon:
-            anon_peak, file_peak, source = anon[name][0], anon[name][1], "cgroup"
-        else:  # без memory.stat: «docker stats» (без неактивного кэша) как оценка anon
-            anon_peak, file_peak, source = stats.get(name, 0), 0, "stats"
+        if name in stat:
+            anon, shmem, cache, held = stat[name]
+            source = "cgroup"
+        else:  # без memory.stat: «docker stats» (без неактивного кэша) как оценка
+            anon, shmem, cache, held = stats.get(name, 0), 0, 0, stats.get(name, 0)
+            source = "stats"
         limit = limits.get(name, [0])[0]
-        share = round(100 * anon_peak / limit, 1) if limit else 0.0
+        share = round(100 * held / limit, 1) if limit else 0.0
         oom = events.get(name, [0, 0, 0])
         oom_total = oom[0] + oom[1]
-        rows.append(
-            f"{name}\t{total // BYTES_IN_MIB}\t{anon_peak // BYTES_IN_MIB}"
-            f"\t{file_peak // BYTES_IN_MIB}\t{limit // BYTES_IN_MIB}\t{share}"
-            f"\t{oom_total}\t{source}"
-        )
-        if (limit and anon_peak >= ANON_FAIL_SHARE * limit) or oom_total:
+        mib = [x // BYTES_IN_MIB for x in (total, anon, shmem, cache, held, limit)]
+        rows.append("\t".join(str(x) for x in (name, *mib, share, oom_total, source)))
+        if (limit and held >= ANON_FAIL_SHARE * limit) or oom_total:
             status = EXIT_FAIL
     if len(rows) == 1:  # ничего не измерено
         status = EXIT_FAIL

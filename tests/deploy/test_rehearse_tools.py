@@ -166,7 +166,7 @@ class MemAndLeakTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             code, rows = self.peaks(Path(tmp), "app 100MiB\napp 196.6MiB\ndb 2.9GiB\n")
             self.assertEqual(1, code)
-            self.assertTrue(rows[1].startswith("app\t196\t196\t0\t2048\t9.6"), rows[1])
+            self.assertTrue(rows[1].startswith("app\t196\t196\t0\t0\t196\t2048\t9.6"), rows[1])
             self.assertIn("stats", rows[1])
 
     def test_page_cache_at_limit_is_not_a_failure(self) -> None:
@@ -176,12 +176,15 @@ class MemAndLeakTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             code, rows = self.peaks(
                 Path(tmp), "db 100MiB\n",
-                anon=f"db\t{600 * mib}\t{2 * gib}\ndb\t{500 * mib}\t{gib}\n",
+                anon=f"db\t{500 * mib}\t{100 * mib}\t{2 * gib}\n"
+                     f"db\t{400 * mib}\t{512 * mib}\t{gib}\n",
                 cgroup=f"db\t{3 * gib}\n",
             )
             self.assertEqual(0, code, rows)
             cols = rows[1].split("\t")
-            self.assertEqual(["db", "3072", "600", "2048", "3072", "19.5", "0", "cgroup"], cols)
+            # всего, anon, shmem, file, anon+shmem (в одном образце), лимит, доля, oom, источник
+            self.assertEqual(
+                ["db", "3072", "500", "512", "2048", "912", "3072", "29.7", "0", "cgroup"], cols)
             self.assertIn("пик_anon_МиБ", rows[0])
             self.assertIn("пик_file_МиБ", rows[0])
 
@@ -189,18 +192,26 @@ class MemAndLeakTest(unittest.TestCase):
         """anon не ниже 90 % лимита - провал, даже без OOM-убийств."""
         gib = 1024**3
         with tempfile.TemporaryDirectory() as tmp:
-            code, _ = self.peaks(Path(tmp), "db 1MiB\n", anon=f"db\t{int(2.8 * gib)}\t0\n")
+            code, _ = self.peaks(Path(tmp), "db 1MiB\n", anon=f"db\t{int(2.8 * gib)}\t0\t0\n")
+            self.assertEqual(1, code)
+
+    def test_shared_buffers_count_as_held_memory(self) -> None:
+        """shmem (shared_buffers Postgres) не вытесняется: anon+shmem у лимита - провал."""
+        gib = 1024**3
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _ = self.peaks(Path(tmp), "db 1MiB\n",
+                                 anon=f"db\t{gib}\t{int(1.9 * gib)}\t0\n")
             self.assertEqual(1, code)
 
     def test_oom_kill_fails_even_with_low_anon(self) -> None:
         """oom_kill в memory.events или флаг OOMKilled Docker - провал."""
         mib = 1024**2
         with tempfile.TemporaryDirectory() as tmp:
-            code, rows = self.peaks(Path(tmp), "db 1MiB\n", anon=f"db\t{100 * mib}\t0\n",
+            code, rows = self.peaks(Path(tmp), "db 1MiB\n", anon=f"db\t{100 * mib}\t0\t0\n",
                                     events="db\t1\t0\t0\n")
             self.assertEqual(1, code)
-            self.assertTrue(rows[1].split("\t")[6] == "1")
-            code, _ = self.peaks(Path(tmp), "db 1MiB\n", anon=f"db\t{100 * mib}\t0\n",
+            self.assertEqual("1", rows[1].split("\t")[8])
+            code, _ = self.peaks(Path(tmp), "db 1MiB\n", anon=f"db\t{100 * mib}\t0\t0\n",
                                  events="db\t0\t1\t2\n")
             self.assertEqual(1, code)
 
