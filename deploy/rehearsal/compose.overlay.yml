@@ -127,7 +127,8 @@ services:
         condition: service_healthy
     environment:
       LITELLM_BASE_URL: http://model-stub:4000
-      # Пути правил доступа и почты внутри контейнера боевые; файлы - копии из каталога запуска.
+      # Пути правил доступа и почты внутри контейнера боевые; файлы - копии из каталога запуска,
+      # снятые с каталогов боя `*_HOST_DIR` (в каталоге запуска владелец - uid процесса app).
       # Файл ящиков почты не передаётся совсем: почта не настроена.
       HEALTH_PORT: "8088"
     volumes: !override
@@ -137,8 +138,9 @@ services:
         read_only: true
         bind:
           create_host_path: false
+      # Шаблоны: копия TEMPLATES_HOST_DIR боя (rehearse-files.sh), не шара документов.
       - type: bind
-        source: ${REHEARSAL_RUN_DIR:?}/share
+        source: ${REHEARSAL_RUN_DIR:?}/templates
         target: /srv/templates
         read_only: true
         bind:

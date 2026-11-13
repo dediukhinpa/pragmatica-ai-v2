@@ -41,10 +41,15 @@ else
   STACK="$(cd "$HERE/../.." && pwd)" # дерево проекта v2
 fi
 REH_DIR="$STACK/deploy/rehearsal"
+# Копии каталогов хоста боя, владелец копий, проверка чтения (см. заголовок файла).
+# shellcheck source=rehearse-files.sh
+source "$REH_DIR/rehearse-files.sh"
 PROJECT="pragmatika-rehearsal"
 EXIT_OK=0 EXIT_CHECKS=1 EXIT_USAGE=2 EXIT_REFUSED=3 EXIT_FAILED=4
 EXPECTED_AGENTS=4
 EXPECTED_AGENT_NAMES="prices documents order-calc site-export"
+# Умолчание compose v2 для DOCUMENTS_HOST_DIR (compose.project.yml).
+DEFAULT_DOCUMENTS_DIR="/srv/pragmatika/documents"
 MIB=1024
 KIB_PER_MIB=1024
 # Свободная память хоста: лимит postgres репетиции 3g + app, pseudonymizer, заглушка (~1 ГиБ).
@@ -58,7 +63,9 @@ SAMPLE_INTERVAL_S=3
 SETTLE_S=20
 PG_USER_DEFAULT="pragmatika"
 PG_DB_DEFAULT="pragmatika"
+# uid:gid процесса псевдонимизатора; при старте уточняются по образу (reh_image_ids).
 PSEUDO_UID=10001
+PSEUDO_GID=10001
 SECRET_BYTES=24
 FAILURE_LOG_LINES=20
 PG_LOG_TAIL_LINES=400
@@ -80,12 +87,27 @@ ACL_COUNT_SQL+=" WHERE c.relacl IS NOT NULL AND n.nspname NOT IN"
 ACL_COUNT_SQL+=" ('pg_catalog', 'information_schema', 'pg_toast')"
 COUNT_UNKNOWN_PY='import json, sys; print(len(json.load(open(sys.argv[1]))["unknown_to_v2"]))'
 COUNT_RETIRED_PY='import json, sys; print(len(json.load(open(sys.argv[1]))["retired_known"]))'
-# Проверки внутри контейнера app (bun): /ready, /health псевдонимизатора, маскирование.
-READY_JS="const r = await fetch('http://127.0.0.1:8088/ready');
-console.log(r.status + ' ' + (await r.text()));
-process.exit(r.ok ? 0 : 1);"
-HEALTH_JS="const r = await fetch('http://pseudonymizer:8300/health');
-console.log(r.status + ' ' + (await r.text()));"
+APP_STATE_FORMAT='статус={{.State.Status}} код_выхода={{.State.ExitCode}}'
+APP_STATE_FORMAT+=' OOM={{.State.OOMKilled}} перезапусков={{.RestartCount}}'
+APP_STATE_FORMAT+=' ошибка={{.State.Error}}'
+# Что app читает при старте и работе (пути внутри контейнера, как в overlay). `@ИМЯ` - путь в
+# переменной окружения (ядро читает файл при старте и падает, если он не читается).
+APP_PATH_VARS=(@ACCESS_POLICY_FILE @MODEL_PRICES_FILE)
+APP_MOUNT_PATHS=(/etc/pragmatika/access /etc/pragmatika/mail /srv/documents /srv/templates
+  /opt/pragmatika/local /var/lib/pragmatika/intake /var/lib/pragmatika/spool
+  /var/lib/pragmatika/exchange)
+# Проверки из ОДНОРАЗОВОГО контейнера (образ app, bun) в сети репетиции: отказ или перезапуск app
+# не должен скрывать результат проверки псевдонимизатора (попытка 3 G6: три проверки упали
+# только из-за `docker exec` в перезапускающийся app).
+READY_JS="try {
+  const r = await fetch('http://app:8088/ready');
+  console.log(r.status + ' ' + (await r.text()));
+  process.exit(r.ok ? 0 : 1);
+} catch (e) { console.log('app недоступен: ' + e.message); process.exit(1); }"
+HEALTH_JS="try {
+  const r = await fetch('http://pseudonymizer:8300/health');
+  console.log(r.status + ' ' + (await r.text()));
+} catch (e) { console.log('недоступен: ' + e.message); }"
 SMOKE_JS='const base = "http://pseudonymizer:8300";
 const h = {
   authorization: "Bearer " + process.env.PSEUDONYMIZER_API_TOKEN,
@@ -649,25 +671,106 @@ prepare_dump() {
 # ---------------------------------------------------------------------------------------------
 # Каталоги настроек, .env репетиции
 # ---------------------------------------------------------------------------------------------
+# Каталоги хоста боя для app. Источник - боевой .env (`*_HOST_DIR`), умолчания как в compose v2;
+# на бою каталоги не обязаны лежать в /etc/pragmatika (попытка 3 G6: правила доступа в
+# /opt/pragmatika/local/access, каталога /etc/pragmatika/access нет). Бой только читается.
+resolve_host_dirs() {
+  ACCESS_SRC="$(reh_host_dir "$BATTLE_ENV_FILE" ACCESS_POLICY_HOST_DIR "$BATTLE_ETC_DIR/access")"
+  MAIL_SRC="$(reh_host_dir "$BATTLE_ENV_FILE" MAIL_HOST_DIR "$BATTLE_ETC_DIR/mail")"
+  DOCS_SRC="$(reh_host_dir "$BATTLE_ENV_FILE" DOCUMENTS_HOST_DIR "$DEFAULT_DOCUMENTS_DIR")"
+  TEMPLATES_SRC="$(reh_host_dir "$BATTLE_ENV_FILE" TEMPLATES_HOST_DIR "$DOCS_SRC")"
+  LOCAL_SRC="$(reh_host_dir "$BATTLE_ENV_FILE" LOCAL_HOST_DIR "$BATTLE_LOCAL_DIR")"
+}
+
+# copy_one <имя проверки> <ПЕРЕМЕННАЯ> <источник> <приёмник> <предел МиБ|0> <обязательно 0|1>
+copy_one() {
+  local name="$1" var="$2" src="$3" dst="$4" limit="$5" required="$6" size err
+  if [[ ! -d "$src" ]]; then
+    if ((required)); then
+      check "$name" fail "$var=$src: каталога нет или нет прав (на бою его не видно)"
+    else
+      check "$name" warn "$var=$src: каталога нет, копия пустая"
+    fi
+    return 0
+  fi
+  size="$(reh_dir_size_mib "$src")"
+  if ((limit > 0 && size > limit)); then
+    check "$name" warn "$var=$src: ${size} МиБ больше предела ${limit}, копия не снимается"
+    return 0
+  fi
+  printf 'cp -rL (чтение каталога): %s=%s\n' "$var" "$src" >>"$BATTLE_CALLS"
+  if err="$(reh_copy_dir "$src" "$dst" 2>&1)"; then
+    check "$name" ok "$var=$src: файлов $(find "$dst" -type f | wc -l), ${size} МиБ"
+  else
+    check "$name" fail "$var=$src: копия не снята: $(printf '%s' "$err" | head -1 | cut -c1-160)"
+  fi
+}
+
+copy_host_inputs() {
+  resolve_host_dirs
+  : >"$RES/host-dirs.txt"
+  printf '%s=%s\n' ACCESS_POLICY_HOST_DIR "$ACCESS_SRC" MAIL_HOST_DIR "$MAIL_SRC" \
+    DOCUMENTS_HOST_DIR "$DOCS_SRC" TEMPLATES_HOST_DIR "$TEMPLATES_SRC" \
+    LOCAL_HOST_DIR "$LOCAL_SRC" >>"$RES/host-dirs.txt"
+  local access_file required=0
+  access_file="$(env_value "$BATTLE_ENV_FILE" ACCESS_POLICY_FILE)"
+  [[ -z "$access_file" ]] || required=1
+  copy_one "копия правил доступа" ACCESS_POLICY_HOST_DIR "$ACCESS_SRC" "$RUN_DIR/etc/access" 0 \
+    "$required"
+  # Шаблоны проекта. Если TEMPLATES_HOST_DIR не задан, это шара документов (большая): предел.
+  copy_one "копия шаблонов" TEMPLATES_HOST_DIR "$TEMPLATES_SRC" "$RUN_DIR/templates" \
+    "$REH_TEMPLATES_MAX_MIB" 0
+  copy_one "копия local боя" LOCAL_HOST_DIR "$LOCAL_SRC" "$RUN_DIR/local" "$REH_LOCAL_MAX_MIB" 0
+  # Шара документов (цены, договоры) не копируется: большая и с данными; app стартует и без неё.
+  printf 'документы: %s (не копируются)\n' "$DOCS_SRC" >>"$BATTLE_CALLS"
+}
+
+# Владелец копий: файлы app - uid:gid процесса образа app, файлы псевдонимизатора - его образа.
+own_inputs() {
+  local app_image pseudo_ids
+  app_image="$(lock_value BAI_IMAGE_APP)"
+  if pseudo_ids="$(reh_image_ids "$(pseudo_image)")"; then
+    read -r PSEUDO_UID PSEUDO_GID <<<"$pseudo_ids"
+  else
+    check "uid псевдонимизатора" fail "не узнан uid:gid процесса образа псевдонимизатора"
+  fi
+  if reh_own_for_image "$app_image" "$RUN_DIR/etc/access" "$RUN_DIR/etc/mail" \
+    "$RUN_DIR/share" "$RUN_DIR/templates" "$RUN_DIR/local" "$RUN_DIR/stub" 2>>"$LOG_FILE"; then
+    check "владелец копий app" ok "файлы: uid:gid процесса образа app, режим $REH_FILE_MODE"
+  else
+    check "владелец копий app" fail "не заданы владелец и права копий (rehearsal.log)"
+  fi
+  if reh_own_for_image "$(pseudo_image)" "$RUN_DIR/etc/config" "$RUN_DIR/etc/contacts.txt" \
+    2>>"$LOG_FILE"; then
+    check "владелец копий псевдонимизатора" ok \
+      "uid:gid $PSEUDO_UID:$PSEUDO_GID, режим $REH_FILE_MODE"
+  else
+    check "владелец копий псевдонимизатора" fail "не заданы владелец и права (rehearsal.log)"
+  fi
+}
+
 prepare_inputs() {
   phase "копии настроек и .env репетиции"
-  local etc="$RUN_DIR/etc" src
-  mkdir -p "$etc/config" "$etc/access" "$etc/mail" "$RUN_DIR/share" "$RUN_DIR/local"
+  local etc="$RUN_DIR/etc"
+  mkdir -p "$etc/config" "$etc/access" "$etc/mail" "$RUN_DIR/share" "$RUN_DIR/templates" \
+    "$RUN_DIR/local" "$RUN_DIR/stub"
   # Копии только для чтения: исходные каталоги боя не меняются.
-  src="$BATTLE_ETC_DIR/config"
-  [[ -d "$src" ]] && cp -a "$src/." "$etc/config/" || true
+  local src="$BATTLE_ETC_DIR/config"
+  if [[ -d "$src" ]]; then
+    printf 'cp -rL (чтение каталога): BATTLE_ETC_DIR/config=%s\n' "$src" >>"$BATTLE_CALLS"
+    cp -rL --no-preserve=all "$src/." "$etc/config/" 2>>"$LOG_FILE" || true
+  fi
   if [[ -f "$BATTLE_ETC_DIR/contacts.txt" ]]; then
-    cp -a "$BATTLE_ETC_DIR/contacts.txt" "$etc/contacts.txt"
+    printf 'cp -L (чтение файла): %s\n' "$BATTLE_ETC_DIR/contacts.txt" >>"$BATTLE_CALLS"
+    cp -L --no-preserve=all "$BATTLE_ETC_DIR/contacts.txt" "$etc/contacts.txt"
   else
     : >"$etc/contacts.txt"
   fi
-  [[ -d "$BATTLE_ETC_DIR/access" ]] && cp -a "$BATTLE_ETC_DIR/access/." "$etc/access/" || true
-  [[ -d "$BATTLE_LOCAL_DIR" ]] && cp -a "$BATTLE_LOCAL_DIR/." "$RUN_DIR/local/" || true
-  # Контейнеры работают под своими uid (не владелец копий): копиям нужно чтение для всех.
-  # Каталог запуска закрыт (700), поэтому посторонние на хосте до копий не дойдут.
-  chmod -R a+rX "$etc" "$RUN_DIR/share" "$RUN_DIR/local"
+  cp "$REH_DIR/model-stub.ts" "$RUN_DIR/stub/model-stub.ts"
+  copy_host_inputs
+  own_inputs
   # Почта: настоящий файл ящиков (логины) не переносится, проверяется только форма.
-  local mailboxes="$BATTLE_ETC_DIR/mail/mailboxes.json"
+  local mailboxes="$MAIL_SRC/mailboxes.json"
   if [[ -f "$mailboxes" ]]; then
     local count
     count="$(python3 -I - "$mailboxes" <<'PY' 2>/dev/null || echo ошибка
@@ -683,7 +786,7 @@ PY
       check "mailboxes.json боя" ok "разбирается, ящиков: $count (в репетицию не переносится)"
     fi
   else
-    check "mailboxes.json боя" warn "файла нет в $BATTLE_ETC_DIR/mail"
+    check "mailboxes.json боя" warn "файла нет в MAIL_HOST_DIR ($MAIL_SRC)"
   fi
 
   local secrets="$BATTLE_SECRETS_DIR/secrets.env" pg_pass api_token
@@ -706,7 +809,7 @@ PY
     --override "GATEWAY_HOST=gateway.invalid" --override "GATEWAY_TLS_NAME=gateway.invalid" \
     --override "BAI_LOG_TAG=$PROJECT" --override "WEB_SEARCH_PROVIDER=disabled" \
     --override "REHEARSAL_RUN_DIR=$RUN_DIR" \
-    --override "REHEARSAL_STUB_FILE=$REH_DIR/model-stub.ts" \
+    --override "REHEARSAL_STUB_FILE=$RUN_DIR/stub/model-stub.ts" \
     ${access_file:+--override "ACCESS_POLICY_FILE=$access_file"} \
     --out "$RUN_DIR/rehearsal.env" --report "$RES/env-build.json" 2>>"$LOG_FILE" \
     || die "$EXIT_FAILED" "не собран .env репетиции (нет обязательных имён: см. env-build.json)"
@@ -952,7 +1055,7 @@ copy_pseudonymizer_store() {
     docker run --rm --network none --entrypoint sh -v "$vol:/dst" \
       -v "$(dirname "$SQLITE_FROM_ARCHIVE"):/in:ro" "$pg_image" -c \
       "cp /in/replacements.sqlite3 /dst/pseudonymizer.sqlite3 \
-       && chown $PSEUDO_UID:$PSEUDO_UID /dst/pseudonymizer.sqlite3 \
+       && chown $PSEUDO_UID:$PSEUDO_GID /dst/pseudonymizer.sqlite3 \
        && chmod 600 /dst/pseudonymizer.sqlite3" >>"$LOG_FILE" 2>&1 \
       || die "$EXIT_FAILED" "копия хранилища из архива не легла в том"
     STORE_SOURCE="архив бэкапа (согласованная копия sqlite backup API)"
@@ -962,7 +1065,7 @@ copy_pseudonymizer_store() {
       >>"$BATTLE_CALLS"
     # От root: боевые файлы принадлежат uid псевдонимизатора (режим 600), том - root.
     docker run --rm --network none --user 0:0 --entrypoint python -i \
-      -e PSEUDO_UID="$PSEUDO_UID" \
+      -e PSEUDO_UID="$PSEUDO_UID" -e PSEUDO_GID="$PSEUDO_GID" \
       -v "$BATTLE_PSEUDO_VOLUME:/src:ro" -v "$vol:/dst" "$(pseudo_image)" - <<'PY' \
       >>"$LOG_FILE" 2>&1 || die "$EXIT_FAILED" "копия хранилища с боя не снята"
 import os, sqlite3
@@ -972,7 +1075,8 @@ src.backup(dst)
 dst.close()
 src.close()
 uid = int(os.environ["PSEUDO_UID"])
-os.chown("/dst/pseudonymizer.sqlite3", uid, uid)
+gid = int(os.environ["PSEUDO_GID"])
+os.chown("/dst/pseudonymizer.sqlite3", uid, gid)
 os.chmod("/dst/pseudonymizer.sqlite3", 0o600)
 print("копия хранилища снята")
 PY
@@ -1015,15 +1119,90 @@ for line in sys.stdin:
         print(line.rstrip()[:200])' >"$RES/failure-$1.txt" 2>/dev/null || true
 }
 
+# Одноразовый контейнер образа app (bun) в сети репетиции: reh_oneshot <сеть compose> <js> [-e ...].
+# Не зависит от живости app; сеть берётся по меткам проекта.
+reh_oneshot() {
+  local net="$1" js="$2" net_id
+  shift 2
+  net_id="$(docker network ls -q --filter "label=com.docker.compose.project=$PROJECT" \
+    --filter "label=com.docker.compose.network=$net" | head -1)"
+  [[ -n "$net_id" ]] || { echo "нет сети $net проекта $PROJECT"; return 1; }
+  PSEUDONYMIZER_API_TOKEN="$(env_value "$RUN_DIR/rehearsal.env" PSEUDONYMIZER_API_TOKEN)" \
+    docker run --rm --network "$net_id" --read-only --tmpfs /tmp:size=16m --cap-drop ALL \
+    --security-opt no-new-privileges:true --memory "$REH_ONESHOT_MEM" \
+    -e PSEUDONYMIZER_API_TOKEN "$@" --entrypoint bun "$(lock_value BAI_IMAGE_APP)" -e "$js" 2>&1
+}
+
+# Проверки псевдонимизатора: /health и маскирование на выдуманном тексте. Только его контейнер и
+# одноразовый клиент; app не участвует.
+check_pseudonymizer() {
+  local health smoke
+  health="$(reh_oneshot pseudonymizer-net "$HEALTH_JS" || true)"
+  if [[ "$health" == 200* ]]; then
+    check "/health псевдонимизатора" ok "$health"
+  else
+    check "/health псевдонимизатора" fail "${health:0:120}"
+  fi
+  smoke="$(reh_oneshot pseudonymizer-net "$SMOKE_JS" -e SMOKE_TEXT="$SMOKE_TEXT" \
+    -e SMOKE_THREAD="$SMOKE_THREAD" || true)"
+  if [[ "$smoke" == *"masked=true restored=true"* ]]; then
+    check "маскирование и восстановление" ok "выдуманный текст маскируется и восстанавливается"
+  else
+    check "маскирование и восстановление" fail "${smoke:0:160}"
+  fi
+}
+
+# Проверка чтения внутри контейнера СЕРВИСА compose (его uid, его монтирования и env):
+# reh_service_reads <сервис> <аргументы скрипта: `@ПЕРЕМЕННАЯ` или путь>...
+reh_service_reads() {
+  local svc="$1"
+  shift
+  dc run --rm --no-deps -T --entrypoint sh "$svc" -c "$REH_READ_SCRIPT" sh "$@" 2>>"$LOG_FILE"
+}
+
+# Условия старта app, которые репетиция обеспечивает файлами: переменные-пути (читаются при
+# старте ядром) и монтирования overlay. Нарушение - отдельный понятный отказ до старта app.
+check_app_files() {
+  local out
+  if out="$(reh_service_reads app "${APP_PATH_VARS[@]}" "${APP_MOUNT_PATHS[@]}")"; then
+    check "файлы app читаются его uid" ok "$(printf '%s' "$out" | tr '\n' ';' | cut -c1-200)"
+    return 0
+  fi
+  check "файлы app читаются его uid" fail \
+    "$(printf '%s' "$out" | grep -v ' ok$' | tr '\n' ';' | cut -c1-300)"
+  return 1
+}
+
+# Диагностика отказа app: что видит процесс контейнера. Только пути, uid:gid, права, коды;
+# содержимое файлов не читается. Файл проходит leak-scan вместе с остальными результатами.
+collect_app_diagnostics() {
+  local out="$RES/app-diagnostics.txt" name="$PROJECT-app-1"
+  {
+    echo "# контейнер app: статус, код выхода, OOM, число перезапусков, ошибка Docker"
+    docker inspect -f "$APP_STATE_FORMAT" "$name" 2>&1 || echo "контейнера нет"
+    echo "# процесс app и смонтированные пути (путь uid:gid режим тип)"
+    # shellcheck disable=SC2016 # переменные раскрывает sh внутри контейнера
+    dc run --rm --no-deps -T --entrypoint sh app -c '
+      echo "uid:gid процесса $(id -u):$(id -g)"
+      f="$ACCESS_POLICY_FILE"
+      for p in "$f" "$(dirname "${f:-/}")" "$@"; do
+        [ -n "$p" ] && stat -L -c "%n %u:%g %a %F" "$p" 2>&1 | cut -c1-200
+      done
+      [ -n "$f" ] && ls -ln "$(dirname "$f")" 2>&1 | head -20 | cut -c1-200
+      exit 0' sh "${APP_MOUNT_PATHS[@]}" 2>>"$LOG_FILE" || echo "диагностика контейнером не снята"
+  } >"$out" 2>&1
+}
+
 start_services() {
   phase "старт псевдонимизатора и app"
-  local svc
-  if ! dc up -d pseudonymizer model-stub app >>"$LOG_FILE" 2>&1; then
-    for svc in pseudonymizer model-stub app; do capture_failure_log "$svc"; done
+  local svc app_ok=0
+  # 1. Псевдонимизатор и заглушка шлюза: app стартует только после проверок их файлов и сети.
+  if ! dc up -d pseudonymizer model-stub >>"$LOG_FILE" 2>&1; then
+    for svc in pseudonymizer model-stub; do capture_failure_log "$svc"; done
     check "старт стека" fail "compose up не удался (failure-<сервис>.txt)"
     die "$EXIT_FAILED" "стек не стартовал"
   fi
-  for svc in pseudonymizer model-stub app; do
+  for svc in pseudonymizer model-stub; do
     if wait_healthy "$svc" "$READY_WAIT_S"; then
       check "сервис $svc" ok "healthy"
     else
@@ -1031,26 +1210,31 @@ start_services() {
       capture_failure_log "$svc"
     fi
   done
-  # /ready приложения
+  # 2. Проверки псевдонимизатора не зависят от app.
+  check_pseudonymizer
+  # 3. Файлы app до старта: понятный отказ с именем переменной, а не цикл перезапусков.
+  if check_app_files; then
+    if ! dc up -d app >>"$LOG_FILE" 2>&1; then
+      capture_failure_log app
+      check "старт app" fail "compose up app не удался (failure-app.txt)"
+    elif wait_healthy app "$READY_WAIT_S"; then
+      check "сервис app" ok "healthy"
+      app_ok=1
+    else
+      check "сервис app" fail "не стал healthy за ${READY_WAIT_S} с (app-diagnostics.txt)"
+      capture_failure_log app
+    fi
+  else
+    check "сервис app" fail "не запускался: файлы и каталоги app не читаются (см. выше)"
+  fi
+  ((app_ok)) || collect_app_diagnostics
+  # 4. /ready приложения: из одноразового контейнера по сети backend.
   local body
-  body="$(dc exec -T app bun -e "$READY_JS" 2>&1 || true)"
+  body="$(reh_oneshot backend "$READY_JS" || true)"
   if [[ "$body" == 200* ]]; then
     check "/ready app" ok "$body"
   else
     check "/ready app" fail "ответ: ${body:0:120}"
-  fi
-  # Псевдонимизатор v2: /health и проверка на выдуманном тексте.
-  local health
-  health="$(dc exec -T app bun -e "$HEALTH_JS" 2>&1 || true)"
-  [[ "$health" == 200* ]] && check "/health псевдонимизатора" ok "$health" \
-    || check "/health псевдонимизатора" fail "${health:0:120}"
-  local smoke
-  smoke="$(dc exec -T -e SMOKE_TEXT="$SMOKE_TEXT" -e SMOKE_THREAD="$SMOKE_THREAD" app \
-    bun -e "$SMOKE_JS" 2>&1 || true)"
-  if [[ "$smoke" == *"masked=true restored=true"* ]]; then
-    check "маскирование и восстановление" ok "выдуманный текст маскируется и восстанавливается"
-  else
-    check "маскирование и восстановление" fail "${smoke:0:160}"
   fi
   sleep "$SETTLE_S"
   inspect_app_log

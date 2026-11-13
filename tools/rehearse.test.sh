@@ -156,6 +156,30 @@ assert "тома сверяются по объявлениям compose (volumes
 assert "env-names получает список снятых переменных" \
   "grep -q -- '--retired-file' '$SCRIPT' && [[ -f '$ROOT/deploy/rehearsal/env-retired.txt' ]]"
 
+# 6в. Починка после отказа G6 (7f3): каталоги боя из *_HOST_DIR, владелец копий, проверки без app.
+FILES_LIB="$ROOT/deploy/rehearsal/rehearse-files.sh"
+assert "rehearse.sh подключает rehearse-files.sh" \
+  "grep -q 'source \"\$REH_DIR/rehearse-files.sh\"' '$SCRIPT' && [[ -f '$FILES_LIB' ]]"
+assert "правила доступа берутся из ACCESS_POLICY_HOST_DIR боя, не из /etc/pragmatika/access" \
+  "grep -q 'ACCESS_POLICY_HOST_DIR' '$SCRIPT' && ! grep -q 'cp -a \"\$BATTLE_ETC_DIR/access' '$SCRIPT'"
+assert "копии с разыменованием ссылок (cp -rL)" "grep -q 'cp -rL' '$FILES_LIB'"
+assert "боевые каталоги только читаются: в battle-calls.log пишутся пути" \
+  "grep -q 'cp -rL (чтение каталога)' '$SCRIPT'"
+assert "app не стартует, пока файлы не проверены (check_app_files до dc up -d app)" \
+  "awk '/if check_app_files; then/{c=NR} /dc up -d app/{u=NR} END{exit !(c && u && c < u)}' '$SCRIPT'"
+assert "проверки псевдонимизатора идут не через exec в app" \
+  "! grep -E 'dc exec -T[^|]*app' '$SCRIPT'"
+assert "проверки псевдонимизатора идут до старта app" \
+  "awk '/^  check_pseudonymizer\$/{c=NR} /dc up -d app/{u=NR} END{exit !(c && u && c < u)}' '$SCRIPT'"
+assert "при отказе app собирается диагностика (app-diagnostics.txt)" \
+  "grep -q 'collect_app_diagnostics' '$SCRIPT' && grep -q 'app-diagnostics.txt' '$SCRIPT'"
+assert "владелец копий - uid:gid процесса образа, не число в коде" \
+  "grep -q 'reh_image_ids' '$FILES_LIB' && grep -q 'entrypoint id' '$FILES_LIB'"
+assert "права копий 640, без чтения для всех" \
+  "grep -q '^REH_FILE_MODE=640' '$FILES_LIB' && ! grep -q 'chmod -R a+rX' '$SCRIPT'"
+assert "lib: bash -n и строки не длиннее $LIMIT" \
+  "bash -n '$FILES_LIB' && ! awk 'length > $LIMIT' '$FILES_LIB' | grep -q ."
+
 # 7. Сам скрипт: синтаксис и длина строк.
 assert "bash -n" "bash -n '$SCRIPT'"
 assert "строки rehearse.sh не длиннее $LIMIT" \
