@@ -100,7 +100,7 @@ APP_MOUNT_PATHS=(/etc/pragmatika/access /etc/pragmatika/mail /srv/documents /srv
 # не должен скрывать результат проверки псевдонимизатора (попытка 3 G6: три проверки упали
 # только из-за `docker exec` в перезапускающийся app).
 READY_JS="try {
-  const r = await fetch('http://app:8088/ready');
+  const r = await fetch('http://127.0.0.1:8088/ready');
   console.log(r.status + ' ' + (await r.text()));
   process.exit(r.ok ? 0 : 1);
 } catch (e) { console.log('app недоступен: ' + e.message); process.exit(1); }"
@@ -1119,13 +1119,18 @@ for line in sys.stdin:
         print(line.rstrip()[:200])' >"$RES/failure-$1.txt" 2>/dev/null || true
 }
 
-# Одноразовый контейнер образа app (bun) в сети репетиции: reh_oneshot <сеть compose> <js> [-e ...].
+# Одноразовый контейнер образа app (bun): reh_oneshot <сеть compose | container:ИМЯ> <js> [-e ...].
 # Не зависит от живости app; сеть берётся по меткам проекта.
 reh_oneshot() {
   local net="$1" js="$2" net_id
   shift 2
-  net_id="$(docker network ls -q --filter "label=com.docker.compose.project=$PROJECT" \
-    --filter "label=com.docker.compose.network=$net" | head -1)"
+  if [[ "$net" == container:* ]]; then
+    # Сетевое пространство уже работающего контейнера (health-сервер app слушает только 127.0.0.1).
+    net_id="$net"
+  else
+    net_id="$(docker network ls -q --filter "label=com.docker.compose.project=$PROJECT" \
+      --filter "label=com.docker.compose.network=$net" | head -1)"
+  fi
   [[ -n "$net_id" ]] || { echo "нет сети $net проекта $PROJECT"; return 1; }
   PSEUDONYMIZER_API_TOKEN="$(env_value "$RUN_DIR/rehearsal.env" PSEUDONYMIZER_API_TOKEN)" \
     docker run --rm --network "$net_id" --read-only --tmpfs /tmp:size=16m --cap-drop ALL \
@@ -1265,7 +1270,7 @@ start_services() {
   ((app_ok)) || collect_app_diagnostics
   # 4. /ready приложения: из одноразового контейнера по сети backend.
   local body
-  body="$(reh_oneshot backend "$READY_JS" || true)"
+  body="$(reh_oneshot "container:$PROJECT-app-1" "$READY_JS" || true)"
   if [[ "$body" == 200* ]]; then
     check "/ready app" ok "$body"
   else
