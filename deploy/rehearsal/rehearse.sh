@@ -378,8 +378,9 @@ cleanup_stack() {
       check "уборка" ok "контейнеров, томов и сетей проекта $PROJECT не осталось"
     fi
   fi
-  # Рабочие копии с данными и секретами: дамп, копия хранилища, контакты, env.
-  rm -rf "${WORK:?}" "${RUN_DIR:?}/etc" "${RUN_DIR:?}/share" "${RUN_DIR:?}/local"
+  # Рабочие копии с данными и секретами: дамп, копия хранилища, контакты, шаблоны, env.
+  rm -rf "${WORK:?}" "${RUN_DIR:?}/etc" "${RUN_DIR:?}/share" "${RUN_DIR:?}/templates" \
+    "${RUN_DIR:?}/local" "${RUN_DIR:?}/stub"
   rm -f "${RUN_DIR:?}/rehearsal.env"
 }
 

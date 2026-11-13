@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 from typing import Any
 
@@ -92,6 +93,19 @@ class RehearsalMountsTest(unittest.TestCase):
     def test_pseudonymizer_checks_do_not_use_app(self) -> None:
         """/health псевдонимизатора и маскирование идут не через exec в app."""
         self.assertNotRegex(self.script, r"dc exec -T[^\n]*\bapp\b")
+
+    def test_cleanup_removes_every_prepared_copy(self) -> None:
+        """Каждый каталог копий, созданный в prepare_inputs, убирается в cleanup_stack."""
+        body = self.script[self.script.index("prepare_inputs() {") :]
+        body = body[: body.index("copy_host_inputs\n")]
+        created = set(re.findall(r'"\$RUN_DIR/([a-z]+)"', body))
+        created.add("etc")
+        cleanup = self.script[self.script.index("cleanup_stack() {") :]
+        cleanup = cleanup[: cleanup.index("\n}\n")]
+        self.assertTrue({"share", "templates", "local", "stub"} <= created, created)
+        for name in sorted(created):
+            with self.subTest(dir=name):
+                self.assertIn(f'"${{RUN_DIR:?}}/{name}"', cleanup)
 
 
 if __name__ == "__main__":
