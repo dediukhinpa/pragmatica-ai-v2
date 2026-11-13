@@ -797,6 +797,9 @@ PY
   pg_pass="$(random_secret)"
   api_token="$(random_secret)"
   printf '%s\n%s\n%s\n' "$PSEUDO_KEY" "$pg_pass" "$api_token" >>"$SECRETS_LIST"
+  # Связи переменных, которые из-за снятых каналов репетиции роняли бы app при старте (а не
+  # из-за переезда): чтение сайтов требует веб-поиска (провайдер у репетиции disabled), режим
+  # tokens для фото без OCR в documents требует MASK_TOKEN (снят по _TOKEN$).
   local access_file
   access_file="$(env_value "$BATTLE_ENV_FILE" ACCESS_POLICY_FILE)"
   python3 -I "$REH_DIR/rehearse_tools.py" env-build --battle-env "$BATTLE_ENV_FILE" \
@@ -808,6 +811,7 @@ PY
     --override "LITELLM_API_KEY=rehearsal-stub" --override "OWNER_THREAD_ID=rehearsal-owner" \
     --override "GATEWAY_HOST=gateway.invalid" --override "GATEWAY_TLS_NAME=gateway.invalid" \
     --override "BAI_LOG_TAG=$PROJECT" --override "WEB_SEARCH_PROVIDER=disabled" \
+    --override "WEB_FETCH_ENABLED=false" --override "IMAGE_TEXT_OCR_IN_DOCUMENTS=true" \
     --override "REHEARSAL_RUN_DIR=$RUN_DIR" \
     --override "REHEARSAL_STUB_FILE=$RUN_DIR/stub/model-stub.ts" \
     ${access_file:+--override "ACCESS_POLICY_FILE=$access_file"} \

@@ -169,6 +169,8 @@ assert "app не стартует, пока файлы не проверены (
   "awk '/if check_app_files/{c=NR} /dc up -d app/{u=NR} END{exit !(c && u && c < u)}' '$SCRIPT'"
 assert "до старта app идёт сухой запуск ядра --once (check_app_once)" \
   "grep -q 'check_app_files && check_app_once' '$SCRIPT' && grep -q 'src/main.ts --once' '$SCRIPT'"
+assert "репетиция снимает связи env, роняющие app из-за снятых каналов" \
+  "grep -q 'WEB_FETCH_ENABLED=false' '$SCRIPT' && grep -q 'IMAGE_TEXT_OCR_IN_DOCUMENTS=true' '$SCRIPT'"
 assert "проверки псевдонимизатора идут не через exec в app" \
   "! grep -E 'dc exec -T[^|]*app' '$SCRIPT'"
 assert "проверки псевдонимизатора идут до старта app" \
