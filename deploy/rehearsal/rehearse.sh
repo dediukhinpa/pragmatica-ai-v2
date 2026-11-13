@@ -1173,6 +1173,41 @@ check_app_files() {
   return 1
 }
 
+# Сухой запуск ядра (`--once`): тот же образ, uid, монтирования и env, что у службы. Проходит
+# сборку конфигурации (env, файл правил доступа и его схема, реестр агентов), не трогает БД и не
+# открывает порт. Падение даёт точное имя нарушенной переменной в сообщении ядра (в нём нет
+# значений) вместо цикла перезапусков. В результаты идут только статус и имена агентов.
+check_app_once() {
+  local out rc=0 agents
+  out="$(dc run --rm --no-deps -T app bun run src/main.ts --once 2>"$WORK/app-once.err")" || rc=$?
+  if ((rc != 0)); then
+    check "сухой запуск app (--once)" fail \
+      "код $rc: $(tail -1 "$WORK/app-once.err" | cut -c1-240)"
+    tail -3 "$WORK/app-once.err" | cut -c1-240 >"$RES/app-once-error.txt"
+    return 1
+  fi
+  # Сводка: имена агентов из JSON-строки ядра и совпадение с ожидаемым составом.
+  agents="$(printf '%s\n' "$out" | python3 -I -c '
+import json, sys
+expected = sorted(sys.argv[1].split())
+for line in sys.stdin:
+    try:
+        d = json.loads(line)
+    except ValueError:
+        continue
+    if "agents" in d:
+        got = sorted(d["agents"])
+        print(("ok " if got == expected else "diff ") + " ".join(got))
+        break' "$EXPECTED_AGENT_NAMES")"
+  if [[ "$agents" == ok* ]]; then
+    check "сухой запуск app (--once)" ok "конфигурация и правила доступа приняты: ${agents#ok }"
+  else
+    check "сухой запуск app (--once)" fail \
+      "агенты: ${agents#diff }; ожидались: $EXPECTED_AGENT_NAMES"
+    return 1
+  fi
+}
+
 # Диагностика отказа app: что видит процесс контейнера. Только пути, uid:gid, права, коды;
 # содержимое файлов не читается. Файл проходит leak-scan вместе с остальными результатами.
 collect_app_diagnostics() {
@@ -1213,7 +1248,7 @@ start_services() {
   # 2. Проверки псевдонимизатора не зависят от app.
   check_pseudonymizer
   # 3. Файлы app до старта: понятный отказ с именем переменной, а не цикл перезапусков.
-  if check_app_files; then
+  if check_app_files && check_app_once; then
     if ! dc up -d app >>"$LOG_FILE" 2>&1; then
       capture_failure_log app
       check "старт app" fail "compose up app не удался (failure-app.txt)"
@@ -1225,7 +1260,7 @@ start_services() {
       capture_failure_log app
     fi
   else
-    check "сервис app" fail "не запускался: файлы и каталоги app не читаются (см. выше)"
+    check "сервис app" fail "не запускался: условия старта не выполнены (см. проверки выше)"
   fi
   ((app_ok)) || collect_app_diagnostics
   # 4. /ready приложения: из одноразового контейнера по сети backend.

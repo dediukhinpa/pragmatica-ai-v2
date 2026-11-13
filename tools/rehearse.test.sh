@@ -166,7 +166,9 @@ assert "копии с разыменованием ссылок (cp -rL)" "grep 
 assert "боевые каталоги только читаются: в battle-calls.log пишутся пути" \
   "grep -q 'cp -rL (чтение каталога)' '$SCRIPT'"
 assert "app не стартует, пока файлы не проверены (check_app_files до dc up -d app)" \
-  "awk '/if check_app_files; then/{c=NR} /dc up -d app/{u=NR} END{exit !(c && u && c < u)}' '$SCRIPT'"
+  "awk '/if check_app_files/{c=NR} /dc up -d app/{u=NR} END{exit !(c && u && c < u)}' '$SCRIPT'"
+assert "до старта app идёт сухой запуск ядра --once (check_app_once)" \
+  "grep -q 'check_app_files && check_app_once' '$SCRIPT' && grep -q 'src/main.ts --once' '$SCRIPT'"
 assert "проверки псевдонимизатора идут не через exec в app" \
   "! grep -E 'dc exec -T[^|]*app' '$SCRIPT'"
 assert "проверки псевдонимизатора идут до старта app" \
