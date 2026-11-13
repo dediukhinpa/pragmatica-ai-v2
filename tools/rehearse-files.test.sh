@@ -8,10 +8,13 @@
 #     640, процесс их читает, посторонний uid - нет, уборка работает без root.
 # Нет docker или базового образа - тест пропускается с кодом 0 (в CI его нет).
 set -euo pipefail
+# Как в rehearse.sh: каталоги и файлы копий создаются закрытыми (700/600) - именно с этим
+# владелец-контейнер под root должен справляться (в первом зелёном прогоне 7f3 не справился).
+umask 077
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-LIB="$ROOT/deploy/rehearsal/rehearse-files.sh"
+LIB="${REH_LIB:-$ROOT/deploy/rehearsal/rehearse-files.sh}"
 BASE_IMAGE="${REH_TEST_BASE_IMAGE:-oven/bun:1.3.14-slim}"
 TEST_IMAGE="bai-rehearse-test-nonroot:7f3"
 STRANGER_UID=12345
@@ -98,6 +101,19 @@ docker run --rm --user "$STRANGER_UID:$STRANGER_UID" -v "$W/copy:/d:ro" --entryp
   "$TEST_IMAGE" -c 'cat /d/access-policy.json' >/dev/null 2>&1 || rc=$?
 assert "посторонний uid файл не читает (права не шире нужного)" "[[ $rc -ne 0 ]]"
 assert "уборка без root: каталог копии удаляется" "rm -rf '$W/copy' && [[ ! -e '$W/copy' ]]"
+
+# --- 4а. Отдельный файл (contacts.txt псевдонимизатора): каталог 700 -> 755, файл uid образа ---
+mkdir -p "$W/etc"
+echo 'synthetic' >"$W/etc/contacts.txt"
+reh_own_for_image "$TEST_IMAGE" "$W/etc/contacts.txt"
+assert "файл: владелец - uid процесса образа, режим 640" \
+  "[[ \"\$(stat -c %u:%a '$W/etc/contacts.txt')\" == '$image_uid:640' ]]"
+assert "файл: родительский каталог доступен для обхода (755)" \
+  "[[ \"\$(stat -c %a '$W/etc')\" == 755 ]]"
+rc=0
+reh_readable_by_image "$TEST_IMAGE" "$W/etc:/etc/example" -- /etc/example/contacts.txt \
+  >/dev/null 2>&1 || rc=$?
+assert "файл читается процессом контейнера" "[[ $rc -eq 0 ]]"
 
 # --- 5. Скрипт проверки: переменная-путь -------------------------------------------------------
 mkdir -p "$W/dir"

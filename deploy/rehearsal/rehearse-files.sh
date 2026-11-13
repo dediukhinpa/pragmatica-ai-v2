@@ -64,22 +64,20 @@ reh_copy_dir() {
   cp -rL --no-preserve=all "$1/." "$2/"
 }
 
-# Скрипт внутри контейнера под root: режим и владелец файлов, режим каталогов. Всё делает
-# контейнер, а не хост: запуск от обычного пользователя не может сменить владельца, а файлы
-# после запуска от root уже принадлежат root (хост не смог бы изменить их режим).
+# Скрипт внутри контейнера под root: режим и владелец файлов. Файлы делает контейнер, а не
+# хост: запуск от обычного пользователя не может сменить владельца, а файлы после запуска от
+# root уже принадлежат root (хост не смог бы изменить их режим). Каталоги готовит хост.
 REH_FIX_SCRIPT='cd /own || exit 1
 if [ -n "$3" ]; then chmod "$1" "$3" && chown "$2" "$3"; exit $?; fi
-find . -type d -exec chmod "$4" {} + && find . -type f -exec chmod "$1" {} + \
-  && find . -type f -exec chown "$2" {} +'
+find . -type f -exec chmod "$1" {} + && find . -type f -exec chown "$2" {} +'
 
 # reh_fix_in_container <образ> <каталог> <uid:gid> [имя файла]: без имени - все обычные файлы
-# каталога (рекурсивно), с именем - один файл. Каталоги получают режим REH_DIR_MODE, владельца
-# каталогов не меняем (уборка не должна требовать root).
+# каталога (рекурсивно), с именем - один файл. Владельца каталогов не меняем (уборка не должна
+# требовать root).
 reh_fix_in_container() {
   docker run --rm --network none --user 0:0 --cap-drop ALL --cap-add CHOWN --cap-add FOWNER \
     --security-opt no-new-privileges:true --memory "$REH_ONESHOT_MEM" \
-    --entrypoint sh -v "$2:/own" "$1" -c "$REH_FIX_SCRIPT" sh "$REH_FILE_MODE" "$3" "${4:-}" \
-    "$REH_DIR_MODE"
+    --entrypoint sh -v "$2:/own" "$1" -c "$REH_FIX_SCRIPT" sh "$REH_FILE_MODE" "$3" "${4:-}"
 }
 
 # reh_own_for_image <образ> <путь>...: файлы получают владельца uid:gid процесса образа и режим
@@ -94,9 +92,13 @@ reh_own_for_image() {
   }
   read -r uid gid <<<"$ids"
   for path in "$@"; do
+    # Каталоги создал запустивший (при umask 077 они 700): контейнеру под root без
+    # DAC_OVERRIDE нужен обход, поэтому режим каталогов ставит хост, а файлов - контейнер.
     if [[ -d "$path" ]]; then
+      find "$path" -type d -exec chmod "$REH_DIR_MODE" {} +
       reh_fix_in_container "$image" "$path" "$uid:$gid" ""
     elif [[ -f "$path" ]]; then
+      chmod "$REH_DIR_MODE" "$(dirname "$path")"
       reh_fix_in_container "$image" "$(dirname "$path")" "$uid:$gid" "$(basename "$path")"
     else
       continue
