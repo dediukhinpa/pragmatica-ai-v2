@@ -16,6 +16,12 @@ EXIT_FAILED=1       # сбой хода; выполнен откат на пре
 EXIT_USAGE=2        # неверный вызов
 EXIT_REFUSED=3      # отказ по предусловиям: бой не тронут
 EXIT_STUCK=4        # сбой и откат тоже не удался: нужно ручное вмешательство
+
+# Переменные, без которых штатный backup.sh не работает (имена, не значения). ДОЛЖЕН совпадать с
+# BACKUP_CONFIG_VARS в deploy/scripts/backup-lib.sh старого репозитория (там же код выхода 3
+# «не настроено»): пустая любая - бэкап не настроен.
+BACKUP_CONFIG_VARS=(BACKUP_AGE_RECIPIENT BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET
+  BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY)
 # Размеры.
 MIB=1048576
 KIB_PER_MIB=1024

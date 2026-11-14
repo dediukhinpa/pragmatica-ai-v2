@@ -4,7 +4,7 @@
 # Использование:
 #   bash cutover.sh [--signatures-verified ФАЙЛ] [--images-tar ФАЙЛ] [--config ФАЙЛ]
 #                   [--out-dir КАТАЛОГ] [--soak-seconds N] [--expected-bots N]
-#                   [--preflight-only] [--help]
+#                   [--preflight-only] [--allow-unconfigured-backup] [--help]
 #
 # Что делает (бой = compose-проект `pragmatika`, имена контейнеров, томов и сетей не меняются):
 #   0. Предусловия, бой не меняется: целостность пакета, FREEZE_SRC, подписи ВСЕХ образов из
@@ -14,7 +14,10 @@
 #      (пять *_HOST_DIR и ACCESS_POLICY_FILE как у владельца, ни одного ключа образа), каталоги и
 #      права файлов app, сухой запуск app --once, тома боя пишутся uid app, `migrate --plan` на
 #      живой базе: ровно ожидаемые миграции (expected-pending.txt) и 45 applied-by-legacy.
-#   1. Бэкап (бой остановлен только по записи: app и indexer): штатный backup.sh --verify, дамп
+#      Штатный бэкап настроен (BACKUP_AGE_RECIPIENT и S3 в .env/secrets.env боя): иначе отказ
+#      с кодом 3, бой не тронут; решение владельца без бэкапа - --allow-unconfigured-backup.
+#   1. Бэкап (бой остановлен только по записи: app и indexer): штатный backup.sh --verify (с
+#      --allow-unconfigured-backup и ненастроенным бэкапом шаг пропускается), дамп
 #      БД pg_dump -Fc (для rollback.sh --restore-db), .env и secrets.env (600), архив
 #      /opt/pragmatika без local/, архив тома pseudonymizer-data, список образов и контейнеров.
 #      Всё в ~/backups/pragmatika-before-v2-<время>.
@@ -86,6 +89,9 @@ REQUIRED_ENV_NAMES=(ACCESS_POLICY_HOST_DIR TEMPLATES_HOST_DIR DOCUMENTS_HOST_DIR
 LOCAL_HOST_DIR_NAME="LOCAL_HOST_DIR"
 LOCAL_HOST_DIR_DEFAULT="/opt/pragmatika/local"
 SPEECH_DROP_RE='^SPEECH_MODEL_(REPO|REVISION)$'
+# Код выхода backup.sh «бэкап не настроен» (backup-lib.sh старого репозитория, BACKUP_EXIT_
+# NOT_CONFIGURED): это не бэкап, успехом он не считается никогда.
+BACKUP_SH_NOT_CONFIGURED=3
 # Каталоги и файлы пакета (в пакете лежат рядом, в дереве проекта - в своих каталогах).
 pkg_file() { # pkg_file <имя в пакете> <путь в дереве проекта>
   if [[ -e "$HERE/$1" ]]; then printf '%s' "$HERE/$1"; else printf '%s' "$STACK/$2"; fi
@@ -108,6 +114,7 @@ IMAGES_TAR=""
 CONFIG_FILE=""
 SOAK_S="$DEFAULT_SOAK_S"
 PREFLIGHT_ONLY=0
+ALLOW_UNCONFIGURED_BACKUP=0
 EXPECT_BOTS_ARG=""
 usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'; }
 while (($#)); do
@@ -119,6 +126,7 @@ while (($#)); do
     --soak-seconds) SOAK_S="${2:?--soak-seconds N}"; shift ;;
     --expected-bots) EXPECT_BOTS_ARG="${2:?--expected-bots N}"; shift ;;
     --preflight-only) PREFLIGHT_ONLY=1 ;;
+    --allow-unconfigured-backup) ALLOW_UNCONFIGURED_BACKUP=1 ;;
     --help | -h) usage; exit "$EXIT_OK" ;;
     *) echo "неизвестный аргумент: $1" >&2; usage >&2; exit "$EXIT_USAGE" ;;
   esac
@@ -345,6 +353,35 @@ check_battle_env() {
   value="${value:-$LOCAL_HOST_DIR_DEFAULT}"
   [[ -d "$value" ]] || refuse "каталог $LOCAL_HOST_DIR_NAME не существует: $value"
   check "боевой .env" ok "пять *_HOST_DIR и ACCESS_POLICY_FILE как у владельца, ключей образов нет"
+}
+
+# Штатный бэкап настроен: те же переменные, что проверяет backup.sh (BACKUP_CONFIG_VARS), с тем
+# же приоритетом: secrets.env, затем боевой .env, затем окружение. Значения не читаются в журнал:
+# проверяется только непустота. Без настройки - отказ (код 3, бой не тронут), если владелец не
+# решил иначе флагом. Ловит и прежний backup.sh (до слияния правки): он падает на need_vars.
+check_backup_configured() {
+  phase "штатный бэкап настроен"
+  local name value missing=()
+  for name in "${BACKUP_CONFIG_VARS[@]}"; do
+    value="$(env_value "$CUTOVER_SECRETS_DIR/secrets.env" "$name")"
+    [[ -n "$value" ]] || value="$(env_value "$CUTOVER_ENV_FILE" "$name")"
+    [[ -n "$value" ]] || value="${!name:-}"
+    [[ -n "$value" ]] || missing+=("$name")
+  done
+  if ((${#missing[@]} == 0)); then
+    state_set BACKUP_CONFIGURED 1
+    check "штатный бэкап" ok "BACKUP_AGE_RECIPIENT и переменные S3 заданы"
+    return 0
+  fi
+  state_set BACKUP_CONFIGURED 0
+  if ((ALLOW_UNCONFIGURED_BACKUP)); then
+    check "штатный бэкап" warn "не настроен (нет: ${missing[*]}); по решению владельца" \
+      "(--allow-unconfigured-backup) backup.sh --verify будет пропущен, остаются pg_dump -Fc" \
+      "и архивы этапа"
+    return 0
+  fi
+  refuse "штатный бэкап не настроен (BACKUP_AGE_RECIPIENT/S3): настройте или запустите с" \
+    "--allow-unconfigured-backup (не заданы: ${missing[*]})"
 }
 
 check_resources() {
@@ -597,7 +634,7 @@ stop_service_containers() { # stop_service_containers <сервис>...
 
 make_backups() {
   phase "бэкап"
-  local dir="$CUTOVER_BACKUP_ROOT/$BACKUP_PREFIX-$RUN_ID" out archive uid gid image
+  local dir="$CUTOVER_BACKUP_ROOT/$BACKUP_PREFIX-$RUN_ID" out archive uid gid image rc
   mkdir -p "$dir"
   chmod 700 "$dir"
   state_set BACKUP_DIR "$dir"
@@ -607,15 +644,28 @@ make_backups() {
   state_set QUIESCED 1
   stop_service_containers app indexer
   log "app и indexer остановлены (запись в БД прекращена)"
-  # Штатный backup.sh с проверкой (дамп + SQLite + intake -> age -> S3, --verify).
-  if out="$(bash "$CUTOVER_BACKUP_SCRIPT" --verify 2>&1)"; then
-    printf '%s\n' "$out" | tail -n 5 | cut_redact >>"$LOG_FILE"
-    archive="$(printf '%s\n' "$out" | grep -oE '[^[:space:]]+\.tar\.age' | tail -1 || true)"
-    state_set BACKUP_SH_ARCHIVE "${archive:-неизвестен}"
-    check "бэкап backup.sh --verify" ok "архив: ${archive:-путь не распознан в выводе}"
+  # Штатный backup.sh с проверкой (дамп + SQLite + intake -> age -> S3, --verify). Не настроен
+  # и владелец разрешил (--allow-unconfigured-backup) - шаг пропускается с предупреждением.
+  if [[ "$(state_get BACKUP_CONFIGURED)" == 0 ]]; then
+    state_set BACKUP_SH_ARCHIVE "пропущен: бэкап не настроен (решение владельца)"
+    check "бэкап backup.sh --verify" warn "ПРОПУЩЕН: штатный бэкап не настроен," \
+      "--allow-unconfigured-backup; зашифрованной копии в S3 нет, остаётся pg_dump -Fc"
   else
-    printf '%s\n' "$out" | tail -n 15 | cut_redact >>"$LOG_FILE"
-    die "$EXIT_FAILED" "штатный backup.sh --verify завершился с ошибкой: бой не меняем"
+    rc=0
+    out="$(bash "$CUTOVER_BACKUP_SCRIPT" --verify 2>&1)" || rc=$?
+    if ((rc == 0)); then
+      printf '%s\n' "$out" | tail -n 5 | cut_redact >>"$LOG_FILE"
+      archive="$(printf '%s\n' "$out" | grep -oE '[^[:space:]]+\.tar\.age' | tail -1 || true)"
+      state_set BACKUP_SH_ARCHIVE "${archive:-неизвестен}"
+      check "бэкап backup.sh --verify" ok "архив: ${archive:-путь не распознан в выводе}"
+    else
+      printf '%s\n' "$out" | tail -n 15 | cut_redact >>"$LOG_FILE"
+      # Код «не настроено» - не бэкап: никогда не считаем успехом, даже с флагом (расхождение
+      # проверки предусловий и backup.sh значит, что бэкапа нет, а разрешения на это не давали).
+      ((rc != BACKUP_SH_NOT_CONFIGURED)) \
+        || die "$EXIT_FAILED" "backup.sh --verify: бэкап не настроен (код $rc), копии нет"
+      die "$EXIT_FAILED" "штатный backup.sh --verify завершился с ошибкой: бой не меняем"
+    fi
   fi
   # Дамп для rollback.sh --restore-db (backup.sh зашифрован age, ключ у владельца офлайн).
   docker exec "$CUTOVER_PG_CONTAINER" pg_dump -U "$PG_USER" -d "$PG_DB" -Fc --no-owner \
@@ -905,6 +955,7 @@ main() {
   check_sources
   check_signatures
   check_battle_env
+  check_backup_configured
   check_resources
   check_battle_health
   check_old_images

@@ -86,6 +86,7 @@ run() {
   env HOME="$TMP/home-$name" PATH="$BIN:$PATH" DOCKER_LOG="$TMP/docker-$name.log" \
     TMP_DOCKER_ROOT="$TMP" CUTOVER_COSIGN="${COSIGN_BIN:-/nonexistent-cosign}" \
     CUTOVER_ENV_FILE="${ENV_FILE:-$TMP/none.env}" \
+    CUTOVER_EXPECTED_HOST_DIRS="${EXPECTED_DIRS:-}" \
     bash "$PKG/cutover.sh" "$@" >"$TMP/out-$name" 2>&1 || RC=$?
 }
 no_mutation() { ! grep -qE "$MUTATING_RE" "$TMP/docker-$1.log"; }
@@ -153,6 +154,101 @@ ENV_FILE="$TMP/env.paths" run envpaths --signatures-verified "$TMP/sigs.ok"
 assert ".env с путём из примера - код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
 assert "сообщение о пути правил" "grep -q 'ACCESS_POLICY_HOST_DIR' '$TMP/out-envpaths'"
 assert ".env с чужим путём - бой не тронут" "no_mutation envpaths"
+
+# 5b. Штатный бэкап настроен: нет BACKUP_AGE_RECIPIENT/S3 - отказ 3 до любых изменений боя
+# (в том числе с --preflight-only); с --allow-unconfigured-backup - предупреждение и дальше.
+mkdir -p "$TMP/bk/dirs" "$TMP/bk/secrets" "$TMP/bk/access"
+echo '{}' >"$TMP/bk/access/access-policy.json"
+cat >"$TMP/bk/expected.txt" <<EOF2
+DOCUMENTS_HOST_DIR=$TMP/bk/dirs
+ACCESS_POLICY_HOST_DIR=$TMP/bk/access
+ACCESS_POLICY_FILE=/etc/pragmatika/access/access-policy.json
+MAIL_HOST_DIR=$TMP/bk/dirs
+TEMPLATES_HOST_DIR=$TMP/bk/dirs
+LOCAL_HOST_DIR=$TMP/bk/dirs
+EOF2
+cat >"$TMP/bk/base.env" <<EOF2
+SECRETS_DIR=$TMP/bk/secrets
+DOCUMENTS_HOST_DIR=$TMP/bk/dirs
+ACCESS_POLICY_HOST_DIR=$TMP/bk/access
+ACCESS_POLICY_FILE=/etc/pragmatika/access/access-policy.json
+MAIL_HOST_DIR=$TMP/bk/dirs
+TEMPLATES_HOST_DIR=$TMP/bk/dirs
+LOCAL_HOST_DIR=$TMP/bk/dirs
+EOF2
+BK_AGE="age1secretrecipientvalue"
+BK_S3_ENV=$'BACKUP_S3_ENDPOINT=https://s3.example.invalid\nBACKUP_S3_BUCKET=bucket\n'
+BK_S3_ENV+=$'BACKUP_S3_ACCESS_KEY_ID=accesskeyidvalue\n'
+BK_S3_ENV+=$'BACKUP_S3_SECRET_ACCESS_KEY=secretaccesskeyvalue\n'
+bk_run() { # bk_run <имя> <содержимое доп. .env> [аргументы cutover.sh]
+  local name="$1" extra="$2"
+  shift 2
+  { cat "$TMP/bk/base.env"; printf '%s' "$extra"; } >"$TMP/bk/$name.env"
+  ENV_FILE="$TMP/bk/$name.env" EXPECTED_DIRS="$TMP/bk/expected.txt" \
+    run "$name" --signatures-verified "$TMP/sigs.ok" "$@"
+}
+BK_REFUSAL='штатный бэкап не настроен'
+bk_run bknone ""
+assert "бэкап не настроен - код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
+assert "отказ называет BACKUP_AGE_RECIPIENT/S3 и флаг" \
+  "grep -q 'BACKUP_AGE_RECIPIENT/S3' '$TMP/out-bknone' \
+   && grep -q -- '--allow-unconfigured-backup' '$TMP/out-bknone'"
+assert "отказ перечисляет незаданные имена" \
+  "grep -q 'не заданы: BACKUP_AGE_RECIPIENT BACKUP_S3_ENDPOINT' '$TMP/out-bknone'"
+assert "бэкап не настроен - бой не тронут" "no_mutation bknone"
+assert "до проверки бэкапа дошли: .env боя принят" \
+  "grep -q 'проверка боевой .env: ok' '$TMP/out-bknone'"
+bk_run bkpre "" --preflight-only
+assert "бэкап не настроен, --preflight-only - тоже код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
+assert "--preflight-only: бой не тронут" "no_mutation bkpre"
+bk_run bkempty $'BACKUP_AGE_RECIPIENT=\n'"$BK_S3_ENV"
+assert "пустой BACKUP_AGE_RECIPIENT - код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
+assert "пустой ключ age назван в отказе" \
+  "grep -q 'не заданы: BACKUP_AGE_RECIPIENT' '$TMP/out-bkempty'"
+bk_run bkpart "BACKUP_AGE_RECIPIENT=$BK_AGE"$'\n'
+assert "задан только ключ age (нет S3) - код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
+assert "частичная настройка: бой не тронут" "no_mutation bkpart"
+# Настроен: отказа по бэкапу нет (дальше отказ или сбой по другим предусловиям - не наше дело).
+bk_run bkok "BACKUP_AGE_RECIPIENT=$BK_AGE"$'\n'"$BK_S3_ENV"
+assert "бэкап настроен (.env) - отказа по бэкапу нет" "! grep -q '$BK_REFUSAL' '$TMP/out-bkok'"
+assert "бэкап настроен - проверка ok" "grep -q 'проверка штатный бэкап: ok' '$TMP/out-bkok'"
+assert "значения BACKUP_* в выводе не печатаются" \
+  "! grep -qE '$BK_AGE|accesskeyidvalue|secretaccesskeyvalue' '$TMP/out-bkok'"
+# Значения из secrets.env (перекрывают .env) считаются так же, как у backup.sh.
+printf 'BACKUP_AGE_RECIPIENT=%s\n%s' "$BK_AGE" "$BK_S3_ENV" >"$TMP/bk/secrets/secrets.env"
+bk_run bksec ""
+assert "бэкап настроен через secrets.env - отказа нет" "! grep -q '$BK_REFUSAL' '$TMP/out-bksec'"
+assert "secrets.env: проверка ok" "grep -q 'проверка штатный бэкап: ok' '$TMP/out-bksec'"
+rm -f "$TMP/bk/secrets/secrets.env"
+# Флаг владельца: не настроен - предупреждение, отказа нет, шаг backup.sh будет пропущен.
+bk_run bkflag "" --allow-unconfigured-backup
+assert "--allow-unconfigured-backup: отказа по бэкапу нет" \
+  "! grep -q '$BK_REFUSAL' '$TMP/out-bkflag'"
+assert "--allow-unconfigured-backup: предупреждение в журнале" \
+  "grep -q 'проверка штатный бэкап: warn - не настроен' '$TMP/out-bkflag' \
+   && grep -q 'backup.sh --verify будет пропущен' '$TMP/out-bkflag'"
+assert "--allow-unconfigured-backup: проверки идут дальше (ресурсы)" \
+  "grep -q 'ресурсы и инструменты' '$TMP/out-bkflag'"
+assert "флаг есть в справке" \
+  "bash '$PKG/cutover.sh' --help | grep -q -- '--allow-unconfigured-backup'"
+# Флаг не мешает настроенному бэкапу: проверка ok, а не warn.
+bk_run bkflagok "BACKUP_AGE_RECIPIENT=$BK_AGE"$'\n'"$BK_S3_ENV" --allow-unconfigured-backup
+assert "флаг при настроенном бэкапе: ok, не warn" \
+  "grep -q 'проверка штатный бэкап: ok' '$TMP/out-bkflagok'"
+# Шаг бэкапа: код 3 backup.sh не считается успехом, без настройки и с флагом шаг пропускается.
+assert "make_backups: код 3 backup.sh = сбой, не успех" \
+  "grep -q 'BACKUP_SH_NOT_CONFIGURED' '$SRC_DIR/cutover.sh' \
+   && grep -q 'бэкап не настроен (код' '$SRC_DIR/cutover.sh'"
+assert "make_backups: пропуск только при BACKUP_CONFIGURED=0" \
+  "grep -q 'state_get BACKUP_CONFIGURED' '$SRC_DIR/cutover.sh'"
+assert "порядок: проверка бэкапа до ресурсов и до остановки боя" \
+  "awk '/^  check_battle_env\$/{a=NR} /^  check_backup_configured\$/{b=NR} \
+        /^  check_resources\$/{c=NR} /^  make_backups\$/{d=NR} \
+        END{exit !(a<b && b<c && c<d)}' '$SRC_DIR/cutover.sh'"
+BK_VARS="$(bash -c "source '$SRC_DIR/lib.sh'; echo \"\${BACKUP_CONFIG_VARS[*]}\"")"
+BK_VARS_WANT="BACKUP_AGE_RECIPIENT BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET"
+BK_VARS_WANT+=" BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY"
+assert "BACKUP_CONFIG_VARS: ключ age и четыре переменные S3" "[[ '$BK_VARS' == '$BK_VARS_WANT' ]]"
 
 # 6. Неверный вызов.
 run usage --nonsense
