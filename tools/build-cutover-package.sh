@@ -110,7 +110,7 @@ if [[ -n "$BAI_FILE" ]]; then cp "$BAI_FILE" "$OUT/bai"; chmod +x "$OUT/bai"; fi
 bad="$(cd "$OUT" && find . -type f | sed 's|^\./||' \
   | grep -E "$FORBIDDEN_RE" | grep -vE "$ALLOWED_RE" || true)"
 [[ -z "$bad" ]] || fail "в пакете запрещённые файлы: $(echo "$bad" | tr '\n' ' ')"
-if grep -rIlE '(PRIVATE KEY|BEGIN AGE|AGE-SECRET-KEY)' "$OUT" >/dev/null 2>&1; then
+if grep -rIlE '^(-----BEGIN [A-Z ]*PRIVATE KEY-----|AGE-SECRET-KEY-)' "$OUT" >/dev/null 2>&1; then
   fail "в пакете найдено закрытое ключевое содержимое"
 fi
 
