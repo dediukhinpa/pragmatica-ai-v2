@@ -23,8 +23,24 @@
       прошли репетицию 7r (app `sha256:926db237…`). Если digest изменился — нужна новая репетиция.
 - [ ] **Диск и память:** `cutover.sh` считает сам (дамп ×3 + запас); свободного места в
       `~/backups` и в каталоге docker нужно не меньше, чем он напишет в отказе.
-- [ ] **Старый `backup.sh` работает** (нужны `age`, `rclone`, S3): ночной бэкап последних суток
-      прошёл без ошибок. `cutover.sh` вызывает его же с `--verify`; при ошибке бой не меняется.
+- [ ] **Штатный бэкап настроен и проверен (или решение владельца без него).** Нужны `age`,
+      `rclone`, S3. Два пути, выбрать один:
+      1. **Настроить:** в боевом `/opt/pragmatika/deploy/.env` (или `secrets.env`) задать
+         `BACKUP_AGE_RECIPIENT` (открытый ключ age; закрытый хранить офлайн) и переменные S3
+         (`BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY_ID`,
+         `BACKUP_S3_SECRET_ACCESS_KEY`), затем вручную прогнать
+         `sudo bash /opt/pragmatika/deploy/scripts/backup.sh --verify` до строки «Бэкап ...
+         завершён». Ночной бэкап последних суток прошёл без ошибок. `cutover.sh` вызывает тот же
+         `backup.sh --verify`; при ошибке бой не меняется.
+      2. **Решение владельца: идти без штатного бэкапа.** Запускать с
+         `--allow-unconfigured-backup`: шаг `backup.sh --verify` пропускается с предупреждением,
+         остаются `pg_dump -Fc` (для `rollback.sh --restore-db`), `.env`, архив `/opt/pragmatika`
+         и архив тома `pseudonymizer-data` в `~/backups`. Зашифрованной копии в S3 при этом нет:
+         принимать только осознанно.
+
+      Без настройки и без флага `cutover.sh` отказывает **до любых изменений боя** (код 3, в том
+      числе с `--preflight-only`): «штатный бэкап не настроен (BACKUP_AGE_RECIPIENT/S3)».
+      Код выхода `backup.sh` 3 («не настроено») никогда не считается успешным бэкапом.
 - [ ] **Боевой `.env`, не пример.** `cutover.sh` берёт `/opt/pragmatika/deploy/.env` и проверяет:
       `ACCESS_POLICY_HOST_DIR=/opt/pragmatika/local/access`,
       `TEMPLATES_HOST_DIR=/opt/pragmatika/local/templates`,
