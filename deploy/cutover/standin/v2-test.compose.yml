@@ -1,0 +1,40 @@
+# Надстройка compose v2 для стенда проверки пакета на синтетическом бое (Fornex): лёгкий стек
+# (postgres, pseudonymizer, заглушка шлюза моделей, app). Каналов нет (Bitrix24, почта, поиск), у
+# app нет выхода наружу. Только для стенда: на бою не используется. Файл подключается третьим
+# к compose v2 через CUTOVER_EXTRA_COMPOSE. Путь к заглушке шлюза - STANDIN_DIR.
+services:
+  model-stub:
+    image: ${BAI_IMAGE_APP:?}
+    networks: [backend]
+    entrypoint: ["bun", "run", "/stub/model-stub.ts"]
+    environment:
+      MODEL_STUB_PORT: "4000"
+    volumes:
+      - type: bind
+        source: ${STANDIN_DIR:?}/model-stub.ts
+        target: /stub/model-stub.ts
+        read_only: true
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    restart: "no"
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+  app:
+    networks: !override [backend, pseudonymizer-net]
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      pseudonymizer:
+        condition: service_healthy
+      model-stub:
+        condition: service_healthy
+    environment:
+      LITELLM_BASE_URL: http://model-stub:4000
+      HEALTH_PORT: "8088"

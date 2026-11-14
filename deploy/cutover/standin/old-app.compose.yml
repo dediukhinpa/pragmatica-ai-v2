@@ -1,0 +1,21 @@
+# Надстройка ПРЕЖНЕГО compose синтетического боя: заглушка app (только для стенда проверки пакета).
+# В синтетическом бое есть только postgres и pseudonymizer; без app нельзя проверить ни /ready боя
+# до переключения, ни возврат на прежний стек. Образ bun уже на хосте; сеть - боевая `backend`.
+# Путь к каталогу заглушки задаёт переменная окружения STANDIN_DIR.
+services:
+  app:
+    image: oven/bun:1.3.14-slim
+    entrypoint: ["bun", "run", "/standin/old-app.ts"]
+    environment:
+      STANDIN_BOTS: "${STANDIN_BOTS:-4}"
+    volumes:
+      - ${STANDIN_DIR:?}/old-app.ts:/standin/old-app.ts:ro
+    networks: [backend]
+    restart: "no"
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://127.0.0.1:8088/ready').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 2s

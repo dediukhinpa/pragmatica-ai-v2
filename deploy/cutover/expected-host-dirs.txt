@@ -1,0 +1,8 @@
+# Пути хоста боя по выводу владельца с pragmatika-ru (13.11.2026, stage-7/results/owner-access-dir.txt)
+# и итогу репетиции 7r (host-dirs.txt). cutover.sh сверяет с ними боевой .env: расхождение - отказ.
+DOCUMENTS_HOST_DIR=/srv/pragmatika/documents
+ACCESS_POLICY_HOST_DIR=/opt/pragmatika/local/access
+ACCESS_POLICY_FILE=/etc/pragmatika/access/access-policy.json
+MAIL_HOST_DIR=/etc/pragmatika/mail
+TEMPLATES_HOST_DIR=/opt/pragmatika/local/templates
+LOCAL_HOST_DIR=/opt/pragmatika/local
