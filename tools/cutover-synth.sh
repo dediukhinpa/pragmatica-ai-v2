@@ -321,8 +321,10 @@ step_preflight() {
 step_refuse() {
   # Ненастроенный бэкап без флага: отказ кодом 3 до любых изменений боя (и в --preflight-only).
   local want_args=(--signatures-verified "$SIGNATURES" --soak-seconds "$SOAK_S")
-  [[ "$BACKUP_MODE" == unconfigured ]] \
-    || { result "refuse: режим" FAIL "шаг refuse требует --backup-mode unconfigured"; return; }
+  if [[ "$BACKUP_MODE" != unconfigured ]]; then
+    log "refuse: пропуск, шаг имеет смысл только с --backup-mode unconfigured"
+    return 0
+  fi
   run_cutover refuse-pre 3 "${want_args[@]}" --preflight-only
   run_cutover refuse 3 "${want_args[@]}"
   local log
