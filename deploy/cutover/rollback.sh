@@ -185,8 +185,18 @@ restore_from_backup() {
 # 3. Прежний стек из локальных образов.
 start_old_stack() {
   phase "откат: прежний стек из локальных образов"
-  dc_old up -d --no-build >>"$LOG_FILE" 2>&1 || stuck "прежний compose up не удался"
-  local name
+  # Поднимаем ровно те сервисы, что работали до переключения (имя контейнера <проект>-<сервис>-<N>):
+  # так остановленное намеренно не оживает, а в урезанном стенде не требуются чужие образы.
+  local name svc services=()
+  if [[ -s "$RUN_DIR/results/containers-before.tsv" ]]; then
+    while IFS=$'\t' read -r name _ state _; do
+      [[ "$state" == running ]] || continue
+      svc="${name#"${CUTOVER_PROJECT}-"}"
+      services+=("${svc%-[0-9]*}")
+    done <"$RUN_DIR/results/containers-before.tsv"
+  fi
+  dc_old up -d --no-build "${services[@]}" >>"$LOG_FILE" 2>&1 \
+    || stuck "прежний compose up не удался"
   while read -r name; do
     wait_healthy "$name" "$HEALTH_WAIT_S" \
       || { check_rb "прежний контейнер $name" fail "не стал healthy"; continue; }

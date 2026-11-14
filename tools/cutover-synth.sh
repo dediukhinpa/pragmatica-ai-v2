@@ -49,6 +49,11 @@ while (($#)); do
   shift
 done
 
+# Окружение штатного backup.sh синтетики (на бою его задают systemd-юнит и системный PATH).
+export PATH="$SYNTH/bin:$PATH" PRAGMATIKA_ENV="$SYNTH/code/deploy/.env"
+export SECRETS_DIR="$SYNTH/etc/secrets" COMPOSE_PROJECT_NAME="$PROJECT"
+export BACKUP_LOCAL_DIR="$SYNTH/backups"
+
 mkdir -p "$OUT"
 PKG="$OUT/package"
 CONF="$OUT/cutover-test.conf"
@@ -185,6 +190,16 @@ step_prepare() {
   (cd "$PKG" && sha256sum -c --quiet MANIFEST.sha256)
   result "prepare: пакет" ok "собран из HEAD $(git -C "$ROOT" rev-parse --short HEAD), манифест сходится"
   local env_file="$SYNTH/code/deploy/.env"
+  # Тома боя принадлежат uid app (на бою их создал прежний app); в синтетике app прежний - заглушка,
+  # поэтому владельца выставляем так же, как на бою, иначе проверка записи в тома честно откажет.
+  local app_image app_uid vol pg_image
+  app_image="$(grep -E '^BAI_IMAGE_APP=' "$LOCK_SRC" | cut -d= -f2-)"
+  app_uid="$(docker run --rm --entrypoint id "$app_image" -u)"
+  pg_image="$(docker inspect -f '{{.Config.Image}}' "$PG")"
+  for vol in intake-data file-spool documents-exchange; do
+    docker run --rm --user 0 --entrypoint chown -v "${PROJECT}_${vol}:/v" "$pg_image" \
+      -R "$app_uid:$app_uid" /v
+  done
   # Боевой вид .env: пути правил доступа, шаблонов и local (как у владельца), в синтетике свои.
   mkdir -p "$SYNTH/data/templates" "$SYNTH/data/local" "$SYNTH/data/documents"
   sed -i '/^ACCESS_POLICY_FILE=/d;/^TEMPLATES_HOST_DIR=/d;/^LOCAL_HOST_DIR=/d' "$env_file"
