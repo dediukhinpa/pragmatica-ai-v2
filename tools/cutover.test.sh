@@ -250,6 +250,53 @@ BK_VARS_WANT="BACKUP_AGE_RECIPIENT BACKUP_S3_ENDPOINT BACKUP_S3_BUCKET"
 BK_VARS_WANT+=" BACKUP_S3_ACCESS_KEY_ID BACKUP_S3_SECRET_ACCESS_KEY"
 assert "BACKUP_CONFIG_VARS: ключ age и четыре переменные S3" "[[ '$BK_VARS' == '$BK_VARS_WANT' ]]"
 
+# 5c. Шаг make_backups на заглушках (функция берётся из cutover.sh как есть): без настройки и с
+# флагом backup.sh не вызывается, остальные архивы делаются; код 3 backup.sh - сбой, не успех.
+mk_run() { # mk_run <имя> <BACKUP_CONFIGURED> <код backup.sh>; код выхода - в RC
+  local name="$1" cfg="$2" bcode="$3" d
+  d="$TMP/mk-$name"
+  mkdir -p "$d/old" "$d/backups"
+  printf '#!/usr/bin/env bash\necho called >>"%s/backup.called"\nexit %s\n' "$d" "$bcode" \
+    >"$d/backup.sh"
+  cat >"$d/harness.sh" <<EOF2
+set -euo pipefail
+source '$SRC_DIR/lib.sh'
+cut_init_run '$d/run'
+RUN_ID=t1
+$(grep -m1 '^BACKUP_SH_NOT_CONFIGURED=' "$SRC_DIR/cutover.sh")
+BACKUP_PREFIX=pragmatika-before-v2
+PG_USER=u; PG_DB=d; LOCK_SRC='$PKG/images.lock'
+CUTOVER_BACKUP_ROOT='$d/backups'; CUTOVER_ENV_FILE='$d/env'; CUTOVER_SECRETS_DIR='$d/sec'
+CUTOVER_OLD_DIR='$d/old'; CUTOVER_PG_CONTAINER=pg; CUTOVER_PSEUDO_VOLUME=vol
+CUTOVER_BACKUP_SCRIPT='$d/backup.sh'
+touch '$d/env'; : >"\$RES/containers-before.tsv"; : >"\$RES/images-before.tsv"
+state_set BACKUP_CONFIGURED $cfg
+die() { log "ОШИБКА: \$2"; exit "\$1"; }
+stop_service_containers() { :; }
+docker() { case "\$1" in run) : >'$d/backups/pragmatika-before-v2-t1/pseudonymizer-data.tgz'
+  tar -czf '$d/backups/pragmatika-before-v2-t1/pseudonymizer-data.tgz' -T /dev/null ;; esac; }
+$(sed -n '/^make_backups() {/,/^}/p' "$SRC_DIR/cutover.sh")
+make_backups
+EOF2
+  RC=0
+  bash "$d/harness.sh" >"$TMP/out-mk-$name" 2>&1 || RC=$?
+}
+mk_run skip 0 0
+assert "make_backups, не настроен + флаг: успех" "[[ $RC -eq 0 ]]"
+assert "backup.sh не вызывался" "[[ ! -e '$TMP/mk-skip/backup.called' ]]"
+assert "в журнале ПРОПУЩЕН" "grep -q 'ПРОПУЩЕН' '$TMP/out-mk-skip'"
+assert "pg_dump-архивы на месте при пропуске" \
+  "[[ -e '$TMP/mk-skip/backups/pragmatika-before-v2-t1/old-tree.tgz' ]]"
+mk_run ok 1 0
+assert "make_backups, настроен: backup.sh вызван и успех" \
+  "[[ $RC -eq 0 && -e '$TMP/mk-ok/backup.called' ]]"
+mk_run nc 1 3
+assert "backup.sh вернул 3 («не настроено») - сбой хода, не успех" "[[ $RC -eq 1 ]]"
+assert "сообщение: бэкап не настроен, копии нет" "grep -q 'копии нет' '$TMP/out-mk-nc'"
+mk_run fail 1 1
+assert "backup.sh вернул 1 - сбой хода" "[[ $RC -eq 1 ]]"
+assert "сообщение обычного сбоя backup.sh" "grep -q 'завершился с ошибкой' '$TMP/out-mk-fail'"
+
 # 6. Неверный вызов.
 run usage --nonsense
 assert "неизвестный аргумент - код 2" "[[ $RC -eq $EXIT_USAGE ]]"
