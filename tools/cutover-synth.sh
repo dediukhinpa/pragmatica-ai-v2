@@ -9,6 +9,8 @@
 #   cutover3. Каждый шаг после выполнения проверяет: /ready, данные синтетической БД на месте,
 #   схему и учёт миграций.
 #
+# audit_log и jobs в сравнение чисел строк не входят: штатный backup.sh сам пишет в них записи
+# о бэкапе, их рост - нормальная работа боя, а не потеря данных.
 # Окружение: SYNTH (каталог синтетического боя), OUT (каталог результатов проверки),
 # DOCKER_CONFIG (временный вход в реестр, нужен cosign и pull образов).
 # Ход фиксируется в $OUT/steps.tsv (шаг, результат, пояснение) и $OUT/summary.txt.
@@ -71,7 +73,7 @@ psql_pg() { docker exec "$PG" psql -U "$PG_USER" -d "$PG_DB" -Atq "$@"; }
 COUNT_SQL="SELECT table_name || '=' || (xpath('/row/c/text()', query_to_xml(format(
  'select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text
  FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
- AND table_name <> 'schema_migrations' ORDER BY table_name"
+ AND table_name NOT IN ('schema_migrations', 'audit_log', 'jobs') ORDER BY table_name"
 PSEUDO_PY='import json, os, sqlite3, sys, urllib.request
 base = "http://127.0.0.1:8300"
 hdr = {"Authorization": "Bearer " + os.environ["PSEUDONYMIZER_API_TOKEN"],
@@ -247,7 +249,7 @@ EOF
   # Поднять заглушку прежнего app рядом с боем синтетики (прежний compose + надстройка).
   (cd "$SYNTH/code/deploy" && docker compose -p "$PROJECT" --env-file .env \
     --env-file "$SYNTH/etc/secrets/secrets.env" -f docker-compose.yml \
-    -f "$STANDIN_DIR/old-app.compose.yml" up -d --no-build --no-deps app) >"$OUT/old-app-up.log" 2>&1 \
+    -f "$STANDIN_DIR/old-app.compose.yml" up -d --no-build --no-deps postgres pseudonymizer app) >"$OUT/old-app-up.log" 2>&1 \
     || { tail -5 "$OUT/old-app-up.log"; exit 1; }
   sleep 6
   ready_ok "$APP" && result "prepare: заглушка прежнего app" ok "/ready 200" \

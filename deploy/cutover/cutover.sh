@@ -646,8 +646,9 @@ make_backups() {
     || die "$EXIT_FAILED" "не снят архив тома $CUTOVER_PSEUDO_VOLUME"
   tar -tzf "$dir/pseudonymizer-data.tgz" >/dev/null || die "$EXIT_FAILED" "архив тома повреждён"
   check "архив тома pseudonymizer-data" ok "$(du -h "$dir/pseudonymizer-data.tgz" | cut -f1)"
-  snapshot_old "$dir"
-  cp "$dir/containers-before.tsv" "$dir/images-before.tsv" "$RES/" 2>/dev/null || true
+  # Снимок контейнеров снят в check_old_images, пока всё работало: после остановки app и
+  # pseudonymizer он показал бы их как exited, и откат не знал бы, что поднимать.
+  cp "$RES/containers-before.tsv" "$RES/images-before.tsv" "$dir/"
   chmod 600 "$dir"/*.tsv
   state_set BACKUP_DONE 1
 }
@@ -813,15 +814,15 @@ PY
 
 verify_v2() {
   phase "проверки после переключения"
-  local bots=0 body waited=0 restarts_before restarts_now alerts
+  local bots=0 body started left restarts_before restarts_now alerts
   ready_wait "$CUTOVER_APP_CONTAINER" "$READY_WAIT_S" \
     || die "$EXIT_FAILED" "/ready не 200 за ${READY_WAIT_S} с: ${READY_BODY:0:160}"
-  while ((waited < READY_WAIT_S)); do
+  started=$SECONDS
+  while ((SECONDS - started < READY_WAIT_S)); do
     body="$(ready_probe "$CUTOVER_APP_CONTAINER" || true)"
     bots="$(ready_bots "$body")"
     ((bots >= CUTOVER_EXPECT_BOTS)) && break
     sleep "$POLL_S"
-    waited=$((waited + POLL_S))
   done
   ((bots >= CUTOVER_EXPECT_BOTS)) \
     || die "$EXIT_FAILED" "bitrix24_bot_ready = $bots, ожидается не меньше $CUTOVER_EXPECT_BOTS"
@@ -837,11 +838,12 @@ verify_v2() {
   metrics_check
   # Выдержка: контейнеры не перезапускаются, /ready зелёный.
   restarts_before="$(restart_total)"
-  waited=0
+  started=$SECONDS
   log "выдержка ${SOAK_S} с (проверка каждые ${SOAK_POLL_S} с)"
-  while ((waited < SOAK_S)); do
-    sleep "$((SOAK_POLL_S < SOAK_S - waited ? SOAK_POLL_S : SOAK_S - waited))"
-    waited=$((waited + SOAK_POLL_S))
+  while ((SECONDS - started < SOAK_S)); do
+    # Срок считаем по часам, а не по числу сна: проверки сами занимают время.
+    left=$((SOAK_S - (SECONDS - started)))
+    sleep "$((SOAK_POLL_S < left ? SOAK_POLL_S : left))"
     restarts_now="$(restart_total)"
     ((restarts_now == restarts_before)) \
       || die "$EXIT_FAILED" "во время выдержки перезапуски контейнеров:" \
