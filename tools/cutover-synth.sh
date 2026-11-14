@@ -4,10 +4,14 @@
 # проект pragmatika-s8, postgres + pseudonymizer прежней сборки) и собранный пакет.
 #
 # Использование:
-#   bash tools/cutover-synth.sh [--steps список] [--no-build] [--help]
+#   bash tools/cutover-synth.sh [--steps список] [--no-build] [--backup-mode режим] [--help]
 #   Шаги (по умолчанию все по порядку): prepare preflight forced rollback1 cutover2 restore
 #   cutover3. Каждый шаг после выполнения проверяет: /ready, данные синтетической БД на месте,
-#   схему и учёт миграций.
+#   схему и учёт миграций. Шаг `refuse` (только с --backup-mode unconfigured): cutover без
+#   --allow-unconfigured-backup обязан отказать кодом 3, бой не тронут.
+#   --backup-mode configured (по умолчанию): бэкап настроен, шаг backup.sh --verify выполняется.
+#   --backup-mode unconfigured: BACKUP_AGE_RECIPIENT пуст в копиях .env и secrets.env (бой
+#   стенда не меняется), остальные шаги идут с --allow-unconfigured-backup.
 #
 # audit_log и jobs в сравнение чисел строк не входят: штатный backup.sh сам пишет в них записи
 # о бэкапе, их рост - нормальная работа боя, а не потеря данных.
@@ -39,12 +43,14 @@ EXPECT_BOTS_OLD=4
 STEPS_DEFAULT="prepare preflight forced rollback1 cutover2 restore cutover3 again"
 STEPS="$STEPS_DEFAULT"
 NO_BUILD=0
+BACKUP_MODE=configured
 
 usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'; }
 while (($#)); do
   case "$1" in
     --steps) STEPS="${2:?--steps список}"; shift ;;
     --no-build) NO_BUILD=1 ;;
+    --backup-mode) BACKUP_MODE="${2:?--backup-mode configured|unconfigured}"; shift ;;
     --help | -h) usage; exit 0 ;;
     *) echo "неизвестный аргумент: $1" >&2; exit 2 ;;
   esac
@@ -56,6 +62,9 @@ export PATH="$SYNTH/bin:$PATH" PRAGMATIKA_ENV="$SYNTH/code/deploy/.env"
 export SECRETS_DIR="$SYNTH/etc/secrets" COMPOSE_PROJECT_NAME="$PROJECT"
 export BACKUP_LOCAL_DIR="$SYNTH/backups"
 
+case "$BACKUP_MODE" in configured | unconfigured) ;;
+  *) echo "--backup-mode: configured или unconfigured" >&2; exit 2 ;;
+esac
 mkdir -p "$OUT"
 PKG="$OUT/package"
 CONF="$OUT/cutover-test.conf"
@@ -163,6 +172,20 @@ run_cutover() { # run_cutover <метка> <ожидаемый код> [аргу
   fi
 }
 
+backup_step_result() { # backup_step_result <метка>: шаг backup.sh --verify в журнале cutover
+  local log="$OUT/cutover-$1.log"
+  if [[ "$BACKUP_MODE" == unconfigured ]]; then
+    grep -q "бэкап backup.sh --verify: warn - ПРОПУЩЕН" "$log" \
+      && result "$1: шаг backup.sh --verify" ok "пропущен с предупреждением (бэкап не настроен)" \
+      || result "$1: шаг backup.sh --verify" FAIL "нет записи о пропуске"
+  else
+    grep -q "бэкап backup.sh --verify: ok - архив: " "$log" \
+      && result "$1: шаг backup.sh --verify" ok "выполнен, архив" \
+        "$(grep -o 'pragmatika-[0-9TZ]*.tar.age' "$log" | tail -1)" \
+      || result "$1: шаг backup.sh --verify" FAIL "нет успешной записи о backup.sh --verify"
+  fi
+}
+
 pseudo_probe() { # pseudo_probe <метка> <тред> <текст>
   local out
   out="$(docker exec "$PSEUDO" python3 -c "$PSEUDO_PY" "$2" "$3" 2>&1 | tail -1)"
@@ -237,11 +260,22 @@ IMAGE_TEXT_OCR_IN_DOCUMENTS=true
 OWNER_THREAD_ID=synth-owner
 BAI_LOG_TAG=$PROJECT
 EOF
+  local conf_env="$env_file" conf_secrets="$SYNTH/etc/secrets"
+  if [[ "$BACKUP_MODE" == unconfigured ]]; then
+    # Копии без ключа age: как на бою, где BACKUP_AGE_RECIPIENT пуст. Стенд не меняется.
+    conf_env="$OUT/unconf/deploy.env"
+    conf_secrets="$OUT/unconf/secrets"
+    mkdir -p "$conf_secrets"
+    cp -a "$SYNTH/etc/secrets/." "$conf_secrets/"
+    cp -a "$env_file" "$conf_env"
+    sed -i "s/^BACKUP_AGE_RECIPIENT=.*/BACKUP_AGE_RECIPIENT=/" "$conf_env" \
+      "$conf_secrets/secrets.env"
+  fi
   cat >"$CONF" <<EOF
 CUTOVER_PROJECT=$PROJECT
 CUTOVER_OLD_DIR=$SYNTH/code
-CUTOVER_ENV_FILE=$env_file
-CUTOVER_SECRETS_DIR=$SYNTH/etc/secrets
+CUTOVER_ENV_FILE=$conf_env
+CUTOVER_SECRETS_DIR=$conf_secrets
 CUTOVER_NEW_DIR=$OUT/opt-v2
 CUTOVER_HOME=$OUT/home
 CUTOVER_BACKUP_ROOT=$OUT/backups
@@ -275,12 +309,35 @@ EOF
 }
 
 cut_args=(--signatures-verified "$SIGNATURES" --soak-seconds "$SOAK_S")
+[[ "$BACKUP_MODE" == unconfigured ]] && cut_args+=(--allow-unconfigured-backup)
 
 step_preflight() {
   run_cutover preflight 0 "${cut_args[@]}" --preflight-only
   compare_base preflight 1
   ready_ok "$APP" && result "preflight: /ready прежнего стека" ok "200" \
     || result "preflight: /ready прежнего стека" FAIL "не 200"
+}
+
+step_refuse() {
+  # Ненастроенный бэкап без флага: отказ кодом 3 до любых изменений боя (и в --preflight-only).
+  local want_args=(--signatures-verified "$SIGNATURES" --soak-seconds "$SOAK_S")
+  [[ "$BACKUP_MODE" == unconfigured ]] \
+    || { result "refuse: режим" FAIL "шаг refuse требует --backup-mode unconfigured"; return; }
+  run_cutover refuse-pre 3 "${want_args[@]}" --preflight-only
+  run_cutover refuse 3 "${want_args[@]}"
+  local log
+  for log in refuse-pre refuse; do
+    grep -q "штатный бэкап не настроен" "$OUT/cutover-$log.log" \
+      && grep -q "allow-unconfigured-backup" "$OUT/cutover-$log.log" \
+      && result "$log: причина отказа" ok "штатный бэкап не настроен, назван флаг" \
+      || result "$log: причина отказа" FAIL "в журнале нет отказа по бэкапу"
+    grep -q "app и indexer остановлены" "$OUT/cutover-$log.log" \
+      && result "$log: бой не тронут" FAIL "app/indexer останавливались" \
+      || result "$log: бой не тронут" ok "стоп сервисов не выполнялся"
+  done
+  compare_base refuse 1
+  ready_ok "$APP" && result "refuse: /ready прежнего стека" ok "200" \
+    || result "refuse: /ready прежнего стека" FAIL "не 200"
 }
 
 step_forced() {
@@ -296,6 +353,7 @@ step_forced() {
 
 step_cutover1() {
   run_cutover cutover1 0 "${cut_args[@]}"
+  backup_step_result cutover1
   ready_result "cutover1: /ready v2" 200
   compare_base cutover1 0
   old_thread_probe cutover1
@@ -324,6 +382,7 @@ step_rollback1() {
 
 step_cutover2() {
   run_cutover cutover2 0 "${cut_args[@]}"
+  backup_step_result cutover2
   ready_result "cutover2: /ready v2" 200
   compare_base cutover2 0
 }
@@ -345,6 +404,7 @@ step_restore() {
 
 step_cutover3() {
   run_cutover cutover3 0 "${cut_args[@]}"
+  backup_step_result cutover3
   ready_result "cutover3: /ready v2" 200
   compare_base cutover3 0
 }
@@ -364,6 +424,7 @@ for s in $STEPS; do
   case "$s" in
     prepare) step_prepare ;;
     preflight) step_preflight ;;
+    refuse) step_refuse ;;
     forced) step_forced ;;
     rollback1) step_rollback1 ;;
     cutover2) step_cutover2 ;;
