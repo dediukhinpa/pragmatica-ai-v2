@@ -110,6 +110,16 @@ ready_ok() { # ready_ok <контейнер app>: 200 на /ready из одно�
   [[ "$body" == 200 ]]
 }
 
+ready_result() { # ready_result <метка шага> <пояснение при успехе>
+  if ready_ok "$APP"; then result "$1" ok "$2"; else result "$1" FAIL "не 200"; fi
+}
+column_exists() { # column_exists <столбец knowledge_chunks>: 0, если столбец есть
+  local sql
+  sql="SELECT count(*) FROM information_schema.columns"
+  sql+=" WHERE table_name = 'knowledge_chunks' AND column_name = '$1'"
+  [[ "$(psql_pg -c "$sql")" == 1 ]]
+}
+
 # --- общие шаги проверки -------------------------------------------------------------------------
 compare_base() { # compare_base <метка> <допускать рост проекта 0|1>
   snapshot "$1"
@@ -130,7 +140,7 @@ compare_base() { # compare_base <метка> <допускать рост про
   if [[ "$2" == 1 ]]; then
     diff_mig="$(diff "$b/migrations.txt" "$s/migrations.txt" || true)"
     [[ -z "$diff_mig" ]] \
-      && result "$1: schema_migrations" ok "как до переключения ($(wc -l <"$s/migrations.txt") записей)" \
+      && result "$1: schema_migrations" ok "как до: $(wc -l <"$s/migrations.txt") записей" \
       || result "$1: schema_migrations" FAIL "$(wc -l <"$s/migrations.txt") записей, не как до"
     [[ "$(cat "$b/schema.sha256")" == "$(cat "$s/schema.sha256")" ]] \
       && result "$1: схема БД" ok "pg_dump --schema-only побайтно как до переключения" \
@@ -174,7 +184,8 @@ print("restored=%s" % (bool(text) and text != sys.argv[2]))'
 
 old_thread_probe() { # old_thread_probe <метка>: токен старого треда раскрывается
   local out
-  out="$(docker exec "$PSEUDO" python3 -c "$RESTORE_PY" "synth-thread-0" "[CONTACT_1]" 2>&1 | tail -1)"
+  out="$(docker exec "$PSEUDO" python3 -c "$RESTORE_PY" "synth-thread-0" "[CONTACT_1]" 2>&1 \
+    | tail -1)"
   [[ "$out" == "restored=True" ]] \
     && result "$1: токен старого треда" ok "раскрывается" \
     || result "$1: токен старого треда" FAIL "${out:0:120}"
@@ -183,14 +194,16 @@ old_thread_probe() { # old_thread_probe <метка>: токен старого 
 # --- шаги ----------------------------------------------------------------------------------------
 step_prepare() {
   : >"$STEPS_FILE"
-  docker ps --format '{{.Names}}' | grep -qx "$PG" || { echo "синтетический бой не поднят"; exit 1; }
+  docker ps --format '{{.Names}}' | grep -qx "$PG" \
+    || { echo "синтетический бой не поднят"; exit 1; }
   if ((NO_BUILD == 0)); then
     rm -rf "${PKG:?}"
     bash "$HERE/build-cutover-package.sh" --out "$PKG" --lock "$LOCK_SRC" \
       --schema-expected "$SCHEMA_SRC" --cosign-pub "$PUB_SRC" >"$OUT/build.log" 2>&1
   fi
   (cd "$PKG" && sha256sum -c --quiet MANIFEST.sha256)
-  result "prepare: пакет" ok "собран из HEAD $(git -C "$ROOT" rev-parse --short HEAD), манифест сходится"
+  result "prepare: пакет" ok \
+    "собран из HEAD $(git -C "$ROOT" rev-parse --short HEAD), манифест сходится"
   local env_file="$SYNTH/code/deploy/.env"
   # Тома боя принадлежат uid app (на бою их создал прежний app); в синтетике app прежний - заглушка,
   # поэтому владельца выставляем так же, как на бою, иначе проверка записи в тома честно откажет.
@@ -210,8 +223,9 @@ step_prepare() {
     echo "TEMPLATES_HOST_DIR=$SYNTH/data/templates"
     echo "LOCAL_HOST_DIR=$SYNTH/data/local"
   } >>"$env_file"
-  grep -E '^(ACCESS_POLICY_HOST_DIR|DOCUMENTS_HOST_DIR|MAIL_HOST_DIR|ACCESS_POLICY_FILE|TEMPLATES_HOST_DIR|LOCAL_HOST_DIR)=' \
+  grep -E '^(ACCESS_POLICY_HOST_DIR|DOCUMENTS_HOST_DIR|MAIL_HOST_DIR|ACCESS_POLICY_FILE)=' \
     "$env_file" >"$OUT/expected-host-dirs.txt"
+  grep -E '^(TEMPLATES_HOST_DIR|LOCAL_HOST_DIR)=' "$env_file" >>"$OUT/expected-host-dirs.txt"
   # Заглушка прежнего app в бое: без неё нет ни /ready до переключения, ни возврата на прежний стек.
   cat >"$OUT/v2-test.env" <<EOF
 LITELLM_API_KEY=stub
@@ -256,8 +270,8 @@ EOF
   ready_ok "$APP" && result "prepare: заглушка прежнего app" ok "/ready 200" \
     || result "prepare: заглушка прежнего app" FAIL "/ready не 200"
   snapshot base
-  result "prepare: исходный снимок" ok "$(wc -l <"$OUT/snap-base/counts.txt") таблиц, хранилище $(cat \
-    "$OUT/snap-base/pseudo-count.txt"), схема $(cut -c1-12 "$OUT/snap-base/schema.sha256")"
+  result "prepare: исходный снимок" ok "$(wc -l <"$OUT/snap-base/counts.txt") таблиц, хранилище" \
+    "$(cat "$OUT/snap-base/pseudo-count.txt"), схема $(cut -c1-12 "$OUT/snap-base/schema.sha256")"
 }
 
 cut_args=(--signatures-verified "$SIGNATURES" --soak-seconds "$SOAK_S")
@@ -282,15 +296,13 @@ step_forced() {
 
 step_cutover1() {
   run_cutover cutover1 0 "${cut_args[@]}"
-  ready_ok "$APP" && result "cutover1: /ready v2" ok "200" || result "cutover1: /ready v2" FAIL "не 200"
+  ready_result "cutover1: /ready v2" 200
   compare_base cutover1 0
   old_thread_probe cutover1
   pseudo_probe cutover1 "synth-v2-thread" "Контакт: Ромашков Иван Петрович, +7 (900) 555-01-02"
   snapshot after-probe
   EXPECT_PSEUDO="$(cat "$OUT/snap-after-probe/pseudo-count.txt")"
-  docker exec "$PG" psql -U "$PG_USER" -d "$PG_DB" -Atc \
-    "SELECT count(*) FROM information_schema.columns WHERE table_name='knowledge_chunks' AND column_name='scope'" \
-    | grep -qx 1 && result "cutover1: схема v2" ok "knowledge_chunks.scope есть" \
+  column_exists scope && result "cutover1: схема v2" ok "knowledge_chunks.scope есть" \
     || result "cutover1: схема v2" FAIL "knowledge_chunks.scope нет"
 }
 
@@ -306,14 +318,13 @@ step_rollback1() {
   # Прежний псевдонимизатор читает записи, созданные под v2 (откат не ломает хранилище).
   old_thread_probe rollback1
   pseudo_probe rollback1 "synth-v2-thread" "Контакт: Ромашков Иван Петрович, +7 (900) 555-01-02"
-  psql_pg -c "SELECT count(*) FROM information_schema.columns WHERE table_name='knowledge_chunks' AND column_name='supplier_id'" \
-    | grep -qx 1 && result "rollback1: схема прежняя" ok "supplier_id на месте" \
+  column_exists supplier_id && result "rollback1: схема прежняя" ok "supplier_id на месте" \
     || result "rollback1: схема прежняя" FAIL "supplier_id нет"
 }
 
 step_cutover2() {
   run_cutover cutover2 0 "${cut_args[@]}"
-  ready_ok "$APP" && result "cutover2: /ready v2" ok "200" || result "cutover2: /ready v2" FAIL "не 200"
+  ready_result "cutover2: /ready v2" 200
   compare_base cutover2 0
 }
 
@@ -324,8 +335,9 @@ step_restore() {
   [[ "$rc" == 0 ]] && result "restore: код rollback.sh --restore-db" ok 0 \
     || result "restore: код rollback.sh --restore-db" FAIL "$rc (restore.log)"
   compare_base restore 1
-  psql_pg -d postgres -c "SELECT count(*) FROM pg_database WHERE datname LIKE '${PG_DB}_after_v2_%'" \
-    | grep -qx 1 && result "restore: БД после v2 сохранена" ok "переименована, не удалена" \
+  psql_pg -d postgres -c \
+    "SELECT count(*) FROM pg_database WHERE datname LIKE '${PG_DB}_after_v2_%'" | grep -qx 1 \
+    && result "restore: БД после v2 сохранена" ok "переименована, не удалена" \
     || result "restore: БД после v2 сохранена" FAIL "базы *_after_v2_* нет"
   ready_ok "$APP" && result "restore: /ready прежнего стека" ok "200" \
     || result "restore: /ready прежнего стека" FAIL "не 200"
@@ -333,7 +345,7 @@ step_restore() {
 
 step_cutover3() {
   run_cutover cutover3 0 "${cut_args[@]}"
-  ready_ok "$APP" && result "cutover3: /ready v2" ok "200" || result "cutover3: /ready v2" FAIL "не 200"
+  ready_result "cutover3: /ready v2" 200
   compare_base cutover3 0
 }
 
@@ -361,6 +373,7 @@ for s in $STEPS; do
     *) echo "неизвестный шаг $s" >&2; exit 2 ;;
   esac
 done
-{ echo "проверок: $(wc -l <"$STEPS_FILE"), провалено: $FAILS"; cat "$STEPS_FILE"; } >"$OUT/summary.txt"
-log "итог: проверок $(wc -l <"$STEPS_FILE"), провалено $FAILS (summary.txt)"
+TOTAL="$(wc -l <"$STEPS_FILE")"
+{ echo "проверок: $TOTAL, провалено: $FAILS"; cat "$STEPS_FILE"; } >"$OUT/summary.txt"
+log "итог: проверок $TOTAL, провалено $FAILS (summary.txt)"
 [[ "$FAILS" -eq 0 ]]
