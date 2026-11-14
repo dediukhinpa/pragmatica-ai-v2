@@ -446,7 +446,10 @@ ensure_images() {
     log "загружаю образы из $IMAGES_TAR"
     docker load -i "$IMAGES_TAR" >>"$LOG_FILE" 2>&1 || refuse "docker load не удался"
   fi
-  mapfile -t refs < <(dc_new --profile tools config --images 2>/dev/null | sort -u)
+  # Урезанный стенд (CUTOVER_SERVICES) тянет образы только своих сервисов; на бою список полный.
+  local only=()
+  [[ -z "${CUTOVER_SERVICES:-}" ]] || read -r -a only <<<"$CUTOVER_SERVICES"
+  mapfile -t refs < <(dc_new --profile tools config --images "${only[@]}" 2>/dev/null | sort -u)
   ((${#refs[@]} > 0)) || refuse "compose не вернул список образов (docker compose config --images)"
   for ref in "${refs[@]}"; do
     [[ "$ref" == *@sha256:* ]] \
