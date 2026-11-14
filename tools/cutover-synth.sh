@@ -62,9 +62,9 @@ CONF="$OUT/cutover-test.conf"
 STEPS_FILE="$OUT/steps.tsv"
 FAILS=0
 log() { printf '%s %s\n' "$(date -u +%T)" "$*"; }
-result() { # result <шаг> <ok|FAIL> <пояснение>
-  printf '%s\t%s\t%s\n' "$1" "$2" "$3" >>"$STEPS_FILE"
-  log "[$2] $1: $3"
+result() { # result <шаг> <ok|FAIL> <пояснение...>
+  printf '%s\t%s\t%s\n' "$1" "$2" "${*:3}" >>"$STEPS_FILE"
+  log "[$2] $1: ${*:3}"
   [[ "$2" == ok ]] || FAILS=$((FAILS + 1))
 }
 psql_pg() { docker exec "$PG" psql -U "$PG_USER" -d "$PG_DB" -Atq "$@"; }
