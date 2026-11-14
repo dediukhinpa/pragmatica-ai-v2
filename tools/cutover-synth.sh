@@ -249,7 +249,8 @@ EOF
   # Поднять заглушку прежнего app рядом с боем синтетики (прежний compose + надстройка).
   (cd "$SYNTH/code/deploy" && docker compose -p "$PROJECT" --env-file .env \
     --env-file "$SYNTH/etc/secrets/secrets.env" -f docker-compose.yml \
-    -f "$STANDIN_DIR/old-app.compose.yml" up -d --no-build --no-deps postgres pseudonymizer app) >"$OUT/old-app-up.log" 2>&1 \
+    -f "$STANDIN_DIR/old-app.compose.yml" up -d --no-build --no-deps \
+    postgres pseudonymizer app) >"$OUT/old-app-up.log" 2>&1 \
     || { tail -5 "$OUT/old-app-up.log"; exit 1; }
   sleep 6
   ready_ok "$APP" && result "prepare: заглушка прежнего app" ok "/ready 200" \

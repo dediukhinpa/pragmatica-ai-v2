@@ -11,6 +11,8 @@ services:
     volumes:
       - ${STANDIN_DIR:?}/old-app.ts:/standin/old-app.ts:ro
     networks: [backend]
+    # В синтетике нет gateway-mtls и остальных зависимостей прежнего app: заглушка от них свободна.
+    depends_on: !reset null
     restart: "no"
     mem_limit: 128m
     healthcheck:
