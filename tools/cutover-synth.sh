@@ -36,7 +36,7 @@ PG_DB="pragmatika"
 SOAK_S=15
 STANDIN_DIR="$HERE/../deploy/cutover/standin"
 EXPECT_BOTS_OLD=4
-STEPS_DEFAULT="prepare preflight forced rollback1 cutover2 restore cutover3"
+STEPS_DEFAULT="prepare preflight forced rollback1 cutover2 restore cutover3 again"
 STEPS="$STEPS_DEFAULT"
 NO_BUILD=0
 
@@ -297,7 +297,7 @@ step_cutover1() {
 step_rollback1() {
   local rc=0
   step_cutover1
-  bash "$PKG/rollback.sh" >"$OUT/rollback1.log" 2>&1 || rc=$?
+  CUTOVER_HOME="$OUT/home" bash "$PKG/rollback.sh" >"$OUT/rollback1.log" 2>&1 || rc=$?
   [[ "$rc" == 0 ]] && result "rollback1: код rollback.sh" ok 0 \
     || result "rollback1: код rollback.sh" FAIL "$rc (rollback1.log)"
   compare_base rollback1 1
@@ -319,7 +319,8 @@ step_cutover2() {
 
 step_restore() {
   local rc=0
-  bash "$PKG/rollback.sh" --restore-db --i-understand-data-loss >"$OUT/restore.log" 2>&1 || rc=$?
+  CUTOVER_HOME="$OUT/home" bash "$PKG/rollback.sh" --restore-db --i-understand-data-loss \
+    >"$OUT/restore.log" 2>&1 || rc=$?
   [[ "$rc" == 0 ]] && result "restore: код rollback.sh --restore-db" ok 0 \
     || result "restore: код rollback.sh --restore-db" FAIL "$rc (restore.log)"
   compare_base restore 1
@@ -336,6 +337,16 @@ step_cutover3() {
   compare_base cutover3 0
 }
 
+step_again() {
+  # Повторный запуск на уже переключённом бое: отказ (код 3) с понятной причиной, бой не тронут.
+  run_cutover again 3 "${cut_args[@]}"
+  grep -q 'план миграций' "$OUT/cutover-again.log" \
+    && result "again: причина отказа" ok "план миграций не совпал с ожидаемым" \
+    || result "again: причина отказа" FAIL "в журнале нет отказа по плану миграций"
+  ready_ok "$APP" && result "again: /ready v2" ok "200" || result "again: /ready v2" FAIL "не 200"
+  compare_base again 0
+}
+
 for s in $STEPS; do
   log "######## шаг $s"
   case "$s" in
@@ -346,6 +357,7 @@ for s in $STEPS; do
     cutover2) step_cutover2 ;;
     restore) step_restore ;;
     cutover3) step_cutover3 ;;
+    again) step_again ;;
     *) echo "неизвестный шаг $s" >&2; exit 2 ;;
   esac
 done

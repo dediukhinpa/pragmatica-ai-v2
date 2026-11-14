@@ -530,7 +530,8 @@ plan_check() { # plan_check <файл вывода> <метка>
   local pending expected legacy
   dc_new --profile tools run --rm --no-deps -T "$MIGRATE_SERVICE" --plan >"$1" 2>>"$LOG_FILE" \
     || refuse "migrate --plan не отработал ($2)"
-  pending="$(grep -E '^pending ' "$1" | sed 's/^pending //' | sort | tr '\n' ' ')"
+  # grep без совпадений (миграции уже применены) не должен убивать скрипт под pipefail.
+  pending="$({ grep -E '^pending ' "$1" || true; } | sed 's/^pending //' | sort | tr '\n' ' ')"
   expected="$(grep -vE '^(#|$)' "$EXPECTED_PENDING" | sort | tr '\n' ' ')"
   legacy="$(grep -cE '^applied-by-legacy ' "$1" || true)"
   [[ "$pending" == "$expected" ]] \
