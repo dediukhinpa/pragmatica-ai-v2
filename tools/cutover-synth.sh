@@ -87,7 +87,7 @@ snapshot() { # snapshot <имя>: числа строк, схема, учёт м
   mkdir -p "$d"
   psql_pg -c "$COUNT_SQL" >"$d/counts.txt"
   docker exec "$PG" pg_dump -U "$PG_USER" -d "$PG_DB" --schema-only --no-owner --no-privileges \
-    | sha256sum | cut -d' ' -f1 >"$d/schema.sha256"
+    | grep -v '^\\\(un\)\?restrict ' | sha256sum | cut -d' ' -f1 >"$d/schema.sha256"
   psql_pg -c "SELECT version FROM schema_migrations ORDER BY version" >"$d/migrations.txt"
   docker ps -a --filter "label=com.docker.compose.project=$PROJECT" \
     --format '{{.Names}}' | sort >"$d/containers.txt"

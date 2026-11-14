@@ -135,6 +135,12 @@ printf 'BAI_IMAGE_APP=evil@sha256:%s\n' "$DIGEST_A" >"$TMP/env.keys"
 ENV_FILE="$TMP/env.keys" run envkeys --signatures-verified "$TMP/sigs.ok"
 assert ".env с BAI_IMAGE_* - код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
 assert "в сообщении имя ключа" "grep -q 'BAI_IMAGE_APP' '$TMP/out-envkeys'"
+# POSTGRES_IMAGE/NGINX_IMAGE есть в боевом .env, но база v2 их не читает: отказа по ним нет.
+printf 'POSTGRES_IMAGE=pgvector/pgvector:0.8.6-pg16\nNGINX_IMAGE=nginx:1.27-alpine\n' \
+  >"$TMP/env.legacy"
+ENV_FILE="$TMP/env.legacy" run envlegacy --signatures-verified "$TMP/sigs.ok"
+assert "POSTGRES_IMAGE/NGINX_IMAGE в .env не причина отказа" \
+  "! grep -q 'перекрывающие образы' '$TMP/out-envlegacy'"
 mkdir -p "$TMP/dirs"
 cat >"$TMP/env.paths" <<EOF2
 ACCESS_POLICY_HOST_DIR=/etc/pragmatika/access

@@ -29,7 +29,9 @@ MIN_SECRET_LEN=8
 # Образы в lock: ключ BAI_IMAGE_<ИМЯ>, значение <репозиторий>@sha256:<64 hex>.
 LOCK_IMAGE_RE='^BAI_IMAGE_[A-Z0-9_]+=[^@[:space:]]+@sha256:[0-9a-f]{64}$'
 # Ключи боевого .env, которые перекрыли бы образы lock (так образ мимо подписи попал бы в стек).
-LOCK_KEYS_RE='^(BAI_IMAGE_[A-Z0-9_]+|BAI_VERSION|POSTGRES_IMAGE|NGINX_IMAGE)$'
+# POSTGRES_IMAGE/NGINX_IMAGE сюда не входят: они есть в боевом .env, но база v2 их не читает
+# (образы только из images.lock), а prepare_tree снимает их из .env выкатки (env-drop.txt).
+LOCK_KEYS_RE='^(BAI_IMAGE_[A-Z0-9_]+|BAI_VERSION)$'
 # Порядок старта сервисов v2: по зависимостям compose (indexer после postgres, documents,
 # embeddings; app после postgres, pseudonymizer, gateway-mtls). app всегда последний, сервисы,
 # которых здесь нет (например, заглушка шлюза стенда), идут перед app.
