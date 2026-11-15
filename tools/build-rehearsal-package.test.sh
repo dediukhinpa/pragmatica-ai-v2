@@ -35,7 +35,11 @@ git -C "$REPO" init -q
 git -C "$REPO" add -A
 git -C "$REPO" -c user.name=t -c user.email=t@example.test commit -q -m init
 
-echo "BAI_VERSION=1.0.0" >"$TMP/images.lock"
+# Lock платформы 1.1.3: образы лёгкого режима и mask (без mask compose не собирается).
+printf 'BAI_VERSION=1.1.3\nBAI_IMAGE_POSTGRES=pg@sha256:aa\n' >"$TMP/images.lock"
+printf 'BAI_IMAGE_PSEUDONYMIZER=ps@sha256:bb\n' >>"$TMP/images.lock"
+printf 'BAI_IMAGE_APP=app@sha256:cc\nBAI_IMAGE_MASK=mask@sha256:dd\n' >>"$TMP/images.lock"
+grep -v '^BAI_IMAGE_MASK=' "$TMP/images.lock" >"$TMP/images-nomask.lock"
 echo "-- schema" >"$TMP/schema.sql"
 echo "public-key" >"$TMP/cosign.pub"
 printf 'A_NAME\nB_NAME\n' >"$TMP/names.txt"
@@ -94,6 +98,21 @@ rc=0
 BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg5" --lock "$TMP/images.lock" \
   --schema-expected "$TMP/none.sql" --cosign-pub "$TMP/cosign.pub" >/dev/null 2>&1 || rc=$?
 assert "нет файла схемы - код 2" "[[ $rc -eq 2 ]]"
+
+# Lock без BAI_IMAGE_MASK (платформа 1.1.3 требует его в compose) - отказ до сборки.
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg6" --lock "$TMP/images-nomask.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" >"$TMP/out6.log" 2>&1 || rc=$?
+assert "lock без mask - код 2" "[[ $rc -eq 2 ]]"
+assert "в сообщении назван BAI_IMAGE_MASK" "grep -q 'BAI_IMAGE_MASK' '$TMP/out6.log'"
+assert "пакет из lock без mask не создан" "[[ ! -e '$TMP/pkg6/rehearse.sh' ]]"
+# Lock без образа лёгкого режима - тоже отказ.
+grep -v '^BAI_IMAGE_APP=' "$TMP/images.lock" >"$TMP/images-noapp.lock"
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg7" --lock "$TMP/images-noapp.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" >"$TMP/out7.log" 2>&1 || rc=$?
+assert "lock без app - код 2" "[[ $rc -eq 2 ]]"
+assert "lock пакета содержит mask" "grep -q '^BAI_IMAGE_MASK=' '$OUT/images.lock'"
 
 # Стиль.
 assert "bash -n" "bash -n '$SCRIPT'"

@@ -53,6 +53,8 @@ DEFAULT_DOCUMENTS_DIR="/srv/pragmatika/documents"
 MIB=1024
 KIB_PER_MIB=1024
 # Свободная память хоста: лимит postgres репетиции 3g + app, pseudonymizer, заглушка (~1 ГиБ).
+# Платформа 1.1.3 держит mask (1536m) в базовом стеке, но лёгкий режим его не запускает и не
+# тянет (`dc up` называет сервисы поимённо, app от mask не зависит): порог памяти не меняется.
 DEFAULT_MIN_AVAILABLE_MIB=4096
 DEFAULT_MIN_DISK_MIB=6144
 DISK_FACTOR_FOR_DB=3
@@ -413,7 +415,7 @@ finish_results() {
     echo "docker: $(docker --version 2>/dev/null || echo ?)"
     echo "compose: $(docker compose version --short 2>/dev/null || echo ?)"
     echo "lock: $(grep -E '^BAI_VERSION=' "$LOCK_FILE" 2>/dev/null || echo ?)"
-    grep -E '^BAI_IMAGE_(APP|PSEUDONYMIZER|POSTGRES)=' "$LOCK_FILE" 2>/dev/null || true
+    grep -E '^BAI_IMAGE_(APP|PSEUDONYMIZER|POSTGRES|MASK)=' "$LOCK_FILE" 2>/dev/null || true
     echo "ядро: $(uname -r)"
   } >"$RES/versions.txt"
   if ! python3 -I "$REH_DIR/rehearse_tools.py" leak-scan --dir "$RES" \
@@ -466,6 +468,11 @@ parts = [int(p) for p in sys.argv[1].lstrip("v").split(".")[:2]]
 sys.exit(0 if parts >= [2, 24] else 1)
 PY
   [[ -f "$LOCK_FILE" ]] || refuse "нет images.lock ($LOCK_FILE)"
+  # Платформа 1.1.3: образ mask обязателен в compose (`:?`), хотя репетиция его не запускает.
+  # Без ключа в lock не собирается даже `docker compose config`, поэтому отказ - до всего.
+  [[ -n "$(lock_value BAI_IMAGE_MASK)" ]] \
+    || refuse "в $LOCK_FILE нет BAI_IMAGE_MASK: lock платформы 1.1.3 обязан содержать образ mask" \
+      "(он не запускается и не тянется, но compose без него не собирается); возьмите lock пакета"
   [[ -f "$REH_DIR/compose.yml" ]] || refuse "нет $REH_DIR/compose.yml"
 
   # Боевые контейнеры и том: только чтение.
@@ -535,6 +542,8 @@ ensure_images() {
     log "загружаю образы из $IMAGES_TAR"
     docker load -i "$IMAGES_TAR" >>"$LOG_FILE" 2>&1 || refuse "docker load не удался"
   fi
+  # Образ mask (BAI_IMAGE_MASK) сознательно не проверяется и не тянется: репетиция его не
+  # запускает, а он тяжёлый (OCR, ~1,5 ГиБ памяти при запуске).
   for key in BAI_IMAGE_POSTGRES BAI_IMAGE_PSEUDONYMIZER BAI_IMAGE_APP; do
     ref="$(lock_value "$key")"
     [[ -n "$ref" ]] || refuse "в $LOCK_FILE нет $key"
@@ -790,17 +799,25 @@ PY
     check "mailboxes.json боя" warn "файла нет в MAIL_HOST_DIR ($MAIL_SRC)"
   fi
 
-  local secrets="$BATTLE_SECRETS_DIR/secrets.env" pg_pass api_token
+  local secrets="$BATTLE_SECRETS_DIR/secrets.env" pg_pass api_token mask_token
   [[ -f "$secrets" ]] || secrets=""
   PSEUDO_KEY="$(env_value "${secrets:-/dev/null}" PSEUDONYMIZER_KEY)"
   [[ -n "$PSEUDO_KEY" ]] || PSEUDO_KEY="$(env_value "$BATTLE_ENV_FILE" PSEUDONYMIZER_KEY)"
   [[ -n "$PSEUDO_KEY" ]] || die "$EXIT_FAILED" "в боевых .env и secrets.env нет PSEUDONYMIZER_KEY"
   pg_pass="$(random_secret)"
   api_token="$(random_secret)"
-  printf '%s\n%s\n%s\n' "$PSEUDO_KEY" "$pg_pass" "$api_token" >>"$SECRETS_LIST"
+  # Платформа 1.1.3: MASK_TOKEN обязателен в compose (`:?`) для app, indexer и mask; боевой
+  # снят по _TOKEN$. Токен одноразовый: сервис mask в репетиции не запускается, app ходил бы к
+  # нему только с фото (их в репетиции нет), значение никуда не печатается.
+  mask_token="$(random_secret)"
+  printf '%s\n%s\n%s\n%s\n' "$PSEUDO_KEY" "$pg_pass" "$api_token" "$mask_token" \
+    >>"$SECRETS_LIST"
   # Связи переменных, которые из-за снятых каналов репетиции роняли бы app при старте (а не
   # из-за переезда): чтение сайтов требует веб-поиска (провайдер у репетиции disabled), режим
-  # tokens для фото без OCR в documents требует MASK_TOKEN (снят по _TOKEN$).
+  # tokens для фото без OCR в documents требует MASK_TOKEN (снят по _TOKEN$). IMAGE_SEND_PHOTO
+  # остаётся по умолчанию (true, как на бою): ядро 1.1.3 при старте к mask не обращается
+  # (клиент создаётся лениво, сбой закраски при фото - ok: false), поэтому app стартует и без
+  # запущенного mask; менять флаг ради репетиции не нужно.
   local access_file
   access_file="$(env_value "$BATTLE_ENV_FILE" ACCESS_POLICY_FILE)"
   python3 -I "$REH_DIR/rehearse_tools.py" env-build --battle-env "$BATTLE_ENV_FILE" \
@@ -809,6 +826,7 @@ PY
     "$STACK/deploy/compat.env" "$REH_DIR/compose.overlay.yml" \
     --drop-file "$REH_DIR/env-drop.txt" --take-secret PSEUDONYMIZER_KEY \
     --override "POSTGRES_PASSWORD=$pg_pass" --override "PSEUDONYMIZER_API_TOKEN=$api_token" \
+    --override "MASK_TOKEN=$mask_token" \
     --override "LITELLM_API_KEY=rehearsal-stub" --override "OWNER_THREAD_ID=rehearsal-owner" \
     --override "GATEWAY_HOST=gateway.invalid" --override "GATEWAY_TLS_NAME=gateway.invalid" \
     --override "BAI_LOG_TAG=$PROJECT" --override "WEB_SEARCH_PROVIDER=disabled" \

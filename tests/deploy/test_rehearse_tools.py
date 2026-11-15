@@ -115,6 +115,19 @@ class EnvBuildTest(unittest.TestCase):
         (self.dir / "secrets.env").write_text("")
         self.assertEqual(1, self.build().returncode)
 
+    def test_mask_token_battle_value_dropped_override_wins(self) -> None:
+        """Платформа 1.1.3: боевой MASK_TOKEN снимается (_TOKEN$), одноразовый - заменой."""
+        with (self.dir / "battle.env").open("a", encoding="utf-8") as handle:
+            handle.write("MASK_TOKEN=battle-mask-secret\n")
+        with (self.dir / "compose.yml").open("a", encoding="utf-8") as handle:
+            handle.write("m: ${MASK_TOKEN:?}\n")
+        self.build()
+        self.assertNotIn("MASK_TOKEN", (self.dir / "out.env").read_text())
+        result = self.build("--override", "MASK_TOKEN=one-time-rehearsal")
+        text = (self.dir / "out.env").read_text()
+        self.assertIn("MASK_TOKEN='one-time-rehearsal'", text)
+        self.assertNotIn("battle-mask-secret", text + result.stdout + result.stderr)
+
     def test_no_values_in_stdout_or_stderr(self) -> None:
         """Ни значения секрета, ни адрес канала не попадают в вывод команды."""
         result = self.build()

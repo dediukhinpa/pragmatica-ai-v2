@@ -16,6 +16,8 @@ EXIT_REFUSED=3
 EXIT_USAGE=2
 # Объём БД боя в заглушке: 1 МиБ.
 STUB_DB_BYTES=1048576
+# Порог диска в прогонах без отказа по диску: тест не зависит от свободного места машины.
+TEST_MIN_DISK_MIB=1
 # Изменяющие команды docker: ни одна не должна появиться при отказе.
 MUTATING_RE='^(run|create|rm|stop|kill|start|restart|load|pull|volume rm|volume create|network|compose)'
 
@@ -35,6 +37,7 @@ case "$1" in
   inspect) echo "running"; exit 0 ;;
   exec) echo "$STUB_DB_BYTES"; exit 0 ;;
   info) echo "$STUB_DOCKER_ROOT"; exit 0 ;;
+  image) [[ -n "${STUB_NO_IMAGES:-}" ]] && exit 1; exit 0 ;;
   ps) if [[ "$*" == *pragmatika-rehearsal* && -n "${STUB_PROJECT_EXISTS:-}" ]]; then echo abc; fi
       exit 0 ;;
   *) exit 0 ;;
@@ -48,6 +51,9 @@ echo "BAI_VERSION=1.0.1" >"$TMP/images.lock"
 echo "BAI_IMAGE_POSTGRES=pg@sha256:aa" >>"$TMP/images.lock"
 echo "BAI_IMAGE_PSEUDONYMIZER=ps@sha256:bb" >>"$TMP/images.lock"
 echo "BAI_IMAGE_APP=app@sha256:cc" >>"$TMP/images.lock"
+# Платформа 1.1.3: образ mask в lock обязателен (compose без него не собирается).
+echo "BAI_IMAGE_MASK=mask@sha256:dd" >>"$TMP/images.lock"
+grep -v '^BAI_IMAGE_MASK=' "$TMP/images.lock" >"$TMP/images-nomask.lock"
 echo "POSTGRES_USER=pragmatika" >"$TMP/battle.env"
 
 # run <имя> <meminfo> [аргументы] [ПЕРЕМЕННЫЕ=значение через env]: запуск в изолированном $HOME.
@@ -59,6 +65,7 @@ run() {
   : >"$TMP/docker-$name.log"
   env HOME="$home" PATH="$BIN:$PATH" DOCKER_LOG="$TMP/docker-$name.log" \
     STUB_DB_BYTES="$STUB_DB_BYTES" STUB_DOCKER_ROOT="$TMP" \
+    REHEARSAL_MIN_DISK_MIB="${REHEARSAL_MIN_DISK_MIB:-$TEST_MIN_DISK_MIB}" \
     REHEARSAL_MEMINFO_FILE="$meminfo" REHEARSAL_HOME="$home/.reh" \
     BATTLE_ENV_FILE="$TMP/battle.env" BATTLE_PG_CONTAINER=battle-pg \
     BATTLE_PSEUDO_CONTAINER=battle-ps BATTLE_PSEUDO_VOLUME=battle_vol \
@@ -108,6 +115,25 @@ rc=0
 run nolock "$TMP/meminfo.ok" --lock "$TMP/нет-такого.lock" --preflight-only || rc=$?
 assert "нет lock: код 3" "[[ $rc -eq $EXIT_REFUSED ]]"
 assert "нет lock: сообщение" "grep -q 'нет images.lock' '$TMP/out-nolock.log'"
+
+# 5а. Платформа 1.1.3: в lock нет BAI_IMAGE_MASK - отказ до создания чего-либо.
+rc=0
+run nomask "$TMP/meminfo.ok" --lock "$TMP/images-nomask.lock" --preflight-only || rc=$?
+assert "lock без mask: код 3" "[[ $rc -eq $EXIT_REFUSED ]]"
+assert "lock без mask: сообщение называет BAI_IMAGE_MASK" \
+  "grep -q 'BAI_IMAGE_MASK' '$TMP/out-nomask.log'"
+assert "lock без mask: нет изменяющих вызовов docker" \
+  "! grep -E '$MUTATING_RE' '$TMP/docker-nomask.log' | grep -vq '^compose version'"
+
+# 5б. Образов нет локально: тянутся только postgres, pseudonymizer и app, mask - никогда
+# (в лёгком режиме он не запускается, а его образ тяжёлый).
+rc=0
+STUB_NO_IMAGES=1 run pulls "$TMP/meminfo.ok" --preflight-only || rc=$?
+assert "образов нет локально: предусловия проходят (код 0)" "[[ $rc -eq 0 ]]"
+for ref in pg@sha256:aa ps@sha256:bb app@sha256:cc; do
+  assert "docker pull $ref" "grep -qx 'pull $ref' '$TMP/docker-pulls.log'"
+done
+assert "mask-образ не тянется" "! grep -q 'mask@sha256' '$TMP/docker-pulls.log'"
 
 # 6. Предусловия проходят: код 0, архив без данных, лимит строк.
 rc=0

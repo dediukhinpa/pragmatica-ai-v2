@@ -8,7 +8,9 @@
 #
 # Состав пакета (копии закоммиченного дерева, git archive HEAD; незакоммиченное не попадает):
 #   rehearse.sh, README.md        сценарий и инструкция (deploy/rehearsal/)
-#   images.lock                   образы по digest (платформа 1.0.x + app проекта)
+#   images.lock                   образы по digest (платформа 1.1.x + app проекта); с 1.1.3 в нём
+#                                 обязателен BAI_IMAGE_MASK: mask в базовом стеке, compose без
+#                                 него не собирается (репетиция mask не запускает и не тянет)
 #   cosign.pub                    открытый ключ проверки подписей образов
 #   schema-expected.sql           нормализованная схема чистой БД v2 (для сравнения)
 #   expected-pending.txt          какие миграции должны ожидать на схеме боя
@@ -25,6 +27,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${BAI_PROJECT_DIR:-$(cd "$HERE/.." && pwd)}"
 EXIT_FAILED=1
 EXIT_USAGE=2
+# Ключи lock, без которых репетиция не работает: три образа лёгкого режима (их проверяет и при
+# отсутствии тянет rehearse.sh) и mask (платформа 1.1.3: `:?` в compose, но не запускается).
+REQUIRED_LOCK_KEYS=(BAI_IMAGE_POSTGRES BAI_IMAGE_PSEUDONYMIZER BAI_IMAGE_APP BAI_IMAGE_MASK)
 # Что берётся из дерева проекта (git archive) в stack/.
 STACK_PATHS=(deploy db)
 # Файлы, которым нельзя быть в пакете (секреты и боевые копии).
@@ -58,6 +63,12 @@ while (($#)); do
 done
 [[ -n "$OUT" && -n "$LOCK" ]] || { usage >&2; exit "$EXIT_USAGE"; }
 [[ -f "$LOCK" ]] || { echo "нет lock-файла $LOCK" >&2; exit "$EXIT_USAGE"; }
+for lock_key in "${REQUIRED_LOCK_KEYS[@]}"; do
+  if ! grep -qE "^${lock_key}=.+" "$LOCK"; then
+    echo "в lock $LOCK нет $lock_key (платформа 1.1.3 требует образ mask)" >&2
+    exit "$EXIT_USAGE"
+  fi
+done
 [[ -f "$SCHEMA_EXPECTED" ]] || { echo "нужен --schema-expected ФАЙЛ" >&2; exit "$EXIT_USAGE"; }
 [[ -f "$COSIGN_PUB" ]] || { echo "нет открытого ключа $COSIGN_PUB" >&2; exit "$EXIT_USAGE"; }
 [[ -z "$ENV_NAMES" || -f "$ENV_NAMES" ]] || { echo "нет файла $ENV_NAMES" >&2; exit "$EXIT_USAGE"; }
