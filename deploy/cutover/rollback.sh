@@ -14,10 +14,11 @@
 #
 # Что делает (обычный откат, без --restore-db):
 #   1. Убирает контейнеры v2 (тома, образы и сети не трогает).
-#   2. Если миграции v2 начинались: поднимает прежний postgres и применяет
-#      db/app/rollback/026_down.sql одной транзакцией (столбец scope -> supplier_id, функции
-#      поиска прежней редакции, записи schema_migrations v2 удаляются). Новые миграции v2
-#      платформенных изменений не вносят, поэтому старый код после этого работает на своей схеме.
+#   2. Если миграции v2 начинались: поднимает прежний postgres и применяет обратные миграции
+#      db/app/rollback/021_down.sql (платформа 1.1.x: снимает серии «часы дня» и столбцы
+#      jobs.daily_at/time_zone) и 026_down.sql (столбец scope -> supplier_id, функции поиска
+#      прежней редакции, записи schema_migrations v2 удаляются) одной транзакцией. После этого
+#      старый код работает на своей схеме.
 #   3. Поднимает прежний стек старым compose из образов, которые лежат локально
 #      (`up -d --no-build`: образы cutover.sh не удаляет).
 #   4. Проверяет: набор контейнеров и образы как до переключения, /ready 200, ботов не меньше,
@@ -85,8 +86,14 @@ PG_DB="$(env_value "$CUTOVER_ENV_FILE" POSTGRES_DB)"
 PG_USER="${PG_USER:-pragmatika}"
 PG_DB="${PG_DB:-pragmatika}"
 BACKUP_DIR="$(state_get BACKUP_DIR)"
-DOWN_SQL="$STACK/db/app/rollback/026_down.sql"
-[[ -f "$DOWN_SQL" ]] || DOWN_SQL="$CUTOVER_NEW_DIR/db/app/rollback/026_down.sql"
+# Обратные миграции: платформенная 021 (1.1.x), затем проектная 026; одна транзакция.
+DOWN_SQL_NAMES=(021_down.sql 026_down.sql)
+DOWN_SQL_FILES=()
+for _down in "${DOWN_SQL_NAMES[@]}"; do
+  _down_path="$STACK/db/app/rollback/$_down"
+  [[ -f "$_down_path" ]] || _down_path="$CUTOVER_NEW_DIR/db/app/rollback/$_down"
+  DOWN_SQL_FILES+=("$_down_path")
+done
 STOP_TIMEOUT_S=120
 
 stuck() { # stuck <сообщение>: откат не удался
@@ -137,13 +144,18 @@ start_old_postgres() {
 
 # 2a. Обратная миграция: схема знаний и учёт миграций возвращаются к виду до v2.
 apply_down() {
-  phase "откат БД: 026_down.sql"
-  [[ -f "$DOWN_SQL" ]] || stuck "нет файла $DOWN_SQL"
-  if psql_old --single-transaction -f - <"$DOWN_SQL" >"$RES/rollback-026-down.txt" 2>&1; then
-    check_rb "обратная миграция 026" ok "применена одной транзакцией"
+  phase "откат БД: ${DOWN_SQL_NAMES[*]}"
+  local file down_cat
+  for file in "${DOWN_SQL_FILES[@]}"; do
+    [[ -f "$file" ]] || stuck "нет файла $file"
+  done
+  # Файлы идут подряд в одном потоке: одна транзакция на обе обратные миграции.
+  down_cat="$(cat "${DOWN_SQL_FILES[@]}")"
+  if psql_old --single-transaction -f - <<<"$down_cat" >"$RES/rollback-down.txt" 2>&1; then
+    check_rb "обратные миграции 021 и 026" ok "применены одной транзакцией"
   else
-    tail -n 8 "$RES/rollback-026-down.txt" | cut_redact >>"$LOG_FILE"
-    stuck "026_down.sql не применился (rollback-026-down.txt)"
+    tail -n 8 "$RES/rollback-down.txt" | cut_redact >>"$LOG_FILE"
+    stuck "обратные миграции не применились (rollback-down.txt)"
   fi
 }
 

@@ -51,6 +51,7 @@ echo "services: {}" >"$PKG/stack/deploy/compose.yml"
 cp "$ROOT/deploy/rehearsal/rehearse-files.sh" "$PKG/stack/deploy/rehearsal/"
 cp "$ROOT/deploy/rehearsal/env-retired.txt" "$PKG/stack/deploy/rehearsal/"
 echo "SELECT 1;" >"$PKG/stack/db/app/rollback/026_down.sql"
+echo "SELECT 1;" >"$PKG/stack/db/app/rollback/021_down.sql"
 echo "app/026_x" >"$PKG/expected-pending.txt"
 printf '%s\n' "$FREEZE" >"$PKG/FREEZE_SRC"
 printf 'BAI_VERSION=1.0.1\nBAI_IMAGE_APP=r/app@sha256:%s\nBAI_IMAGE_POSTGRES=r/pg@sha256:%s\n' \

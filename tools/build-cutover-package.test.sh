@@ -25,6 +25,7 @@ echo "services: {}" >"$REPO/deploy/compose.yml"
 echo "x" >"$REPO/deploy/platform/compose.base.yml"
 echo "SELECT 1;" >"$REPO/db/app/001_x.sql"
 echo "SELECT 2;" >"$REPO/db/app/rollback/026_down.sql"
+echo "SELECT 3;" >"$REPO/db/app/rollback/021_down.sql"
 echo "KEY=" >"$REPO/deploy/.env.example"
 for f in cutover.sh rollback.sh lib.sh verify-signatures.sh units-old-tree.sh; do
   printf '#!/usr/bin/env bash\necho %s\n' "$f" >"$REPO/deploy/cutover/$f"
@@ -53,7 +54,7 @@ for f in cutover.sh rollback.sh lib.sh verify-signatures.sh units-old-tree.sh CH
   README.md expected-host-dirs.txt images.lock cosign.pub schema-expected.sql \
   expected-pending.txt FREEZE_SRC tools/check_migrations_schema.py stack/deploy/compose.yml \
   stack/deploy/platform/compose.base.yml stack/db/app/001_x.sql \
-  stack/db/app/rollback/026_down.sql MANIFEST.sha256; do
+  stack/db/app/rollback/021_down.sql stack/db/app/rollback/026_down.sql MANIFEST.sha256; do
   assert "в пакете есть $f" "[[ -f '$OUT/$f' ]]"
 done
 assert "cutover.sh и rollback.sh исполняемые" "[[ -x '$OUT/cutover.sh' && -x '$OUT/rollback.sh' ]]"
@@ -86,6 +87,15 @@ rc=0
 run --out "$TMP/pkg4" >"$TMP/out4.log" 2>&1 || rc=$?
 assert "нет 026_down.sql - отказ" "[[ $rc -eq 1 ]]"
 assert "в сообщении названа причина" "grep -q '026_down' '$TMP/out4.log'"
+
+# Нет файла отката платформенной 021 (платформа 1.1.x) - тоже отказ.
+git -C "$REPO" checkout -q HEAD~1 -- db/app/rollback/026_down.sql
+git -C "$REPO" rm -q -f db/app/rollback/021_down.sql
+commit no-down-021
+rc=0
+run --out "$TMP/pkg4b" >"$TMP/out4b.log" 2>&1 || rc=$?
+assert "нет 021_down.sql - отказ" "[[ $rc -eq 1 ]]"
+assert "в сообщении названа причина 021" "grep -q '021_down' '$TMP/out4b.log'"
 
 # Непустой каталог, нет аргументов, нет схемы.
 mkdir -p "$TMP/full" && touch "$TMP/full/x"

@@ -17,7 +17,8 @@
 #   expected-pending.txt                 миграции, которые должны ожидать на схеме боя
 #   FREEZE_SRC                           коммит старого репозитория (заморозка G5)
 #   tools/check_migrations_schema.py     сравнение схем
-#   stack/deploy, stack/db               compose, миграции (с rollback/026_down.sql), платформа
+#   stack/deploy, stack/db               compose, миграции (с rollback/021_down.sql, 026_down.sql),
+#                                        платформа
 #   bai                                  (необязательно) CLI платформы: только для `bai status`
 #   MANIFEST.sha256                      контрольные суммы всех файлов пакета
 # Секретов, .env и ключей в пакет не кладётся: проверяется перед записью манифеста.
@@ -97,8 +98,10 @@ done
 for f in "${DOCS[@]}"; do
   git -C "$ROOT" show "HEAD:deploy/cutover/$f" >"$OUT/$f" || fail "в HEAD нет deploy/cutover/$f"
 done
-git -C "$ROOT" show "HEAD:db/app/rollback/026_down.sql" >/dev/null 2>&1 \
-  || fail "в HEAD нет db/app/rollback/026_down.sql: откат БД невозможен"
+for down in 021_down.sql 026_down.sql; do
+  git -C "$ROOT" show "HEAD:db/app/rollback/$down" >/dev/null 2>&1 \
+    || fail "в HEAD нет db/app/rollback/$down: откат БД невозможен"
+done
 git -C "$ROOT" show HEAD:tools/check_migrations_schema.py >"$OUT/tools/check_migrations_schema.py"
 git -C "$ROOT" show HEAD:deploy/rehearsal/expected-pending.txt >"$OUT/expected-pending.txt"
 cp "$LOCK" "$OUT/images.lock"

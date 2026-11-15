@@ -104,7 +104,9 @@ ENV_RETIRED="$STACK/deploy/rehearsal/env-retired.txt"
 SCHEMA_EXPECTED="$HERE/schema-expected.sql"
 SCHEMA_TOOL="$HERE/tools/check_migrations_schema.py"
 [[ -f "$SCHEMA_TOOL" ]] || SCHEMA_TOOL="$STACK/tools/check_migrations_schema.py"
-DOWN_SQL="$STACK/db/app/rollback/026_down.sql"
+# Обратные миграции в порядке применения при откате: сначала платформенная 021 (платформа 1.1.x),
+# затем проектная 026; обе исполняются одной транзакцией в rollback.sh.
+DOWN_SQL_NAMES=(021_down.sql 026_down.sql)
 
 # ---------------------------------------------------------------------------------------------
 # Аргументы и настройка
@@ -278,8 +280,13 @@ check_sources() {
   check "FREEZE_SRC" ok "${frozen:0:8}, как в этапе 7"
   [[ -f "$LOCK_SRC" ]] || refuse "нет images.lock пакета"
   cut_lock_format "$LOCK_SRC" || refuse "images.lock не в формате платформы (только digest)"
-  [[ -f "$DOWN_SQL" ]] || refuse "нет db/app/rollback/026_down.sql: откат БД невозможен"
-  check "images.lock и 026_down.sql" ok "формат верен, откат БД есть в пакете"
+  local down
+  for down in "${DOWN_SQL_NAMES[@]}"; do
+    [[ -f "$STACK/db/app/rollback/$down" ]] \
+      || refuse "нет db/app/rollback/$down: откат БД невозможен"
+  done
+  check "images.lock и обратные миграции" ok \
+    "формат верен, откат БД есть в пакете (${DOWN_SQL_NAMES[*]})"
 }
 
 # Подпись ВСЕХ образов lock. Молча пропускать нельзя: нет cosign и нет подтверждения - отказ.
