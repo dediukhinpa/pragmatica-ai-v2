@@ -40,9 +40,11 @@ LOCK_IMAGE_RE='^BAI_IMAGE_[A-Z0-9_]+=[^@[:space:]]+@sha256:[0-9a-f]{64}$'
 LOCK_KEYS_RE='^(BAI_IMAGE_[A-Z0-9_]+|BAI_VERSION)$'
 # Порядок старта сервисов v2: по зависимостям compose (indexer после postgres, documents,
 # embeddings; app после postgres, pseudonymizer, gateway-mtls). app всегда последний, сервисы,
-# которых здесь нет (например, заглушка шлюза стенда), идут перед app.
-SERVICE_ORDER=(postgres pseudonymizer embeddings documents gateway-mtls indexer
-  docker-socket-proxy alloy sandbox speech mask)
+# которых здесь нет (например, заглушка шлюза стенда), идут перед app. mask (платформа 1.1.3,
+# базовый стек без профиля) - клиенты app и indexer, в compose зависимости от него нет, поэтому
+# он стоит ДО indexer: индексатор не должен стартовать, пока mask не поднят.
+SERVICE_ORDER=(postgres pseudonymizer embeddings documents mask gateway-mtls indexer
+  docker-socket-proxy alloy sandbox speech)
 SERVICE_LAST="app"
 # Сервис миграций (профиль tools) не входит в стек.
 MIGRATE_SERVICE="migrate"
@@ -55,6 +57,23 @@ READY_JS="try {
 } catch (e) { console.log('app недоступен: ' + e.message); process.exit(1); }"
 # Контейнер для пробы без сети и с малой памятью.
 ONESHOT_MEM=128m
+# Платформа 1.1.3: сервис mask входит в базовый стек, его образ и токен обязательны.
+LOCK_MASK_KEY="BAI_IMAGE_MASK"
+LOCK_MASK_RE='^BAI_IMAGE_MASK=[^@[:space:]]+@sha256:[0-9a-f]{64}$'
+MASK_TOKEN_KEY="MASK_TOKEN"
+# Размер токена в байтах (в окружении - hex вдвое длиннее): как у gen-secrets.sh платформы.
+MASK_TOKEN_BYTES=32
+# Токен, созданный cutover.sh, лежит отдельным файлом в дереве выкатки (600) и идёт в окружении
+# compose после secrets.env; в secrets.env боя он переносится только после успешного хода.
+MASK_TOKEN_FILE_NAME="secrets.mask.env"
+# Лимит памяти mask в базовом стеке (МиБ), как mem_limit в compose.base.yml платформы 1.1.3.
+MASK_MEM_LIMIT_MIB=1536
+# Проба mask: loopback его контейнера, путь /health открыт без токена.
+MASK_HEALTH_JS="try {
+  const r = await fetch('http://127.0.0.1:8320/health');
+  console.log(r.status + ' ' + (await r.text()));
+  process.exit(r.ok ? 0 : 1);
+} catch (e) { console.log('mask недоступен: ' + e.message); process.exit(1); }"
 
 # ---------------------------------------------------------------------------------------------
 # Настройка
@@ -96,6 +115,9 @@ cut_defaults() {
   CUTOVER_COSIGN="${CUTOVER_COSIGN:-cosign}"
   # Минимальные запасы: память МиБ (доступная), диск МиБ сверх расчёта.
   CUTOVER_MIN_AVAILABLE_MIB="${CUTOVER_MIN_AVAILABLE_MIB:-2048}"
+  # Добавка к порогу памяти на сервис mask (платформа 1.1.3), если он входит в запускаемый стек;
+  # 0 - не добавлять (решение владельца).
+  CUTOVER_MASK_MEM_MIB="${CUTOVER_MASK_MEM_MIB:-$MASK_MEM_LIMIT_MIB}"
   CUTOVER_MIN_DISK_MIB="${CUTOVER_MIN_DISK_MIB:-4096}"
   # Необязательный адрес Alertmanager (GET /api/v2/alerts): если задан, активные алерты считаются.
   CUTOVER_ALERTS_URL="${CUTOVER_ALERTS_URL:-}"
@@ -173,6 +195,14 @@ PY
 
 # lock_value <файл lock> <ключ>
 lock_value() { grep -E "^$2=" "$1" | head -1 | cut -d= -f2-; }
+# env_key_state <файл> <ключ>: absent (файла или ключа нет), empty (ключ без значения) или set.
+# Значение не печатается: подходит для секретов.
+env_key_state() {
+  [[ -f "$1" ]] || { echo absent; return 0; }
+  grep -qE "^[[:space:]]*$2=" "$1" || { echo absent; return 0; }
+  if [[ -n "$(env_value "$1" "$2")" ]]; then echo set; else echo empty; fi
+}
+
 # lock_images <файл lock>: строки «КЛЮЧ ссылка» по порядку файла.
 lock_images() { grep -E '^BAI_IMAGE_' "$1" | sed 's/=/ /'; }
 
@@ -193,6 +223,10 @@ cut_lock_format() {
   ((version == 1 && n > 0))
 }
 
+# cut_lock_has_mask <файл>: 0, если в lock есть образ mask по digest (платформа 1.1.3: без него
+# compose не стартует, а подпись образа проверять нечем).
+cut_lock_has_mask() { grep -qE "$LOCK_MASK_RE" "$1"; }
+
 # ---------------------------------------------------------------------------------------------
 # docker compose: новое (v2) и старое деревья
 # ---------------------------------------------------------------------------------------------
@@ -211,6 +245,9 @@ cut_new_env_args() {
     --env-file "$CUTOVER_NEW_DIR/deploy/.env")
   [[ ! -f "$CUTOVER_NEW_DIR/deploy/secrets.env" ]] \
     || NEW_ENV_ARGS+=(--env-file "$CUTOVER_NEW_DIR/deploy/secrets.env")
+  # Токен mask, созданный выкаткой: после secrets.env, чтобы перекрыть пустую строку ключа.
+  [[ ! -f "$CUTOVER_NEW_DIR/deploy/$MASK_TOKEN_FILE_NAME" ]] \
+    || NEW_ENV_ARGS+=(--env-file "$CUTOVER_NEW_DIR/deploy/$MASK_TOKEN_FILE_NAME")
   [[ -z "$CUTOVER_EXTRA_ENV" ]] || NEW_ENV_ARGS+=(--env-file "$CUTOVER_EXTRA_ENV")
 }
 
@@ -255,6 +292,27 @@ wait_healthy() {
       healthy | running) return 0 ;;
       exited | dead | отсутствует) return 1 ;;
     esac
+    sleep "$POLL_S"
+    waited=$((waited + POLL_S))
+  done
+  return 1
+}
+
+# mask_in_stack: 0, если mask входит в запускаемый стек (полный стек боя или он назван явно в
+# CUTOVER_SERVICES урезанного стенда).
+mask_in_stack() { [[ -z "${CUTOVER_SERVICES:-}" || " $CUTOVER_SERVICES " == *" mask "* ]]; }
+
+# cut_wait_mask_ready <контейнер mask> <образ с bun> <секунд>: в compose у mask нет healthcheck,
+# и wait_healthy счёл бы его готовым сразу после старта. Поэтому ждём ответ 200 на /health из
+# одноразового контейнера в сетевом пространстве mask; упавший контейнер - отказ сразу.
+cut_wait_mask_ready() {
+  local name="$1" image="$2" limit="$3" waited=0 state out
+  while ((waited < limit)); do
+    state="$(docker inspect -f "$HEALTH_FORMAT" "$name" 2>/dev/null || echo отсутствует)"
+    case "$state" in exited | dead | отсутствует) return 1 ;; esac
+    out="$(docker run --rm --network "container:$name" --memory "$ONESHOT_MEM" \
+      --entrypoint bun "$image" -e "$MASK_HEALTH_JS" 2>&1 || true)"
+    [[ "$out" == 200* ]] && return 0
     sleep "$POLL_S"
     waited=$((waited + POLL_S))
   done
@@ -361,4 +419,110 @@ if extra:
     print("в подтверждении лишние образы: " + " ".join(extra)); sys.exit(1)
 print(f"подтверждены подписи {len(want)} образов")
 PY
+}
+
+# ---------------------------------------------------------------------------------------------
+# MASK_TOKEN (платформа 1.1.3): без него compose не стартует. Значение нигде не печатается:
+# ни в журнал, ни в состояние, ни в проверки; оно попадает только в файлы с правами 600 и в
+# список секретов для маскирования журнала и проверки архива результатов.
+# ---------------------------------------------------------------------------------------------
+# cut_mask_token_present: 0, если в окружении compose дерева выкатки итоговое значение MASK_TOKEN
+# непустое. Файлы читаются в порядке --env-file (позже заданный перекрывает, в том числе пустым).
+cut_mask_token_present() {
+  local file state result=absent
+  cut_new_env_args
+  for file in "${NEW_ENV_ARGS[@]}"; do
+    [[ "$file" == --env-file ]] && continue
+    state="$(env_key_state "$file" "$MASK_TOKEN_KEY")"
+    [[ "$state" == absent ]] || result="$state"
+  done
+  [[ "$result" == set ]]
+}
+
+# cut_ensure_mask_token: токен есть - ничего не меняется; нет или пуст - создаётся случайный
+# (hex, как у gen-secrets.sh) в файле выкатки secrets.mask.env (600). Файлы боя не трогаются.
+cut_ensure_mask_token() {
+  local side="$CUTOVER_NEW_DIR/deploy/$MASK_TOKEN_FILE_NAME" token
+  if cut_mask_token_present; then
+    if [[ -f "$side" ]]; then
+      env_value "$side" "$MASK_TOKEN_KEY" >>"$SECRETS_LIST"
+      printf '\n' >>"$SECRETS_LIST"
+      state_set MASK_TOKEN_SOURCE "токен выкатки (прежний запуск), $MASK_TOKEN_FILE_NAME"
+      check "MASK_TOKEN" ok "используется токен выкатки прежнего запуска; значение не печатается"
+    else
+      state_set MASK_TOKEN_SOURCE "задан в окружении v2 (secrets.env или .env)"
+      check "MASK_TOKEN" ok "уже задан в окружении v2, не меняется"
+    fi
+    return 0
+  fi
+  token="$(python3 -I -c 'import secrets, sys; print(secrets.token_hex(int(sys.argv[1])))' \
+    "$MASK_TOKEN_BYTES")"
+  (umask 077 && printf '%s=%s\n' "$MASK_TOKEN_KEY" "$token" >"$side")
+  chmod 600 "$side"
+  printf '%s\n' "$token" >>"$SECRETS_LIST"
+  unset token
+  state_set MASK_TOKEN_SOURCE "сгенерирован, $MASK_TOKEN_FILE_NAME (600)"
+  check "MASK_TOKEN" ok "не был задан: сгенерирован в $MASK_TOKEN_FILE_NAME дерева v2 (600)," \
+    "значение не печатается; в secrets.env боя переносится после успешного хода"
+}
+
+# cut_persist_mask_token: после успешного хода токен выкатки переносится в secrets.env боя (как
+# делает `bai update`: пустая строка ключа заменяется, иначе ключ дописывается; права и владелец
+# файла сохраняются), файл выкатки убирается. Заданное в secrets.env другое значение не
+# перезаписывается. Любая неудача - предупреждение, не сбой: токен остаётся в файле выкатки.
+cut_persist_mask_token() {
+  local side="$CUTOVER_NEW_DIR/deploy/$MASK_TOKEN_FILE_NAME" target token state
+  target="$CUTOVER_SECRETS_DIR/secrets.env"
+  [[ -f "$side" ]] || return 0
+  token="$(env_value "$side" "$MASK_TOKEN_KEY")"
+  [[ -n "$token" ]] || return 0
+  state="$(env_key_state "$target" "$MASK_TOKEN_KEY")"
+  if [[ "$state" == set ]]; then
+    if [[ "$(env_value "$target" "$MASK_TOKEN_KEY")" == "$token" ]]; then
+      rm -f -- "${side:?}"
+      check "MASK_TOKEN в secrets.env" ok "уже записан, файл выкатки убран"
+    else
+      check "MASK_TOKEN в secrets.env" warn "в $target задан другой токен: не перезаписан;" \
+        "в дереве v2 действует токен из $MASK_TOKEN_FILE_NAME (выровнять вручную)"
+    fi
+    return 0
+  fi
+  if [[ ! -f "$target" || ! -w "$target" ]]; then
+    check "MASK_TOKEN в secrets.env" warn "$target не на запись: токен остаётся в" \
+      "$side (600); перенесите строку MASK_TOKEN в secrets.env владельцем файла (CHECKLIST.md)"
+    return 0
+  fi
+  MASK_TOKEN_NEW="$token" python3 -I - "$target" "$MASK_TOKEN_KEY" <<'PY'
+import os, re, sys
+
+path, key = sys.argv[1], sys.argv[2]
+token = os.environ["MASK_TOKEN_NEW"]
+with open(path, encoding="utf-8", errors="surrogateescape") as src:
+    lines = src.read().splitlines(keepends=True)
+pattern = re.compile(r"^\s*" + re.escape(key) + "=")
+out, replaced = [], False
+for line in lines:
+    if pattern.match(line):
+        if not replaced:
+            out.append(f"{key}={token}\n")
+            replaced = True
+        continue
+    out.append(line)
+if not replaced:
+    if out and not out[-1].endswith("\n"):
+        out[-1] += "\n"
+    out.append(f"{key}={token}\n")
+# Запись поверх (не замена файла): права и владелец остаются прежними.
+with open(path, "w", encoding="utf-8", errors="surrogateescape") as dst:
+    dst.write("".join(out))
+PY
+  unset token
+  if [[ "$(env_key_state "$target" "$MASK_TOKEN_KEY")" == set ]]; then
+    rm -f -- "${side:?}"
+    state_set MASK_TOKEN_PERSISTED 1
+    check "MASK_TOKEN в secrets.env" ok "записан в secrets.env боя (значение не печатается)"
+  else
+    check "MASK_TOKEN в secrets.env" warn "запись в $target не подтвердилась: токен остаётся в" \
+      "$side (600)"
+  fi
 }

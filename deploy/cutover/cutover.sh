@@ -7,9 +7,11 @@
 #                   [--preflight-only] [--allow-unconfigured-backup] [--help]
 #
 # Что делает (бой = compose-проект `pragmatika`, имена контейнеров, томов и сетей не меняются):
-#   0. Предусловия, бой не меняется: целостность пакета, FREEZE_SRC, подписи ВСЕХ образов из
+#   0. Предусловия, бой не меняется: целостность пакета, FREEZE_SRC, образ mask в images.lock
+#      (платформа 1.1.3: BAI_IMAGE_MASK обязателен), подписи ВСЕХ образов из
 #      images.lock (cosign на хосте с cosign.pub либо --signatures-verified: вывод
-#      verify-signatures.sh; молча пропускать нельзя), свободные диск и память, бой здоров
+#      verify-signatures.sh; молча пропускать нельзя), свободные диск и память (запас под mask
+#      +1536 МиБ), бой здоров
 #      (/ready 200, ботов не меньше ожидаемого), образы прежних контейнеров на месте, боевой .env
 #      (пять *_HOST_DIR и ACCESS_POLICY_FILE как у владельца, ни одного ключа образа), каталоги и
 #      права файлов app, сухой запуск app --once, тома боя пишутся uid app, `migrate --plan` на
@@ -23,8 +25,11 @@
 #      Всё в ~/backups/pragmatika-before-v2-<время>.
 #   2. Остановка прежних контейнеров (образы остаются: по ним работает откат).
 #   3. v2: postgres -> `migrate --plan` -> migrate -> прочие сервисы по одному (health после
-#      каждого) -> app последним. Каталог v2: /opt/pragmatika-v2/deploy (compose, images.lock,
-#      боевой .env без снятых имён, ссылка на secrets.env).
+#      каждого; у mask healthcheck в compose нет, ждём его /health) -> app последним. Каталог v2:
+#      /opt/pragmatika-v2/deploy (compose, images.lock, боевой .env без снятых имён, ссылка на
+#      secrets.env). MASK_TOKEN (платформа 1.1.3): нет или пуст - создаётся случайный в
+#      secrets.mask.env дерева v2 (600, значение не печатается); в secrets.env боя он
+#      переносится только после успешного хода, заданный токен не меняется.
 #   4. Проверки: /ready, ботов не меньше ожидаемого, журнал app без ошибок, образы запущенных
 #      контейнеров = images.lock, метрики идут, затем выдержка (по умолчанию 10 минут): контейнеры
 #      не перезапускаются, /ready зелёный, активные алерты (если задан CUTOVER_ALERTS_URL).
@@ -176,7 +181,9 @@ collect_secret_values() {
   secrets_dir="${CUTOVER_SECRETS_DIR:-$(env_value "$CUTOVER_ENV_FILE" SECRETS_DIR)}"
   secrets_dir="${secrets_dir:-/etc/pragmatika/secrets}"
   CUTOVER_SECRETS_DIR="$secrets_dir"
-  for file in "$CUTOVER_ENV_FILE" "$secrets_dir/secrets.env"; do
+  # Файл токена mask дерева v2 тоже: созданный прежним запуском токен не должен попасть в журнал.
+  for file in "$CUTOVER_ENV_FILE" "$secrets_dir/secrets.env" \
+    "$CUTOVER_NEW_DIR/deploy/$MASK_TOKEN_FILE_NAME"; do
     [[ -f "$file" ]] || continue
     python3 -I - "$file" "$MIN_SECRET_LEN" >>"$SECRETS_LIST" <<'PY'
 import re, sys
@@ -280,6 +287,9 @@ check_sources() {
   check "FREEZE_SRC" ok "${frozen:0:8}, как в этапе 7"
   [[ -f "$LOCK_SRC" ]] || refuse "нет images.lock пакета"
   cut_lock_format "$LOCK_SRC" || refuse "images.lock не в формате платформы (только digest)"
+  cut_lock_has_mask "$LOCK_SRC" \
+    || refuse "в images.lock нет $LOCK_MASK_KEY: сервис mask входит в базовый стек платформы" \
+      "1.1.3 и без образа compose не стартует; нужен lock версии 1.1.3 (пакет собран с другим)"
   local down
   for down in "${DOWN_SQL_NAMES[@]}"; do
     [[ -f "$STACK/db/app/rollback/$down" ]] \
@@ -359,6 +369,16 @@ check_battle_env() {
   value="$(env_value "$CUTOVER_ENV_FILE" "$LOCAL_HOST_DIR_NAME")"
   value="${value:-$LOCAL_HOST_DIR_DEFAULT}"
   [[ -d "$value" ]] || refuse "каталог $LOCAL_HOST_DIR_NAME не существует: $value"
+  # IMAGE_SEND_PHOTO: решение владельца. Пакет его не задаёт и не меняет: заданное в боевом .env
+  # переносится как есть, иначе действует умолчание проекта v2 (compose.project.yml): false.
+  value="$(env_value "$CUTOVER_ENV_FILE" IMAGE_SEND_PHOTO)"
+  if [[ -n "$value" ]]; then
+    check "IMAGE_SEND_PHOTO" ok "задан в боевом .env: ${value:0:16}; переносится в .env v2 как есть"
+  else
+    check "IMAGE_SEND_PHOTO" ok "не задан в боевом .env: умолчание проекта v2 false (фото с" \
+      "текстом уходят в модель текстом, как на бою); true (картинкой после закраски mask;" \
+      "платформа 1.1.3 поставляет true) - решение владельца, строка в CHECKLIST.md"
+  fi
   check "боевой .env" ok "пять *_HOST_DIR и ACCESS_POLICY_FILE как у владельца, ключей образов нет"
 }
 
@@ -393,7 +413,7 @@ check_backup_configured() {
 
 check_resources() {
   phase "ресурсы и инструменты"
-  local cmd db_bytes need_mib free_backup free_docker docker_root mem version
+  local cmd db_bytes need_mib free_backup free_docker docker_root mem version need_mem
   for cmd in docker python3 tar sha256sum gzip; do
     command -v "$cmd" >/dev/null 2>&1 || refuse "нет команды $cmd"
   done
@@ -420,12 +440,18 @@ check_resources() {
   if ((free_docker < CUTOVER_MIN_DISK_MIB)); then
     refuse "мало места под образы в $docker_root: свободно $free_docker МиБ"
   fi
-  if ((mem < CUTOVER_MIN_AVAILABLE_MIB)); then
-    refuse "мало доступной памяти: $mem МиБ, нужно не меньше $CUTOVER_MIN_AVAILABLE_MIB"
+  # Платформа 1.1.3: mask в базовом стеке, его лимит 1536 МиБ добавляется к прежнему порогу
+  # (консервативно: к моменту старта v2 прежний стек уже остановлен, но порог не занижаем).
+  need_mem="$CUTOVER_MIN_AVAILABLE_MIB"
+  mask_in_stack && need_mem=$((need_mem + CUTOVER_MASK_MEM_MIB))
+  if ((mem < need_mem)); then
+    refuse "мало доступной памяти: $mem МиБ, нужно не меньше $need_mem (порог" \
+      "$CUTOVER_MIN_AVAILABLE_MIB + сервис mask $((need_mem - CUTOVER_MIN_AVAILABLE_MIB)) МиБ)"
   fi
   check "ресурсы" ok "БД $((db_bytes / MIB)) МиБ, диск бэкапов $free_backup МиБ" \
     "(нужно $need_mib)," \
-    "диск docker $free_docker МиБ, память $mem МиБ"
+    "диск docker $free_docker МиБ, память $mem МиБ (нужно $need_mem, в том числе mask" \
+    "$((need_mem - CUTOVER_MIN_AVAILABLE_MIB)))"
 }
 
 # Бой здоров: все контейнеры проекта работают, app отвечает /ready, ботов достаточно.
@@ -547,6 +573,8 @@ prepare_tree() {
   if [[ -f "$CUTOVER_SECRETS_DIR/secrets.env" ]]; then
     ln -sfn "$CUTOVER_SECRETS_DIR/secrets.env" "$deploy/secrets.env"
   fi
+  # MASK_TOKEN нужен compose уже для config (обязательная переменная базы 1.1.3): до метки.
+  cut_ensure_mask_token
   date -u +%FT%TZ >"$deploy/$DEPLOYED_MARK"
   check "дерево v2" ok "compose, images.lock, .env (600), ссылка на secrets.env;" \
     "прежнее дерево не тронуто"
@@ -765,7 +793,7 @@ migrate_and_verify_schema() {
 
 start_v2() {
   phase "запуск v2"
-  local svc services name
+  local svc services name probe_image
   mapfile -t services < <(service_list)
   log "порядок сервисов: ${services[*]}"
   state_set V2_STARTED 1
@@ -780,6 +808,16 @@ start_v2() {
     else
       docker logs --tail 20 "$name" 2>&1 | cut_redact >>"$LOG_FILE"
       die "$EXIT_FAILED" "сервис $svc не стал healthy за ${HEALTH_WAIT_S} с"
+    fi
+    # У mask в compose нет healthcheck: «running» ничего не значит, ждём ответ его /health.
+    if [[ "$svc" == mask ]]; then
+      probe_image="$(lock_value "$LOCK_SRC" BAI_IMAGE_APP)"
+      if cut_wait_mask_ready "$name" "$probe_image" "$HEALTH_WAIT_S"; then
+        check "mask /health" ok "200"
+      else
+        docker logs --tail 20 "$name" 2>&1 | cut_redact >>"$LOG_FILE"
+        die "$EXIT_FAILED" "сервис mask не ответил на /health за ${HEALTH_WAIT_S} с"
+      fi
     fi
     if [[ "$svc" == postgres ]]; then
       plan_check "$RES/migrate-plan-v2pg.txt" "на postgres v2"
@@ -983,6 +1021,8 @@ main() {
   stop_old_stack
   start_v2
   verify_v2
+  # Ход проверен: токен mask выкатки переносится в secrets.env боя (отказ переноса - не сбой).
+  cut_persist_mask_token
   state_set RESULT OK
 }
 

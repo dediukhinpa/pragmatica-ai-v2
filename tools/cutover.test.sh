@@ -19,6 +19,7 @@ EXIT_USAGE=2
 FREEZE="5ea7f2d308beb476fb8b6fe05e095587c9ee4f40"
 DIGEST_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 DIGEST_B="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+DIGEST_C="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 # Изменяющие команды docker: ни одна не должна появиться при отказе.
 MUTATING_RE='^(run|create|rm|stop|kill|start|restart|load|pull|volume rm|volume create|network'
 MUTATING_RE+='|compose (up|run|stop|down|rm))'
@@ -54,8 +55,10 @@ echo "SELECT 1;" >"$PKG/stack/db/app/rollback/026_down.sql"
 echo "SELECT 1;" >"$PKG/stack/db/app/rollback/021_down.sql"
 echo "app/026_x" >"$PKG/expected-pending.txt"
 printf '%s\n' "$FREEZE" >"$PKG/FREEZE_SRC"
-printf 'BAI_VERSION=1.0.1\nBAI_IMAGE_APP=r/app@sha256:%s\nBAI_IMAGE_POSTGRES=r/pg@sha256:%s\n' \
+# lock платформы 1.1.3: образ mask обязателен (сервис в базовом стеке без профиля).
+printf 'BAI_VERSION=1.1.3\nBAI_IMAGE_APP=r/app@sha256:%s\nBAI_IMAGE_POSTGRES=r/pg@sha256:%s\n' \
   "$DIGEST_A" "$DIGEST_B" >"$PKG/images.lock"
+printf 'BAI_IMAGE_MASK=r/mask@sha256:%s\n' "$DIGEST_C" >>"$PKG/images.lock"
 echo "public-key" >"$PKG/cosign.pub"
 cp "$ROOT/deploy/rehearsal/../cutover/expected-host-dirs.txt" "$PKG/" 2>/dev/null \
   || echo "ACCESS_POLICY_HOST_DIR=/opt/pragmatika/local/access" >"$PKG/expected-host-dirs.txt"
@@ -65,12 +68,16 @@ for f in cutover.sh rollback.sh lib.sh; do cp "$SRC_DIR/$f" "$PKG/$f"; done
 
 LOCK_SHA="$(sha256sum "$PKG/images.lock" | cut -d' ' -f1)"
 PUB_SHA="$(sha256sum "$PKG/cosign.pub" | cut -d' ' -f1)"
-make_sigs() { # make_sigs <файл> <result> [digest app]
+make_sigs() { # make_sigs <файл> <result> [digest app] [lock]: строка на каждый образ lock
+  local lock="${4:-$PKG/images.lock}" key ref
   printf '# verify-signatures v1\nlock_sha256=%s\npubkey_sha256=%s\ncosign=v3\n' \
-    "$LOCK_SHA" "$PUB_SHA" >"$1"
+    "$(sha256sum "$lock" | cut -d' ' -f1)" "$PUB_SHA" >"$1"
   printf 'verified_at=2026-11-14T08:00:00Z\n' >>"$1"
-  printf 'image\tBAI_IMAGE_APP\tr/app@sha256:%s\tOK\n' "${3:-$DIGEST_A}" >>"$1"
-  printf 'image\tBAI_IMAGE_POSTGRES\tr/pg@sha256:%s\tOK\n' "$DIGEST_B" >>"$1"
+  while IFS='=' read -r key ref; do
+    [[ "$key" == BAI_IMAGE_* ]] || continue
+    if [[ "$key" == BAI_IMAGE_APP && -n "${3:-}" ]]; then ref="r/app@sha256:$3"; fi
+    printf 'image\t%s\t%s\tOK\n' "$key" "$ref" >>"$1"
+  done <"$lock"
   printf 'result=%s\n' "$2" >>"$1"
 }
 make_sigs "$TMP/sigs.ok" OK
@@ -88,7 +95,7 @@ run() {
     TMP_DOCKER_ROOT="$TMP" CUTOVER_COSIGN="${COSIGN_BIN:-/nonexistent-cosign}" \
     CUTOVER_ENV_FILE="${ENV_FILE:-$TMP/none.env}" \
     CUTOVER_EXPECTED_HOST_DIRS="${EXPECTED_DIRS:-}" \
-    bash "$PKG/cutover.sh" "$@" >"$TMP/out-$name" 2>&1 || RC=$?
+    bash "${PKG_RUN:-$PKG}/cutover.sh" "$@" >"$TMP/out-$name" 2>&1 || RC=$?
 }
 no_mutation() { ! grep -qE "$MUTATING_RE" "$TMP/docker-$1.log"; }
 
@@ -128,7 +135,7 @@ assert "нет файла подтверждения - код 3" "[[ $RC -eq $EX
 # 4. Подтверждение принято: дальше упираемся в боевой .env (его нет), подпись пройдена.
 run sigok --signatures-verified "$TMP/sigs.ok"
 assert "верное подтверждение, нет .env - код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
-assert "подписи приняты" "grep -q 'подтверждены подписи 2 образов' '$TMP/out-sigok'"
+assert "подписи приняты" "grep -q 'подтверждены подписи 3 образов' '$TMP/out-sigok'"
 assert "дальше отказ из-за .env" "grep -q 'нет боевого .env' '$TMP/out-sigok'"
 assert "бой не тронут и здесь" "no_mutation sigok"
 
@@ -297,6 +304,312 @@ assert "сообщение: бэкап не настроен, копии нет"
 mk_run fail 1 1
 assert "backup.sh вернул 1 - сбой хода" "[[ $RC -eq 1 ]]"
 assert "сообщение обычного сбоя backup.sh" "grep -q 'завершился с ошибкой' '$TMP/out-mk-fail'"
+
+# 5d. Платформа 1.1.3: образ mask (BAI_IMAGE_MASK) обязателен в lock, отказ до любых изменений.
+PKG_NOMASK="$TMP/pkg-nomask"
+cp -a "$PKG" "$PKG_NOMASK"
+grep -v '^BAI_IMAGE_MASK=' "$PKG/images.lock" >"$PKG_NOMASK/images.lock"
+(cd "$PKG_NOMASK" && find . -type f ! -name MANIFEST.sha256 | sort | sed 's|^\./||' \
+  | xargs -d '\n' sha256sum >MANIFEST.sha256)
+make_sigs "$TMP/sigs.nomask" OK "" "$PKG_NOMASK/images.lock"
+PKG_RUN="$PKG_NOMASK" run nomask --signatures-verified "$TMP/sigs.nomask"
+assert "lock без BAI_IMAGE_MASK - код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
+assert "отказ называет BAI_IMAGE_MASK и платформу 1.1.3" \
+  "grep -q 'BAI_IMAGE_MASK' '$TMP/out-nomask' && grep -q '1\.1\.3' '$TMP/out-nomask'"
+assert "lock без mask: бой не тронут" "no_mutation nomask"
+assert "lock без mask: отказ раньше проверки подписей и боевого .env" \
+  "! grep -q 'подписи образов' '$TMP/out-nomask' && ! grep -q 'боевой .env' '$TMP/out-nomask'"
+assert "lock с mask: проверка lock проходит" \
+  "grep -q 'проверка images.lock и обратные' '$TMP/out-sigok'"
+LOCK_LIB="$(bash -c "
+source '$SRC_DIR/lib.sh'
+printf 'BAI_VERSION=1\nBAI_IMAGE_MASK=r/m@sha256:$DIGEST_A\n' >'$TMP/m1'
+printf 'BAI_VERSION=1\nBAI_IMAGE_APP=r/a@sha256:$DIGEST_A\n' >'$TMP/m2'
+printf 'BAI_VERSION=1\nBAI_IMAGE_MASK=r/m:latest\n' >'$TMP/m3'
+for n in 1 2 3; do cut_lock_has_mask '$TMP/m'\$n && echo -n ok || echo -n no; done; echo
+" 2>&1 || true)"
+assert "cut_lock_has_mask: с digest да, без ключа и с тегом нет" "[[ \"\$LOCK_LIB\" == *oknono ]]"
+
+# 5e. MASK_TOKEN: платформа 1.1.3 требует его (compose без токена не стартует). Нет или пуст -
+# генерируется в secrets.mask.env дерева выкатки (600), значение не печатается; заданное не
+# меняется; в secrets.env боя токен переносится только после успешного хода.
+# h_run <имя>: тело - со stdin; bash с lib.sh, каталог $TMP/h-<имя> (d), вывод в out-h-<имя>.
+h_run() {
+  local d="$TMP/h-$1"
+  mkdir -p "$d/new/deploy" "$d/sec"
+  {
+    printf 'set -euo pipefail\nsource %q\n' "$SRC_DIR/lib.sh"
+    printf 'd=%q; SRC_DIR=%q\ncut_init_run "$d/run"\n' "$d" "$SRC_DIR"
+    printf 'CUTOVER_NEW_DIR="$d/new"; CUTOVER_SECRETS_DIR="$d/sec"; CUTOVER_EXTRA_ENV=""\n'
+    printf 'CUTOVER_ENV_FILE="$d/battle.env"; touch "$CUTOVER_ENV_FILE"\n'
+    cat
+  } >"$d/h.sh"
+  RC=0
+  bash "$d/h.sh" >"$TMP/out-h-$1" 2>&1 || RC=$?
+}
+tok_of() { { sed -n 's/^MASK_TOKEN=//p' "$1" 2>/dev/null || true; } | tail -1; }
+h_secrets() { # h_secrets <имя> <содержимое secrets.env>: файл боя и ссылка в дереве выкатки
+  local d="$TMP/h-$1"
+  mkdir -p "$d/new/deploy" "$d/sec"
+  printf '%b' "$2" >"$d/sec/secrets.env"
+  ln -sfn "$d/sec/secrets.env" "$d/new/deploy/secrets.env"
+}
+SIDE_NAME="secrets.mask.env"
+
+h_run mt1 <<'BODY'
+cut_ensure_mask_token
+BODY
+D="$TMP/h-mt1"; SIDE="$D/new/deploy/$SIDE_NAME"; T1="$(tok_of "$SIDE")"
+assert "MASK_TOKEN нигде нет: токен сгенерирован в secrets.mask.env выкатки" \
+  "[[ $RC -eq 0 && -f '$SIDE' ]]"
+assert "сгенерированный токен: права 600, 64 hex-символа" \
+  "[[ \"\$(stat -c %a '$SIDE')\" == 600 ]] && grep -qE '^MASK_TOKEN=[0-9a-f]{64}\$' '$SIDE'"
+assert "значение токена не попало в журнал, проверки, состояние и вывод" \
+  "[[ -n '$T1' ]] && ! grep -rqF '$T1' '$D/run/results' '$D/run/state.env' '$TMP/out-h-mt1'"
+assert "значение токена внесено в список секретов (маскирование журнала и проверка архива)" \
+  "[[ -n '$T1' ]] && grep -qxF '$T1' '$D/run/secrets.list'"
+assert "в состоянии записан источник токена (без значения)" \
+  "grep -q '^MASK_TOKEN_SOURCE=' '$D/run/state.env'"
+
+h_secrets mt2 'POSTGRES_PASSWORD=pgpass-value-1234\nMASK_TOKEN=given-token-value-0123456789\n'
+SHA_MT2="$(sha256sum "$TMP/h-mt2/sec/secrets.env" | cut -d' ' -f1)"
+h_run mt2 <<'BODY'
+cut_ensure_mask_token
+BODY
+assert "MASK_TOKEN задан в secrets.env: не генерируется, файла выкатки нет" \
+  "[[ $RC -eq 0 && ! -e '$TMP/h-mt2/new/deploy/$SIDE_NAME' ]]"
+assert "заданный secrets.env не изменён ни байтом" \
+  "[[ \"\$(sha256sum '$TMP/h-mt2/sec/secrets.env' | cut -d' ' -f1)\" == '$SHA_MT2' ]]"
+assert "заданное значение не печатается" \
+  "! grep -rqF 'given-token-value' '$TMP/h-mt2/run/results' '$TMP/out-h-mt2'"
+
+h_secrets mt3 'A=1\nMASK_TOKEN=\nB=2\n'
+h_run mt3 <<'BODY'
+cut_ensure_mask_token
+BODY
+assert "пустой MASK_TOKEN в secrets.env: токен генерируется" \
+  "[[ $RC -eq 0 && -f '$TMP/h-mt3/new/deploy/$SIDE_NAME' ]]"
+assert "до успеха хода secrets.env боя не тронут" \
+  "[[ \"\$(cat '$TMP/h-mt3/sec/secrets.env')\" == \$'A=1\nMASK_TOKEN=\nB=2' ]]"
+
+mkdir -p "$TMP/h-mt4/new/deploy"
+printf 'MASK_TOKEN=from-env-value-0123456789\n' >"$TMP/h-mt4/new/deploy/.env"
+h_run mt4 <<'BODY'
+cut_ensure_mask_token
+BODY
+assert "MASK_TOKEN задан в .env выкатки: не генерируется" \
+  "[[ $RC -eq 0 && ! -e '$TMP/h-mt4/new/deploy/$SIDE_NAME' ]]"
+
+h_run mt5 <<'BODY'
+cut_ensure_mask_token
+BODY
+T5="$(tok_of "$TMP/h-mt5/new/deploy/$SIDE_NAME")"
+h_run mt5 <<'BODY'
+cut_ensure_mask_token
+BODY
+assert "повторный запуск: токен выкатки переиспользуется, не меняется" \
+  "[[ -n '$T5' && \"\$(tok_of '$TMP/h-mt5/new/deploy/$SIDE_NAME')\" == '$T5' \
+   && \"\$(wc -l <'$TMP/h-mt5/new/deploy/$SIDE_NAME')\" -eq 1 ]]"
+assert "повторный запуск: токен снова в списке секретов" \
+  "[[ -n '$T5' ]] && grep -qxF '$T5' '$TMP/h-mt5/run/secrets.list'"
+
+h_secrets mt6 'A=1\nMASK_TOKEN=\nB=2\n'
+chmod 640 "$TMP/h-mt6/sec/secrets.env"
+h_run mt6 <<'BODY'
+cut_ensure_mask_token
+cut_persist_mask_token
+BODY
+SEC6="$TMP/h-mt6/sec/secrets.env"; T6="$(tok_of "$SEC6")"
+assert "перенос в secrets.env: пустая строка заменена, порядок и соседи целы" \
+  "[[ $RC -eq 0 && \"\$(sed -n 1p '$SEC6')\" == A=1 && \"\$(sed -n 3p '$SEC6')\" == B=2 \
+   && \"\$(sed -n 2p '$SEC6')\" =~ ^MASK_TOKEN=[0-9a-f]{64}\$ \
+   && \"\$(grep -c '^MASK_TOKEN=' '$SEC6')\" -eq 1 ]]"
+assert "перенос: права secrets.env сохранены, файл выкатки убран" \
+  "[[ \"\$(stat -c %a '$SEC6')\" == 640 && ! -e '$TMP/h-mt6/new/deploy/$SIDE_NAME' ]]"
+assert "перенос: значение не печатается" \
+  "[[ -n '$T6' ]] && ! grep -rqF '$T6' '$TMP/h-mt6/run/results' '$TMP/h-mt6/run/state.env' \
+   '$TMP/out-h-mt6'"
+
+h_secrets mt7 'A=1'
+h_run mt7 <<'BODY'
+cut_ensure_mask_token
+cut_persist_mask_token
+BODY
+assert "перенос: ключ дописан с новой строки, если файл без перевода строки" \
+  "[[ \"\$(sed -n 1p '$TMP/h-mt7/sec/secrets.env')\" == A=1 \
+   && \"\$(sed -n 2p '$TMP/h-mt7/sec/secrets.env')\" =~ ^MASK_TOKEN=[0-9a-f]{64}\$ ]]"
+
+h_secrets mt8 'MASK_TOKEN=other-value-0123456789\n'
+printf 'MASK_TOKEN=side-value-0123456789\n' >"$TMP/h-mt8/new/deploy/$SIDE_NAME"
+h_run mt8 <<'BODY'
+cut_persist_mask_token
+BODY
+assert "перенос: другой заданный токен в secrets.env не перезаписывается, файл выкатки цел" \
+  "[[ $RC -eq 0 && \"\$(cat '$TMP/h-mt8/sec/secrets.env')\" == MASK_TOKEN=other-value-0123456789 \
+   && -f '$TMP/h-mt8/new/deploy/$SIDE_NAME' ]]"
+assert "перенос при расхождении: предупреждение в проверках" \
+  "grep -q 'warn' '$TMP/h-mt8/run/results/checks.tsv'"
+
+h_secrets mt9 'A=1\n'
+printf 'MASK_TOKEN=side-value-0123456789\n' >"$TMP/h-mt9/new/deploy/$SIDE_NAME"
+chmod 400 "$TMP/h-mt9/sec/secrets.env"
+h_run mt9 <<'BODY'
+cut_persist_mask_token
+BODY
+if [[ $EUID -ne 0 ]]; then
+  assert "перенос: secrets.env не на запись - не сбой, токен остаётся в файле выкатки" \
+    "[[ $RC -eq 0 && -f '$TMP/h-mt9/new/deploy/$SIDE_NAME' \
+     && \"\$(cat '$TMP/h-mt9/sec/secrets.env')\" == A=1 ]] \
+     && grep -q 'warn' '$TMP/h-mt9/run/results/checks.tsv'"
+fi
+chmod 600 "$TMP/h-mt9/sec/secrets.env"
+
+h_secrets mt10 'A=1\nMASK_TOKEN=\n'
+h_run mt10 <<'BODY'
+cut_ensure_mask_token
+cut_new_env_args
+echo "ARGS:${NEW_ENV_ARGS[*]}"
+BODY
+assert "файл токена идёт в окружении compose после secrets.env (перекрывает пустую строку)" \
+  "grep -qE 'ARGS:.*deploy/secrets\.env --env-file [^ ]*/secrets\.mask\.env' '$TMP/out-h-mt10'"
+
+# Список секретов маскирования читает и файл токена выкатки (cutover.sh и rollback.sh).
+h_secrets mc 'A=1\n'
+printf 'MASK_TOKEN=side-value-0123456789\n' >"$TMP/h-mc/new/deploy/$SIDE_NAME"
+h_run mc <<'BODY'
+eval "$(sed -n '/^collect_secret_values() {/,/^}/p' "$SRC_DIR/cutover.sh")"
+collect_secret_values
+BODY
+assert "cutover.sh: маскирование журнала знает токен из файла выкатки" \
+  "grep -qxF 'side-value-0123456789' '$TMP/h-mc/run/secrets.list'"
+h_run mr <<'BODY'
+printf 'MASK_TOKEN=side-value-0123456789\n' >"$d/new/deploy/secrets.mask.env"
+eval "$(sed -n '/^collect_secrets() {/,/^}/p' "$SRC_DIR/rollback.sh")"
+collect_secrets
+BODY
+assert "rollback.sh: маскирование журнала знает токен из файла выкатки" \
+  "grep -qxF 'side-value-0123456789' '$TMP/h-mr/run/secrets.list'"
+assert "rollback.sh токен не удаляет и не правит: в коде нет операций над MASK_TOKEN" \
+  "! grep -vE '^[[:space:]]*#' '$SRC_DIR/rollback.sh' | grep -qw 'MASK_TOKEN'"
+assert "токен в secrets.env с прежним compose не мешает: dc_old читает файл как есть" \
+  "grep -q 'secrets_dir/secrets.env' '$SRC_DIR/lib.sh'"
+
+# Место вызовов в ходе: токен готов до проверки конфигурации, переносится после проверок.
+assert "prepare_tree создаёт токен до записи метки выкатки" \
+  "sed -n '/^prepare_tree() {/,/^}/p' '$SRC_DIR/cutover.sh' \
+   | awk '/cut_ensure_mask_token/{a=NR} /DEPLOYED_MARK\"/{b=NR} END{exit !(a && b && a<b)}'"
+assert "main: перенос токена в secrets.env только после verify_v2 и до RESULT OK" \
+  "sed -n '/^main() {/,/^}/p' '$SRC_DIR/cutover.sh' \
+   | awk '/^  verify_v2\$/{a=NR} /^  cut_persist_mask_token\$/{b=NR} /RESULT OK/{c=NR} \
+          END{exit !(a && b && c && a<b && b<c)}'"
+
+# 5f. Порядок старта и ожидание mask (в базовом стеке без профиля, healthcheck в compose нет).
+h_run svc1 <<'BODY'
+eval "$(sed -n '/^service_list() {/,/^}/p' "$SRC_DIR/cutover.sh")"
+dc_new() { printf '%s\n' app mask indexer postgres pseudonymizer documents embeddings \
+  gateway-mtls alloy docker-socket-proxy migrate; }
+service_list | tr '\n' ' '; echo
+BODY
+POS_OK='{for (i = 1; i <= NF; i++) pos[$i] = i} END{exit !(pos["mask"] && pos["app"] == NF'
+assert "service_list: mask запускается (без профиля) до indexer, app последним" \
+  "awk '$POS_OK && pos[\"mask\"] < pos[\"indexer\"])}' '$TMP/out-h-svc1'"
+h_run svc2 <<'BODY'
+eval "$(sed -n '/^service_list() {/,/^}/p' "$SRC_DIR/cutover.sh")"
+CUTOVER_SERVICES="postgres mask app"
+service_list | tr '\n' ' '; echo
+BODY
+assert "урезанный стенд с mask: postgres, mask, app" \
+  "grep -qx 'postgres mask app ' '$TMP/out-h-svc2'"
+assert "start_v2 после mask ждёт его /health (в compose healthcheck у mask нет)" \
+  "sed -n '/^start_v2() {/,/^}/p' '$SRC_DIR/cutover.sh' | grep -q 'cut_wait_mask_ready'"
+# Заглушка docker: счётчик проб в файле (docker run вызывается в подоболочке).
+MASK_STUB='sleep() { :; }; POLL_S=1
+probes() { if [[ -f "$d/probes" ]]; then wc -l <"$d/probes"; else echo 0; fi; }
+docker() { case "$1" in inspect) echo "${STATE:-running}" ;;
+  run) echo x >>"$d/probes"
+    if (($(probes) >= ${OK_AT:-3})); then echo "200 {}"; else echo "нет"; return 1; fi ;;
+  esac; }'
+h_run mw1 <<BODY
+$MASK_STUB
+cut_wait_mask_ready pragmatika-mask-1 r/app 30 && echo "rc=0 probes=\$(probes)"
+BODY
+assert "ожидание mask: ответ 200 на /health после нескольких проб - успех" \
+  "grep -q 'rc=0 probes=3' '$TMP/out-h-mw1'"
+h_run mw2 <<BODY
+$MASK_STUB
+OK_AT=99
+cut_wait_mask_ready pragmatika-mask-1 r/app 5 || echo "rc=1 probes=\$(probes)"
+BODY
+assert "ожидание mask: нет ответа за срок - отказ (не пропускается молча)" \
+  "grep -q 'rc=1 probes=5' '$TMP/out-h-mw2'"
+h_run mw3 <<BODY
+$MASK_STUB
+STATE=exited
+cut_wait_mask_ready pragmatika-mask-1 r/app 30 || echo "rc=1 probes=\$(probes)"
+BODY
+assert "ожидание mask: контейнер упал - отказ сразу, без проб" \
+  "grep -q 'rc=1 probes=0' '$TMP/out-h-mw3'"
+
+# 5g. Память: лимит mask 1536 МиБ входит в запас (порог CUTOVER_MIN_AVAILABLE_MIB не менялся).
+DEFAULTS_LIB="$(bash -c "source '$SRC_DIR/lib.sh'; cut_defaults
+  echo \"\$CUTOVER_MIN_AVAILABLE_MIB \$CUTOVER_MASK_MEM_MIB\"" 2>&1 || true)"
+assert "умолчания: порог 2048 прежний, mask 1536" "[[ \"\$DEFAULTS_LIB\" == '2048 1536' ]]"
+mem_run() { # mem_run <имя> <MemAvailable МиБ> [сервисы] [CUTOVER_MASK_MEM_MIB]
+  H_MEM="$2" H_SERVICES="${3:-}" H_MASKMEM="${4:-}" h_run "$1" <<'BODY'
+eval "$(sed -n '/^version_ge() {/p;/^check_resources() {/,/^}/p' "$SRC_DIR/cutover.sh")"
+MIN_COMPOSE_VERSION=2.24; DISK_FACTOR_FOR_DB=3
+refuse() { echo "REFUSE: $*"; exit 3; }
+docker() { case "$1" in compose) echo 2.40.3 ;; exec) echo 1048576 ;; info) echo / ;; esac; }
+dir_free_mib() { echo 999999; }
+mem_available_mib() { echo "$H_MEM"; }
+[[ -z "$H_MASKMEM" ]] || CUTOVER_MASK_MEM_MIB="$H_MASKMEM"
+CUTOVER_SERVICES="$H_SERVICES"
+cut_defaults
+touch "$d/backup.sh" "$d/old.yml"
+CUTOVER_BACKUP_SCRIPT="$d/backup.sh"; CUTOVER_OLD_COMPOSE="$d/old.yml"
+CUTOVER_BACKUP_ROOT="$d/bk"; PG_USER=u; PG_DB=d
+check_resources
+BODY
+}
+mem_run mem1 3000
+assert "память 3000 МиБ при полном стеке: отказ (порог 2048 + mask 1536)" "[[ $RC -eq 3 ]]"
+assert "отказ называет mask и 1536" \
+  "grep -q 'mask' '$TMP/out-h-mem1' && grep -q '1536' '$TMP/out-h-mem1'"
+mem_run mem2 4000
+assert "память 4000 МиБ при полном стеке: проходит" \
+  "[[ $RC -eq 0 ]] && grep -q 'проверка ресурсы: ok' '$TMP/out-h-mem2'"
+mem_run mem3 3000 "postgres pseudonymizer app"
+assert "урезанный стенд без mask: 3000 МиБ проходит (1536 не требуется)" "[[ $RC -eq 0 ]]"
+mem_run mem4 3000 "" 0
+assert "CUTOVER_MASK_MEM_MIB=0 отключает добавку (решение владельца)" "[[ $RC -eq 0 ]]"
+
+# 5h. IMAGE_SEND_PHOTO: пакет его не задаёт (умолчание проекта v2 - false), только сообщает.
+bk_run ispset "IMAGE_SEND_PHOTO=false"$'\n'
+assert "IMAGE_SEND_PHOTO в боевом .env: значение названо, переносится как есть" \
+  "grep -q 'проверка IMAGE_SEND_PHOTO: ok - задан в боевом .env: false' '$TMP/out-ispset'"
+bk_run ispunset ""
+assert "IMAGE_SEND_PHOTO не задан: названо умолчание проекта v2 false" \
+  "grep -q 'проверка IMAGE_SEND_PHOTO: ok - не задан' '$TMP/out-ispunset' \
+   && grep -q 'умолчание проекта v2 false' '$TMP/out-ispunset'"
+assert "пакет не записывает IMAGE_SEND_PHOTO в .env v2" \
+  "! grep -E 'printf.*IMAGE_SEND_PHOTO|IMAGE_SEND_PHOTO.*>>' \
+   '$SRC_DIR/cutover.sh' '$SRC_DIR/lib.sh'"
+
+# 5i. Документы пакета: что добавилось с платформой 1.1.3.
+CK="$SRC_DIR/CHECKLIST.md"
+RD="$SRC_DIR/README.md"
+assert "CHECKLIST/README: платформа 1.1.3, прежней 1.1.2 нет" \
+  "grep -q '1\.1\.3' '$CK' && grep -q '1\.1\.3' '$RD' && ! grep -q '1\.1\.2' '$CK' '$RD'"
+assert "CHECKLIST: mask, MASK_TOKEN без печати, +1536 МиБ" \
+  "grep -q 'BAI_IMAGE_MASK' '$CK' && grep -q 'MASK_TOKEN' '$CK' && grep -q '1536' '$CK' \
+   && grep -q 'не печата' '$CK'"
+assert "CHECKLIST: строка решения владельца про IMAGE_SEND_PHOTO с пустым местом" \
+  "grep -q 'значение IMAGE_SEND_PHOTO решено владельцем: ' '$CK' \
+   && grep -q 'false = прежнее поведение текстом' '$CK'"
+assert "CHECKLIST: VISION_ROUTE_ENABLED касается только шлюза pragmatika-gw" \
+  "grep -q 'VISION_ROUTE_ENABLED' '$CK' && grep -q 'pragmatika-gw' '$CK'"
+assert "README: mask в составе стека и порядок запуска" \
+  "grep -q 'mask' '$RD' && grep -q 'MASK_TOKEN' '$RD'"
 
 # 6. Неверный вызов.
 run usage --nonsense

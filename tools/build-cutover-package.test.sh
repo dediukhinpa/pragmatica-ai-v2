@@ -10,6 +10,8 @@ PASS=0
 FAIL=0
 LIMIT=100
 FREEZE="5ea7f2d308beb476fb8b6fe05e095587c9ee4f40"
+DIGEST_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+DIGEST_M="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 
 ok() { PASS=$((PASS + 1)); echo "PASS $1"; }
 bad() { FAIL=$((FAIL + 1)); echo "FAIL $1"; }
@@ -40,7 +42,9 @@ printf '# Последняя синхронизация\n\n- Коммит ста
 git -C "$REPO" init -q
 commit init
 
-echo "BAI_VERSION=1.0.1" >"$TMP/images.lock"
+# lock платформы 1.1.3: образ mask (BAI_IMAGE_MASK) обязателен, сервис в базовом стеке без профиля.
+printf 'BAI_VERSION=1.1.3\nBAI_IMAGE_APP=r/app@sha256:%s\nBAI_IMAGE_MASK=r/mask@sha256:%s\n' \
+  "$DIGEST_A" "$DIGEST_M" >"$TMP/images.lock"
 echo "-- schema" >"$TMP/schema.sql"
 echo "public-key" >"$TMP/cosign.pub"
 run() { BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --lock "$TMP/images.lock" \
@@ -62,6 +66,24 @@ assert "FREEZE_SRC из last-sync.md" "[[ \"\$(cat '$OUT/FREEZE_SRC')\" == '$FRE
 assert "копии скриптов нет в stack" "[[ ! -e '$OUT/stack/deploy/cutover' ]]"
 assert "манифест сходится" "(cd '$OUT' && sha256sum -c --quiet MANIFEST.sha256)"
 assert "в манифесте нет самого манифеста" "! grep -q MANIFEST '$OUT/MANIFEST.sha256'"
+
+# Платформа 1.1.3: lock без BAI_IMAGE_MASK - отказ сборки до создания каталога пакета.
+grep -v '^BAI_IMAGE_MASK=' "$TMP/images.lock" >"$TMP/nomask.lock"
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg-nomask" --lock "$TMP/nomask.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" >"$TMP/out-nomask.log" 2>&1 \
+  || rc=$?
+assert "lock без BAI_IMAGE_MASK - отказ сборки (код 1)" "[[ $rc -eq 1 ]]"
+assert "в сообщении назван BAI_IMAGE_MASK" "grep -q 'BAI_IMAGE_MASK' '$TMP/out-nomask.log'"
+assert "при отказе каталог пакета не создан" "[[ ! -e '$TMP/pkg-nomask' ]]"
+# mask с тегом вместо digest тоже не годится (образ мимо подписи).
+sed 's|^BAI_IMAGE_MASK=.*|BAI_IMAGE_MASK=r/mask:latest|' "$TMP/images.lock" >"$TMP/tagmask.lock"
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg-tagmask" --lock "$TMP/tagmask.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" >"$TMP/out-tagmask.log" 2>&1 \
+  || rc=$?
+assert "BAI_IMAGE_MASK без digest - отказ сборки (код 1)" "[[ $rc -eq 1 ]]"
+assert "в пакете images.lock содержит mask" "grep -q '^BAI_IMAGE_MASK=' '$OUT/images.lock'"
 
 # Незакоммиченный файл в пакет не попадает.
 echo "secret" >"$REPO/deploy/.env"

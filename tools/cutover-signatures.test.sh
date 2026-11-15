@@ -22,6 +22,7 @@ TAB=$'\t'
 SHA_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 SHA_B="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 SHA_C="cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+SHA_D="dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 NOISE="SECRETNOISE-payload"
 FORBIDDEN_CMDS="docker|sudo|curl|wget"
 TOKEN_TEXT="sk-TOPSECRET-0123456789"
@@ -66,6 +67,7 @@ BAI_IMAGE_APP=registry.example/team/app@sha256:$SHA_A
 BAI_IMAGE_NGINX=registry.example:5000/nginx@sha256:$SHA_B
 
 BAI_IMAGE_POSTGRES=registry.example/pgvector@sha256:$SHA_C
+BAI_IMAGE_MASK=registry.example/team/mask@sha256:$SHA_D
 EOF
 PUBKEY="$TMP/cosign.pub"
 printf '%s\n' '-----BEGIN PUBLIC KEY-----' 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEstub' \
@@ -94,6 +96,7 @@ LINE_RE_FILE+="|result=(OK|FAIL))\$"
 ROW_APP="image${TAB}BAI_IMAGE_APP${TAB}registry.example/team/app@sha256:$SHA_A${TAB}OK"
 ROW_NGINX="image${TAB}BAI_IMAGE_NGINX${TAB}registry.example:5000/nginx@sha256:$SHA_B${TAB}OK"
 ROW_PG="image${TAB}BAI_IMAGE_POSTGRES${TAB}registry.example/pgvector@sha256:$SHA_C${TAB}OK"
+ROW_MASK="image${TAB}BAI_IMAGE_MASK${TAB}registry.example/team/mask@sha256:$SHA_D${TAB}OK"
 VERIFY_ARGS="verify --key $PUBKEY --insecure-ignore-tlog=true"
 
 assert "скрипт существует и исполняемый" "[[ -x '$SCRIPT' ]]"
@@ -138,9 +141,13 @@ assert "все OK: порядок строк - шапка (5), образы lock
 assert "все OK: строки образов - в порядке lock, поля через TAB" \
   "[[ \"\$(sed -n 6p '$OUT_OK')\" == '$ROW_APP' \
    && \"\$(sed -n 7p '$OUT_OK')\" == '$ROW_NGINX' \
-   && \"\$(sed -n 8p '$OUT_OK')\" == '$ROW_PG' ]]"
-assert "все OK: последняя строка result=OK, всего 9 строк" \
-  "[[ \"\$(tail -n 1 '$OUT_OK')\" == 'result=OK' && \"\$(wc -l <'$OUT_OK')\" -eq 9 ]]"
+   && \"\$(sed -n 8p '$OUT_OK')\" == '$ROW_PG' \
+   && \"\$(sed -n 9p '$OUT_OK')\" == '$ROW_MASK' ]]"
+assert "все OK: образ mask (платформа 1.1.3) проверен и записан в файл результата" \
+  "grep -qxF '$ROW_MASK' '$OUT_OK' \
+   && grep -qx '$VERIFY_ARGS registry.example/team/mask@sha256:$SHA_D' '$TMP/cosign-allok.log'"
+assert "все OK: последняя строка result=OK, всего 10 строк" \
+  "[[ \"\$(tail -n 1 '$OUT_OK')\" == 'result=OK' && \"\$(wc -l <'$OUT_OK')\" -eq 10 ]]"
 assert "все OK: в файле нет ничего, кроме полей формата" \
   "! grep -vE '$LINE_RE_FILE' '$OUT_OK' | grep -q ."
 assert "все OK: вывод cosign не попал в файл и stdout" \
@@ -148,7 +155,7 @@ assert "все OK: вывод cosign не попал в файл и stdout" \
 assert "все OK: stdout совпадает с файлом, stderr пуст" \
   "cmp -s '$OUT_OK' '$TMP/out-allok.txt' && [[ ! -s '$TMP/err-allok.txt' ]]"
 assert "все OK: cosign verify вызван на каждый образ с --key и --insecure-ignore-tlog=true" \
-  "[[ \"\$(grep -c '^$VERIFY_ARGS ' '$TMP/cosign-allok.log')\" -eq 3 ]]"
+  "[[ \"\$(grep -c '^$VERIFY_ARGS ' '$TMP/cosign-allok.log')\" -eq 4 ]]"
 assert "все OK: ссылки с digest переданы cosign как есть" \
   "grep -qx '$VERIFY_ARGS registry.example:5000/nginx@sha256:$SHA_B' '$TMP/cosign-allok.log'"
 # Режим файла при перезаписи: прежний файл с режимом 600 становится 644.
@@ -180,8 +187,8 @@ assert "один FAIL: помечен именно этот образ, оста
   "grep -q \"^image${TAB}BAI_IMAGE_NGINX${TAB}.*${TAB}FAIL\$\" '$OUT_BAD' \
    && grep -q \"^image${TAB}BAI_IMAGE_APP${TAB}.*${TAB}OK\$\" '$OUT_BAD' \
    && grep -q \"^image${TAB}BAI_IMAGE_POSTGRES${TAB}.*${TAB}OK\$\" '$OUT_BAD'"
-assert "один FAIL: после сбоя проверка остальных образов продолжается (3 вызова)" \
-  "[[ \"\$(grep -c '^verify ' '$TMP/cosign-onefail.log')\" -eq 3 ]]"
+assert "один FAIL: после сбоя проверка остальных образов продолжается (4 вызова)" \
+  "[[ \"\$(grep -c '^verify ' '$TMP/cosign-onefail.log')\" -eq 4 ]]"
 assert "один FAIL: формат файла тот же" "! grep -vE '$LINE_RE_FILE' '$OUT_BAD' | grep -q ."
 assert "один FAIL: в stderr последние строки cosign" \
   "grep -q 'verification failed' '$TMP/err-onefail.txt'"
@@ -191,6 +198,14 @@ assert "один FAIL: токена и вывода cosign нет в файле 
   "! grep -q \"$TOKEN_TEXT\|$NOISE\" '$OUT_BAD' '$TMP/out-onefail.txt'"
 assert "один FAIL: не больше 3 строк вывода cosign в stderr" \
   "[[ \"\$(grep -c '^  | ' '$TMP/err-onefail.txt')\" -le 3 ]]"
+
+# 3а. Образ mask (платформа 1.1.3) без верной подписи: код 1, помечен именно он.
+STUB_FAIL_MATCH="mask@" run_sig maskfail --lock "$GOOD_LOCK" --pubkey "$PUBKEY" \
+  --out "$TMP/maskfail.txt"
+assert "FAIL у mask: код 1, result=FAIL, помечен BAI_IMAGE_MASK" \
+  "[[ $RC -eq $EXIT_FAIL ]] && grep -qx 'result=FAIL' '$TMP/maskfail.txt' \
+   && grep -q \"^image${TAB}BAI_IMAGE_MASK${TAB}.*${TAB}FAIL\$\" '$TMP/maskfail.txt' \
+   && grep -q \"^image${TAB}BAI_IMAGE_APP${TAB}.*${TAB}OK\$\" '$TMP/maskfail.txt'"
 
 STUB_FAIL_MATCH="registry.example" run_sig allfail --lock "$GOOD_LOCK" --pubkey "$PUBKEY" \
   --out "$TMP/allfail.txt"
@@ -223,6 +238,13 @@ bad_lock() { # <имя> <содержимое строки(строк)>
   assert "битый lock ($name): cosign не вызывался" \
     "! grep -q '^verify ' '$TMP/cosign-$name.log'"
 }
+# Платформа 1.1.3: mask в базовом стеке, lock без BAI_IMAGE_MASK не годится (compose не стартует).
+printf 'BAI_VERSION=1.1.3\nBAI_IMAGE_APP=r/app@sha256:%s\n' "$SHA_A" >"$TMP/nomask.lock"
+run_sig nomask --lock "$TMP/nomask.lock" --pubkey "$PUBKEY" --out "$TMP/nomask.txt"
+assert "lock без BAI_IMAGE_MASK: код 3, файла результата нет" \
+  "[[ $RC -eq $EXIT_REFUSED && ! -e '$TMP/nomask.txt' ]]"
+assert "lock без BAI_IMAGE_MASK: в сообщении ключ, cosign не вызывался" \
+  "grep -q 'BAI_IMAGE_MASK' '$TMP/err-nomask.txt' && ! grep -q '^verify ' '$TMP/cosign-nomask.log'"
 bad_lock tag "BAI_IMAGE_APP=registry.example/app:latest"
 assert "тег вместо digest: в сообщении есть имя ключа" "grep -q 'BAI_IMAGE_APP' '$TMP/err-tag.txt'"
 bad_lock empty "BAI_IMAGE_APP="

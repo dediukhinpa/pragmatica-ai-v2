@@ -13,6 +13,14 @@
 #   --backup-mode unconfigured: BACKUP_AGE_RECIPIENT пуст в копиях .env и secrets.env (бой
 #   стенда не меняется), остальные шаги идут с --allow-unconfigured-backup.
 #
+# Платформа 1.1.3 (mask в базовом стеке): LOCK_SRC - lock версии 1.1.3 с BAI_IMAGE_MASK, SIGNATURES
+# - вывод verify-signatures.sh по ЭТОМУ lock (все образы, mask тоже). Лёгкий стенд сервис mask не
+# поднимает (CUTOVER_SERVICES без него, образ mask не тянется, добавка памяти 1536 МиБ не нужна),
+# но compose config требует BAI_IMAGE_MASK и MASK_TOKEN: стенд проверяет создание токена
+# (в secrets.env стенда его нет), что значение не печатается в журналы, что до успешного хода
+# secrets.env не меняется (preflight, forced) и что после ход токен записан и не меняется при
+# откате и повторных переключениях. Запуск самого mask проверяет репетиция G6 и бой.
+#
 # audit_log и jobs в сравнение чисел строк не входят: штатный backup.sh сам пишет в них записи
 # о бэкапе, их рост - нормальная работа боя, а не потеря данных.
 # Окружение: SYNTH (каталог синтетического боя), OUT (каталог результатов проверки),
@@ -26,7 +34,7 @@ ROOT="$(cd "$HERE/.." && pwd)"
 REPORTS="${REPORTS:-$HOME/reports/business-ai-modular}"
 SYNTH="${SYNTH:-$REPORTS/stage-8/tmp/synth8}"
 OUT="${OUT:-$REPORTS/stage-8/tmp/cutover-test}"
-LOCK_SRC="${LOCK_SRC:-$REPORTS/stage-7/package/images.lock}"
+LOCK_SRC="${LOCK_SRC:-$REPORTS/release/images-1.1.3.lock}"
 SCHEMA_SRC="${SCHEMA_SRC:-$REPORTS/stage-7/package/schema-expected.sql}"
 PUB_SRC="${PUB_SRC:-$REPORTS/stage-7/package/cosign.pub}"
 SIGNATURES="${SIGNATURES:-$REPORTS/stage-8/tmp/signatures.txt}"
@@ -186,6 +194,53 @@ backup_step_result() { # backup_step_result <метка>: шаг backup.sh --ver
   fi
 }
 
+# MASK_TOKEN в secrets.env стенда: печатает «none» или «<12 hex sha256> leak=<0|1>» (значение не
+# печатается; leak=1 - значение найдено в журналах хода).
+mask_token_probe() {
+  local conf_dir
+  conf_dir="$(sed -n 's/^CUTOVER_SECRETS_DIR=//p' "$CONF")"
+  python3 -I - "$conf_dir/secrets.env" "$OUT" <<'PY'
+import hashlib, pathlib, re, sys
+
+value = ""
+for line in open(sys.argv[1], encoding="utf-8", errors="replace"):
+    found = re.match(r"\s*MASK_TOKEN=(.*)", line)
+    if found:
+        value = found.group(1).strip()
+if not value:
+    print("none")
+    sys.exit(0)
+leak = any(value in path.read_text(errors="replace")
+           for path in pathlib.Path(sys.argv[2]).glob("*.log"))
+print(hashlib.sha256(value.encode()).hexdigest()[:12], "leak=%d" % leak)
+PY
+}
+
+mask_expect() { # mask_expect <метка> <absent|present>: токен mask в secrets.env стенда
+  local probe hash before_file="$OUT/mask-hash-before" seen_file="$OUT/mask-hash"
+  probe="$(mask_token_probe)"
+  hash="${probe%% *}"
+  if [[ "$probe" == *"leak=1"* ]]; then
+    result "$1: MASK_TOKEN" FAIL "значение токена найдено в журнале хода"
+    return 0
+  fi
+  case "$2" in
+    absent)
+      [[ "$hash" == "$(cat "$before_file" 2>/dev/null || echo none)" ]] \
+        && result "$1: MASK_TOKEN" ok "secrets.env стенда не менялся до успешного хода" \
+        || result "$1: MASK_TOKEN" FAIL "secrets.env изменён до успешного хода" ;;
+    present)
+      if [[ "$hash" == none ]]; then
+        result "$1: MASK_TOKEN" FAIL "после успешного хода токена в secrets.env нет"
+      elif [[ -f "$seen_file" && "$(cat "$seen_file")" != "$hash" ]]; then
+        result "$1: MASK_TOKEN" FAIL "токен изменился относительно предыдущего шага"
+      else
+        printf '%s\n' "$hash" >"$seen_file"
+        result "$1: MASK_TOKEN" ok "в secrets.env стенда, не меняется, в журналах не печатался"
+      fi ;;
+  esac
+}
+
 pseudo_probe() { # pseudo_probe <метка> <тред> <текст>
   local out
   out="$(docker exec "$PSEUDO" python3 -c "$PSEUDO_PY" "$2" "$3" 2>&1 | tail -1)"
@@ -225,6 +280,8 @@ step_prepare() {
       --schema-expected "$SCHEMA_SRC" --cosign-pub "$PUB_SRC" >"$OUT/build.log" 2>&1
   fi
   (cd "$PKG" && sha256sum -c --quiet MANIFEST.sha256)
+  grep -qE '^BAI_IMAGE_MASK=' "$LOCK_SRC" \
+    || { echo "в $LOCK_SRC нет BAI_IMAGE_MASK: нужен lock платформы 1.1.3"; exit 1; }
   result "prepare: пакет" ok \
     "собран из HEAD $(git -C "$ROOT" rev-parse --short HEAD), манифест сходится"
   local env_file="$SYNTH/code/deploy/.env"
@@ -293,6 +350,8 @@ CUTOVER_HEALTH_WAIT_S=180
 CUTOVER_READY_WAIT_S=90
 EOF
   mkdir -p "$OUT/results" "$OUT/backups"
+  rm -f "$OUT/mask-hash" "$OUT/mask-hash-before"
+  mask_token_probe | cut -d' ' -f1 >"$OUT/mask-hash-before"
   export STANDIN_DIR STANDIN_BOTS="$EXPECT_BOTS_OLD"
   # Поднять заглушку прежнего app рядом с боем синтетики (прежний compose + надстройка).
   (cd "$SYNTH/code/deploy" && docker compose -p "$PROJECT" --env-file .env \
@@ -314,6 +373,7 @@ cut_args=(--signatures-verified "$SIGNATURES" --soak-seconds "$SOAK_S")
 step_preflight() {
   run_cutover preflight 0 "${cut_args[@]}" --preflight-only
   compare_base preflight 1
+  mask_expect preflight absent
   ready_ok "$APP" && result "preflight: /ready прежнего стека" ok "200" \
     || result "preflight: /ready прежнего стека" FAIL "не 200"
 }
@@ -349,6 +409,7 @@ step_forced() {
     && result "forced: автооткат запущен" ok "в журнале есть запись" \
     || result "forced: автооткат запущен" FAIL "нет записи об откате"
   compare_base forced 1
+  mask_expect forced absent
   ready_ok "$APP" && result "forced: /ready после автоотката" ok "200 (прежняя заглушка)" \
     || result "forced: /ready после автоотката" FAIL "не 200"
 }
@@ -358,6 +419,7 @@ step_cutover1() {
   backup_step_result cutover1
   ready_result "cutover1: /ready v2" 200
   compare_base cutover1 0
+  mask_expect cutover1 present
   old_thread_probe cutover1
   pseudo_probe cutover1 "synth-v2-thread" "Контакт: Ромашков Иван Петрович, +7 (900) 555-01-02"
   snapshot after-probe
@@ -373,6 +435,7 @@ step_rollback1() {
   [[ "$rc" == 0 ]] && result "rollback1: код rollback.sh" ok 0 \
     || result "rollback1: код rollback.sh" FAIL "$rc (rollback1.log)"
   compare_base rollback1 1
+  mask_expect rollback1 present
   ready_ok "$APP" && result "rollback1: /ready прежнего стека" ok "200" \
     || result "rollback1: /ready прежнего стека" FAIL "не 200"
   # Прежний псевдонимизатор читает записи, созданные под v2 (откат не ломает хранилище).
@@ -387,6 +450,7 @@ step_cutover2() {
   backup_step_result cutover2
   ready_result "cutover2: /ready v2" 200
   compare_base cutover2 0
+  mask_expect cutover2 present
 }
 
 step_restore() {
@@ -409,6 +473,7 @@ step_cutover3() {
   backup_step_result cutover3
   ready_result "cutover3: /ready v2" 200
   compare_base cutover3 0
+  mask_expect cutover3 present
 }
 
 step_again() {

@@ -12,7 +12,8 @@
 #   units-old-tree.sh                    только чтение: юниты со старым деревом
 #   CHECKLIST.md, README.md              инструкции владельцу
 #   expected-host-dirs.txt               пути хоста боя по выводу владельца
-#   images.lock, cosign.pub              образы по digest и открытый ключ подписей
+#   images.lock, cosign.pub              образы по digest и открытый ключ подписей; lock платформы
+#                                        1.1.3 обязан содержать BAI_IMAGE_MASK (иначе отказ сборки)
 #   schema-expected.sql                  нормализованная схема чистой БД v2
 #   expected-pending.txt                 миграции, которые должны ожидать на схеме боя
 #   FREEZE_SRC                           коммит старого репозитория (заморозка G5)
@@ -37,6 +38,8 @@ DOCS=(CHECKLIST.md README.md expected-host-dirs.txt)
 FORBIDDEN_RE='(^|/)(\.env|\.env\..*|secrets\.env|.*\.key|.*\.pem|.*\.bak.*)$'
 ALLOWED_RE='(^|/)\.env\.example$'
 SHA_RE='^[0-9a-f]{40}$'
+# Платформа 1.1.3: образ mask в lock обязателен (сервис в базовом стеке без профиля).
+MASK_LOCK_RE='^BAI_IMAGE_MASK=[^@[:space:]]+@sha256:[0-9a-f]{64}$'
 
 OUT=""
 LOCK=""
@@ -71,6 +74,10 @@ if [[ -e "$OUT" ]] && [[ -n "$(ls -A "$OUT" 2>/dev/null)" ]]; then
   echo "каталог $OUT не пуст" >&2
   exit "$EXIT_USAGE"
 fi
+
+# lock без образа mask: пакет не соберётся в рабочий (compose платформы 1.1.3 не стартует).
+grep -qE "$MASK_LOCK_RE" "$LOCK" \
+  || fail "в $LOCK нет BAI_IMAGE_MASK (образ по digest): нужен lock платформы 1.1.3"
 
 # Коммит старого репозитория: из tools/last-sync.md (запись последней синхронизации этапа 7).
 if [[ -z "$FREEZE_SRC" ]]; then

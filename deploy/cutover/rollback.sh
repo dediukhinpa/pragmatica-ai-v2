@@ -23,6 +23,8 @@
 #      (`up -d --no-build`: образы cutover.sh не удаляет).
 #   4. Проверяет: набор контейнеров и образы как до переключения, /ready 200, ботов не меньше,
 #      схема знаний прежняя, записей schema_migrations с префиксом потока нет.
+#   Токен mask (платформа 1.1.3), созданный cutover.sh, откат не удаляет и не правит: прежний
+#   стек его не читает (MASK_URL у него пуст), а наличие строки в secrets.env ему не мешает.
 # Коды выхода: 0 - бой на прежнем стеке и проверен; 1 - откат выполнен, но проверки не прошли;
 # 2 - неверный вызов; 4 - откат не удался (ручное вмешательство).
 set -euo pipefail
@@ -105,7 +107,9 @@ stuck() { # stuck <сообщение>: откат не удался
 # Секреты в журнал не попадают: список значений собирается как в cutover.sh.
 collect_secrets() {
   local file
-  for file in "$CUTOVER_ENV_FILE" "$CUTOVER_SECRETS_DIR/secrets.env"; do
+  # Файл токена mask дерева v2 (если токен ещё не перенесён в secrets.env) тоже в списке.
+  for file in "$CUTOVER_ENV_FILE" "$CUTOVER_SECRETS_DIR/secrets.env" \
+    "$CUTOVER_NEW_DIR/deploy/$MASK_TOKEN_FILE_NAME"; do
     [[ -f "$file" ]] || continue
     python3 -I - "$file" "$MIN_SECRET_LEN" >>"$SECRETS_LIST" <<'PY'
 import re, sys

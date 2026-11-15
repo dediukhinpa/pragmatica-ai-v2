@@ -6,7 +6,9 @@
 #   bash verify-signatures.sh --lock ФАЙЛ --pubkey ФАЙЛ [--out ФАЙЛ] [--help]
 #
 #   --lock ФАЙЛ     images.lock (dotenv): строка BAI_VERSION=... и строки
-#                   BAI_IMAGE_<ИМЯ>=<репозиторий>@sha256:<64 hex>; других строк быть не должно
+#                   BAI_IMAGE_<ИМЯ>=<репозиторий>@sha256:<64 hex>; других строк быть не должно.
+#                   Платформа 1.1.3: BAI_IMAGE_MASK обязателен (mask в базовом стеке), как и
+#                   прочие образы он проверяется; lock без него - отказ (код 3)
 #   --pubkey ФАЙЛ   открытый ключ cosign (cosign.pub)
 #   --out ФАЙЛ      куда писать результат (по умолчанию ./signatures.txt, режим 644)
 #
@@ -62,6 +64,7 @@ PUBKEY_FILE=""
 OUT_FILE="$DEFAULT_OUT"
 LOCK_KEYS=()
 LOCK_REFS=()
+MASK_KEY="BAI_IMAGE_MASK"
 REFUSALS=0
 
 usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0,1\}//'; }
@@ -138,6 +141,8 @@ parse_lock() {
   done <"$LOCK_FILE"
   ((version_count == 1)) || refuse "lock: нет строки BAI_VERSION"
   ((${#LOCK_KEYS[@]} > 0)) || refuse "lock: нет ни одной строки BAI_IMAGE_*"
+  [[ -n "${seen[$MASK_KEY]:-}" ]] \
+    || refuse "lock: нет $MASK_KEY (платформа 1.1.3: mask входит в базовый стек)"
 }
 
 sha256_of() { sha256sum -- "$1" | cut -d' ' -f1; }
