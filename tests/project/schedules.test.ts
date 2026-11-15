@@ -60,7 +60,9 @@ describe('плановые задачи Прагматики', () => {
 
   test('обзор почты тикает раз в час и ставится по своему флагу', () => {
     const schedule = scheduleOf(SUPPLIER_MAIL_PROPOSALS_JOB);
-    expect(schedule.repeat?.everyMs).toBe(HOUR_MS);
+    // С 1.1.x повтор — объединение «интервал | часы дня»: проект ставит интервальный.
+    const repeat = schedule.repeat;
+    expect(repeat !== undefined && 'everyMs' in repeat ? repeat.everyMs : undefined).toBe(HOUR_MS);
     expect(schedule.enabled?.(configOf({ SUPPLIER_MAIL_PROPOSALS_ENABLED: 'true' }))).toBe(true);
     expect(schedule.enabled?.(configOf({ SUPPLIER_MAIL_PROPOSALS_ENABLED: 'false' }))).toBe(false);
   });

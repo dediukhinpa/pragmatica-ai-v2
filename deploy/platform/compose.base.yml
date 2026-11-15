@@ -469,6 +469,20 @@ services:
       # Ручка /convert/docx (.doc и RTF в docx, LibreOffice): выключена; нужна сборка образа с
       # WITH_LIBREOFFICE=1, иначе ручка отвечает conversion_unavailable.
       DOCUMENTS_OFFICE_CONVERT_ENDPOINTS: ${DOCUMENTS_OFFICE_CONVERT_ENDPOINTS:-}
+      # Архивы zip, 7z, rar (ручка /parse-archive): выключено; включённая ручка разбирает части
+      # архива обычным парсером под жёсткими пределами (services/documents/README.md, «Архивы»).
+      # Для rar в образе нужен пакет libarchive13 (в Dockerfile). Пусто = documents.json из
+      # /config, иначе выключено; false - ручка закрыта (404).
+      DOCUMENTS_ARCHIVES_ENABLED: ${DOCUMENTS_ARCHIVES_ENABLED:-}
+      # Пределы архивов (пусто = умолчание кода или archive_limits из documents.json).
+      DOCUMENTS_ARCHIVE_MAX_TOTAL_BYTES: ${DOCUMENTS_ARCHIVE_MAX_TOTAL_BYTES:-}
+      DOCUMENTS_ARCHIVE_MAX_FILE_BYTES: ${DOCUMENTS_ARCHIVE_MAX_FILE_BYTES:-}
+      DOCUMENTS_ARCHIVE_MAX_FILES: ${DOCUMENTS_ARCHIVE_MAX_FILES:-}
+      DOCUMENTS_ARCHIVE_MAX_RATIO: ${DOCUMENTS_ARCHIVE_MAX_RATIO:-}
+      DOCUMENTS_ARCHIVE_MAX_DEPTH: ${DOCUMENTS_ARCHIVE_MAX_DEPTH:-}
+      DOCUMENTS_ARCHIVE_MAX_SECONDS: ${DOCUMENTS_ARCHIVE_MAX_SECONDS:-}
+      DOCUMENTS_ARCHIVE_MAX_TEXT_CHARS: ${DOCUMENTS_ARCHIVE_MAX_TEXT_CHARS:-}
+      DOCUMENTS_ARCHIVE_MAX_DICTIONARY_BYTES: ${DOCUMENTS_ARCHIVE_MAX_DICTIONARY_BYTES:-}
       # Значение свойства «Категория» собранных документов (docProps/core.xml): метка, по которой
       # проект узнаёт собственные документы после пересохранения. Пусто = свойство не пишется.
       DOCUMENTS_RENDER_CATEGORY: ${DOCUMENTS_RENDER_CATEGORY:-}
@@ -581,6 +595,26 @@ services:
       SPEECH_TO_TEXT_MAX_BYTES: ${SPEECH_TO_TEXT_MAX_BYTES:-31457280}
       SPEECH_WINDOW_SECONDS: ${SPEECH_WINDOW_SECONDS:-120}
       SPEECH_DECODE_TIMEOUT_SECONDS: ${SPEECH_DECODE_TIMEOUT_SECONDS:-120}
+      # Длинные записи (встречи, видео): пакетный режим, ВЫКЛЮЧЕН по умолчанию. Голосовые идут
+      # прежним путём /transcribe со своими местами и пределами (SPEECH_TO_TEXT_MAX_*); длинные
+      # принимаются заданием (POST /jobs), обрабатываются отдельной очередью на той же модели и
+      # переживают рестарт (состояние и контрольные точки - в томе speech-spool, /spool/batch).
+      # Расчёт и память - services/speech/README.md, «Длинные записи».
+      SPEECH_BATCH_ENABLED: ${SPEECH_BATCH_ENABLED:-false}
+      SPEECH_BATCH_DIR: /spool/batch
+      SPEECH_BATCH_MAX_SECONDS: ${SPEECH_BATCH_MAX_SECONDS:-7200}
+      SPEECH_BATCH_MAX_BYTES: ${SPEECH_BATCH_MAX_BYTES:-536870912}
+      SPEECH_BATCH_MAX_CONCURRENT_JOBS: ${SPEECH_BATCH_MAX_CONCURRENT_JOBS:-1}
+      SPEECH_BATCH_MAX_QUEUED: ${SPEECH_BATCH_MAX_QUEUED:-8}
+      # Потоков CTranslate2 при включённом пакетном режиме: 1 - как прежде. Потоки - свойство
+      # общей модели, не вызова, поэтому большее число получает каждое распознавание; очередь
+      # голосовых от него не зависит (services/speech/README.md, «Длинные записи»).
+      SPEECH_BATCH_THREADS: ${SPEECH_BATCH_THREADS:-1}
+      SPEECH_BATCH_DECODE_TIMEOUT_SECONDS: ${SPEECH_BATCH_DECODE_TIMEOUT_SECONDS:-900}
+      SPEECH_BATCH_JOB_TIMEOUT_SECONDS: ${SPEECH_BATCH_JOB_TIMEOUT_SECONDS:-21600}
+      SPEECH_BATCH_RESULT_TTL_SECONDS: ${SPEECH_BATCH_RESULT_TTL_SECONDS:-86400}
+      # Исходник упавшего задания хранится для повтора до успеха, DELETE или этого срока (7 суток)
+      SPEECH_BATCH_AUDIO_TTL_SECONDS: ${SPEECH_BATCH_AUDIO_TTL_SECONDS:-604800}
       SPEECH_REAPER_INTERVAL_SECONDS: "15"
       SPEECH_FFMPEG_BIN: ffmpeg
       # faster-whisper; fake - заглушка для стендов без весов (текст фиксированный)
@@ -593,7 +627,9 @@ services:
       MALLOC_ARENA_MAX: "2"
     volumes:
       # Исходник и PCM декодирования лежат на диске, а не в памяти контейнера; файлы удаляются
-      # после каждого запроса, остатки прерванной работы - при старте.
+      # после каждого запроса, остатки прерванной работы - при старте. Пакетный режим: аудио
+      # удаляется сразу после успеха и при DELETE; при ошибке исходник остаётся для повтора
+      # (7 суток), текст хранится до DELETE или 24 ч.
       - speech-spool:/spool
     read_only: true
     tmpfs: ["/tmp:size=16m"]
@@ -854,6 +890,9 @@ services:
       # одновременных ходах с тяжёлыми файлами и фоновый PDF индексатора, уже занявший слот.
       DOCUMENTS_PARSE_TIMEOUT_MS: ${DOCUMENTS_PARSE_TIMEOUT_MS:-420000}
       DOCUMENTS_RENDER_TIMEOUT_MS: ${DOCUMENTS_RENDER_TIMEOUT_MS:-420000}
+      # Архивы zip, 7z, rar: ядро зовёт /parse-archive сервиса documents для .zip/.7z/.rar (флаг
+      # тот же, что у documents: включайте у обоих). Пусто = выключено, прежнее поведение.
+      DOCUMENTS_ARCHIVES_ENABLED: ${DOCUMENTS_ARCHIVES_ENABLED:-}
       EMBEDDINGS_TIMEOUT_MS: ${EMBEDDINGS_TIMEOUT_MS:-60000}
       # Служебный HTTP ядра (/health, /ready), слушает только 127.0.0.1 контейнера.
       HEALTH_PORT: ${HEALTH_PORT:-8088}
@@ -1032,6 +1071,16 @@ services:
       MAIL_OPERATION_TIMEOUT_MS: ${MAIL_OPERATION_TIMEOUT_MS:-120000}
       MAIL_MAX_MESSAGE_BYTES: ${MAIL_MAX_MESSAGE_BYTES:-15000000}
       MAIL_MAX_PER_PASS: ${MAIL_MAX_PER_PASS:-50}
+      # Exchange (EWS) вместо IMAP + SMTP: MAIL_PROVIDER=ews, затем EWS_URL и EWS_AUTH (basic|ntlm,
+      # без умолчания). Хосты IMAP/SMTP при ews не нужны. По умолчанию imap - прежнее поведение.
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-imap}
+      EWS_URL: ${EWS_URL:-}
+      EWS_AUTH: ${EWS_AUTH:-}
+      EWS_NTLM_DOMAIN: ${EWS_NTLM_DOMAIN:-}
+      EWS_NTLM_WORKSTATION: ${EWS_NTLM_WORKSTATION:-}
+      EWS_IMPERSONATION: ${EWS_IMPERSONATION:-false}
+      EWS_SERVER_VERSION: ${EWS_SERVER_VERSION:-}
+      EWS_REQUEST_TIMEOUT_MS: ${EWS_REQUEST_TIMEOUT_MS:-}
       # Личные заметки связки «сотрудник + бот» (миграция 013): по умолчанию выключено.
       PAIR_NOTES_ENABLED: ${PAIR_NOTES_ENABLED:-false}
       # Каталог документов агентов: подпапка смонтированной шары (только чтение).
