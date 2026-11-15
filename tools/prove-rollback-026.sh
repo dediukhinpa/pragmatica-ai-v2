@@ -12,7 +12,9 @@
 # Что доказывает.
 #   db: «синтетический бой» - 42 миграции прежнего репозитория (FREEZE_SRC) прежним раннером,
 #       вымышленные данные (seed-db.sql этапа 7), pg_dump/pg_restore в новую базу. Затем раннер
-#       v2 (--plan: ровно app/026 pending + 45 applied-by-legacy), накатка v2, 026_down.sql:
+#       v2 платформы 1.1.2 (--plan: pending app/026 и platform/021 + 45 applied-by-legacy),
+#       накатка v2, откат платформа 1.1.2: 021_down.sql, затем 026_down.sql (тот же порядок, что
+#       в rollback.sh; без 021_down схема jobs осталась бы с лишними столбцами 021):
 #       схема, данные и schema_migrations равны состоянию ДО v2; повтор down - без изменений;
 #       повторная накатка v2 даёт то же, что первая (цикл вперёд-назад-вперёд). Прежний раннер
 #       на базе после v2 (с записями platform/..., app/...) ничего не применяет.
@@ -23,7 +25,9 @@
 #       тесты, которым нужна частичная схема (stopBefore), идут по-прежнему.
 #
 # Postgres: pgvector/pgvector:0.8.6-pg16 на 127.0.0.1:20800 (контейнер bai8-rb026-pg, метка
-# bai.stage=8, данные в tmpfs). Работает под flock heavy.lock. Итоги: $WORK/RESULT.md.
+# bai.stage=8, данные в tmpfs); имя, метка и порт переопределяются RB_CONTAINER, RB_STAGE_LABEL,
+# RB_PORT (этап 8u гоняет стенд на 21700). Доказательство 021_down отдельно и полнее:
+# tools/prove-rollback.sh. Работает под flock heavy.lock. Итоги: $WORK/RESULT.md.
 # Код выхода: 0 - всё сошлось, 1 - расхождение, 2 - ошибка окружения, 3 - нет ресурсов.
 set -euo pipefail
 
@@ -34,9 +38,9 @@ LOCK_FILE="$BAI_HOME/heavy.lock"
 
 # --- Константы -----------------------------------------------------------------------------
 PG_IMAGE="pgvector/pgvector:0.8.6-pg16"
-CONTAINER="bai8-rb026-pg"
-STAGE_LABEL="bai.stage=8"
-PORT=20800
+CONTAINER="${RB_CONTAINER:-bai8-rb026-pg}"
+STAGE_LABEL="${RB_STAGE_LABEL:-bai.stage=8}"
+PORT="${RB_PORT:-20800}"
 PG_MEMORY="1g"
 PG_TMPFS_SIZE="768m"
 PG_READY_TRIES=60
@@ -50,9 +54,11 @@ MIN_RAM_MIB=3072
 MIB_PER_GIB=1024
 RESOURCE_RETRIES=3
 RESOURCE_WAIT_SEC="${RESOURCE_WAIT_SEC:-600}"
-# Ожидаемые числа плана раннера v2 на базе прежнего раннера (см. задание этапа 8).
+# Ожидаемые числа плана раннера v2 на базе прежнего раннера: порядок задаёт stream-order.tsv
+# (платформа 1.1.2: app/026 раньше platform/021).
 EXPECTED_LEGACY_APPLIED=45
-EXPECTED_PENDING="app/026_knowledge_scope_compat"
+EXPECTED_PENDING="app/026_knowledge_scope_compat platform/021_jobs_daily_schedule"
+EXPECTED_PENDING_COUNT=2
 EXPECTED_OLD_MIGRATIONS=42
 
 SRC_REPO="${SRC_REPO:-$HOME/pragmatika-purchasing}"
@@ -62,6 +68,7 @@ SEED_SQL="${SEED_SQL:-$BAI_HOME/stage-7/synth/seed/seed-db.sql}"
 BASELINE_TSV="${BASELINE_TSV:-$BAI_HOME/stage-7/baseline-src/tests.tsv}"
 APP_DIR="$ROOT/db/app"
 DOWN_SQL="$APP_DIR/rollback/026_down.sql"
+DOWN_021="$APP_DIR/rollback/021_down.sql"
 V2_RUNNER="$ROOT/deploy/platform/db/migrate.sh"
 SCHEMA_PY="$ROOT/tools/check_migrations_schema.py"
 LEGACY_MAP="$APP_DIR/legacy-map.tsv"
@@ -217,7 +224,7 @@ dump_schema() {
 
 # snapshot <база> <метка>: схема, версии учёта, строки учёта, отпечаток данных каждой таблицы.
 snapshot() {
-  local db="$1" tag="$2" table
+  local db="$1" tag="$2" table expr
   dump_schema "$db" "$SNAP/$tag.schema.sql"
   sql_val "$db" "SELECT version FROM schema_migrations ORDER BY version COLLATE \"C\"" \
     >"$SNAP/$tag.versions.txt"
@@ -227,8 +234,11 @@ snapshot() {
   : >"$SNAP/$tag.data.txt"
   while IFS= read -r table; do
     [[ "$table" == "schema_migrations" ]] && continue
-    echo "$table|$(sql_val "$db" "SELECT count(*) || '|' || md5(coalesce(string_agg(x::text, E'\n'
-      ORDER BY x::text), '')) FROM public.\"$table\" x")" >>"$SNAP/$tag.data.txt"
+    # У jobs без столбцов 021 (после v2 текст строки шире, чем до v2, хотя данные те же).
+    expr="x::text"
+    [[ "$table" != "jobs" ]] || expr="(to_jsonb(x) - 'daily_at' - 'time_zone')::text"
+    echo "$table|$(sql_val "$db" "SELECT count(*) || '|' || md5(coalesce(string_agg($expr, E'\n'
+      ORDER BY $expr), '')) FROM public.\"$table\" x")" >>"$SNAP/$tag.data.txt"
   done < <(sql_val "$db" "SELECT tablename FROM pg_tables WHERE schemaname = 'public'
                           ORDER BY tablename COLLATE \"C\"")
   local col
@@ -276,19 +286,20 @@ plan_counts() { # plan_counts <файл плана> -> "applied legacy pending"
   sed -n "$PLAN_RE" "$1"
 }
 
-# check_plan_before <метка>: ровно app/026 pending и 45 applied-by-legacy.
+# check_plan_before <метка>: ровно app/026 и platform/021 pending и 45 applied-by-legacy.
 check_plan_before() {
   local tag="$1" out="$SNAP/plan-${1// /_}.txt" counts pending
   run_runner "$V2_RUNNER" rb_battle "$out" --plan
   counts="$(plan_counts "$out")"
   pending="$(awk '$1 == "pending" {print $2}' "$out" | tr '\n' ' ' | sed 's/ $//')"
-  if [[ "$RUNNER_RC" -eq 0 && "$counts" == "0 $EXPECTED_LEGACY_APPLIED 1" \
+  if [[ "$RUNNER_RC" -eq 0 && "$counts" == "0 $EXPECTED_LEGACY_APPLIED $EXPECTED_PENDING_COUNT" \
     && "$pending" == "$EXPECTED_PENDING" ]] && ! grep -q '^no-file' "$out"; then
     verdict OK "--plan ($tag): applied 0, applied-by-legacy $EXPECTED_LEGACY_APPLIED, \
-pending 1 ($pending)"
+pending $EXPECTED_PENDING_COUNT ($pending)"
   else
     cat "$out"
-    verdict FAIL "--plan ($tag): ожидалось 0/$EXPECTED_LEGACY_APPLIED/1 и $EXPECTED_PENDING, \
+    verdict FAIL "--plan ($tag): ожидалось 0/$EXPECTED_LEGACY_APPLIED/$EXPECTED_PENDING_COUNT и \
+$EXPECTED_PENDING, \
 получено '$counts' и '$pending'"
   fi
 }
@@ -298,6 +309,7 @@ prepare_old_sources() {
   git -C "$SRC_REPO" cat-file -e "$SRC_COMMIT^{commit}" || die "нет $SRC_COMMIT в $SRC_REPO"
   [[ -f "$SEED_SQL" ]] || die "нет синтетического сида: $SEED_SQL"
   [[ -f "$DOWN_SQL" ]] || die "нет $DOWN_SQL"
+  [[ -f "$DOWN_021" ]] || die "нет $DOWN_021"
   rm -rf "${WORK:?}/old-src"
   mkdir -p "$WORK/old-src" "$SNAP"
   git -C "$SRC_REPO" archive "$SRC_COMMIT" db | tar -x -C "$WORK/old-src"
@@ -367,8 +379,15 @@ x$EXPECTED_OLD_MIGRATIONS (префиксы не мешают)"
   fi
   drop_db rb_v2_copy
 
-  # 3. Откат.
+  # 3. Откат: 021_down.sql, затем 026_down.sql (порядок rollback.sh пакета переключения).
   RUNNER_RC=0
+  psql_db rb_battle --single-transaction -v ON_ERROR_STOP=1 -f "$DOWN_021" \
+    >"$SNAP/down021.out" 2>&1 || RUNNER_RC=$?
+  if [[ "$RUNNER_RC" -ne 0 ]]; then
+    cat "$SNAP/down021.out"
+    verdict FAIL "021_down.sql завершился с кодом $RUNNER_RC"
+    return 0
+  fi
   psql_db rb_battle --single-transaction -v ON_ERROR_STOP=1 -f "$DOWN_SQL" \
     >"$SNAP/down.out" 2>&1 || RUNNER_RC=$?
   if [[ "$RUNNER_RC" -ne 0 ]]; then
@@ -376,7 +395,7 @@ x$EXPECTED_OLD_MIGRATIONS (префиксы не мешают)"
     verdict FAIL "026_down.sql завершился с кодом $RUNNER_RC"
     return 0
   fi
-  verdict OK "026_down.sql выполнен (psql --single-transaction -v ON_ERROR_STOP=1)"
+  verdict OK "021_down.sql и 026_down.sql выполнены (psql --single-transaction -v ON_ERROR_STOP=1)"
   snapshot rb_battle down
   cp "$SNAP/down.schema.sql.raw" "$WORK/schema-green.sql"
   check_same before down schema "после down схема ИДЕНТИЧНА схеме до v2 (дамп, дифф пуст)"
@@ -388,7 +407,8 @@ x$EXPECTED_OLD_MIGRATIONS (префиксы не мешают)"
   # 4. Повтор down: без ошибок и без изменений.
   RUNNER_RC=0
   # Повтор идёт через stdin, как в rollback.sh пакета переключения (psql -f -).
-  psql_db rb_battle --single-transaction -v ON_ERROR_STOP=1 -f - <"$DOWN_SQL" \
+  { psql_db rb_battle --single-transaction -v ON_ERROR_STOP=1 -f - <"$DOWN_021" \
+    && psql_db rb_battle --single-transaction -v ON_ERROR_STOP=1 -f - <"$DOWN_SQL"; } \
     >"$SNAP/down2.out" 2>&1 || RUNNER_RC=$?
   snapshot rb_battle down2
   if [[ "$RUNNER_RC" -eq 0 ]] && same_snapshot down down2 schema \
@@ -423,10 +443,12 @@ apply_v2() {
   fi
   run_runner "$V2_RUNNER" rb_battle "$SNAP/$tag.apply2.out"
   n2="$(applied_count "$SNAP/$tag.apply2.out")"
-  if [[ "${n1:-x}" == "1" && "${n2:-x}" == "0" && "$RUNNER_RC" -eq 0 ]]; then
-    verdict OK "раннер v2 ($tag): применил ${n1} (026), повтор - 0"
+  if [[ "${n1:-x}" == "$EXPECTED_PENDING_COUNT" && "${n2:-x}" == "0" && "$RUNNER_RC" -eq 0 ]]
+  then
+    verdict OK "раннер v2 ($tag): применил ${n1} (026 и 021), повтор - 0"
   else
-    verdict FAIL "раннер v2 ($tag): применено ${n1:-?} и ${n2:-?}, ожидалось 1 и 0"
+    verdict FAIL "раннер v2 ($tag): применено ${n1:-?} и ${n2:-?}, ожидалось \
+$EXPECTED_PENDING_COUNT и 0"
   fi
   snapshot rb_battle "$tag"
 }
@@ -480,7 +502,9 @@ probe_states() {
   # green: копия базы, откатанная down (rb_battle сейчас в состоянии v2b, down повторяем на копии).
   drop_db rb_green_copy
   docker exec "$CONTAINER" psql -U postgres -qc "CREATE DATABASE rb_green_copy TEMPLATE rb_battle"
-  psql_db rb_green_copy --single-transaction -v ON_ERROR_STOP=1 -f "$DOWN_SQL" >/dev/null 2>&1 \
+  psql_db rb_green_copy --single-transaction -v ON_ERROR_STOP=1 -f "$DOWN_021" >/dev/null 2>&1 \
+    && psql_db rb_green_copy --single-transaction -v ON_ERROR_STOP=1 -f "$DOWN_SQL" \
+      >/dev/null 2>&1 \
     || verdict FAIL "down на копии для проб не выполнился"
   run_probes rb_green_copy "$SNAP/probes-green.txt"
   drop_db rb_green_copy
