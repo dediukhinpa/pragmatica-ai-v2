@@ -76,6 +76,8 @@ fi
 mkdir -p "$OUT/stack" "$OUT/tools"
 log "копия закоммиченного дерева (${STACK_PATHS[*]}) @ $REVISION"
 git -C "$ROOT" archive --format=tar HEAD "${STACK_PATHS[@]}" | tar -x -C "$OUT/stack"
+# Скрипты переключения боя (deploy/cutover) относятся к пакету этапа 8, в пакете репетиции их нет.
+rm -rf "${OUT:?}/stack/deploy/cutover"
 # Образцы и тесты платформы в пакете не нужны; бэкапы и боевые файлы - тем более.
 rm -f "$OUT/stack/deploy/images.lock"
 

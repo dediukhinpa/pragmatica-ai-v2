@@ -26,6 +26,11 @@ printf '#!/usr/bin/env bash\necho rehearse\n' >"$REPO/deploy/rehearsal/rehearse.
 echo "# README" >"$REPO/deploy/rehearsal/README.md"
 echo "app/026_x" >"$REPO/deploy/rehearsal/expected-pending.txt"
 echo "# tool" >"$REPO/tools/check_migrations_schema.py"
+# Скрипт переключения упоминает PRIVATE KEY в тексте (проверка заголовков): в пакет репетиции
+# он не должен попадать и не должен срабатывать как утечка ключа.
+mkdir -p "$REPO/deploy/cutover"
+printf '#!/usr/bin/env bash\n# ищет строки PRIVATE KEY\n' \
+  >"$REPO/deploy/cutover/verify-signatures.sh"
 git -C "$REPO" init -q
 git -C "$REPO" add -A
 git -C "$REPO" -c user.name=t -c user.email=t@example.test commit -q -m init
@@ -46,6 +51,7 @@ for f in rehearse.sh README.md images.lock cosign.pub schema-expected.sql expect
   stack/deploy/platform/compose.base.yml stack/db/app/001_x.sql MANIFEST.sha256; do
   assert "в пакете есть $f" "[[ -f '$OUT/$f' ]]"
 done
+assert "скриптов переключения в пакете репетиции нет" "[[ ! -e '$OUT/stack/deploy/cutover' ]]"
 assert "rehearse.sh исполняемый" "[[ -x '$OUT/rehearse.sh' ]]"
 assert "манифест сходится" "(cd '$OUT' && sha256sum -c --quiet MANIFEST.sha256)"
 assert "образец .env.example допустим" "[[ -f '$OUT/stack/deploy/.env.example' ]]"
