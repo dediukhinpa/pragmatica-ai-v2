@@ -1,12 +1,13 @@
 # Закреплённая копия платформы, нужная compose. Править файлы этого каталога нельзя: обновление
 # версии — заменой копии целиком (git show <коммит>:<путь>) и пересчётом строк ниже вместе с
 # версией пакетов в package.json. Проверяет tests/deploy/test_platform_pin.py.
-PLATFORM_PACKAGES_VERSION=1.1.2
-PLATFORM_COMMIT=1ef191e7dba7e68360ac771cfcfe9510fdce16ff
-PLATFORM_TAG=v1.1.2
-# Репозиторий-источник: business-ai, выпуск 1.1.2 (тег v1.1.2). Относительно 1.0.1 изменились
-# compose.base.yml (архивы documents, пакетный режим speech, EWS почты: всё выключено по умолчанию)
-# и добавлена миграция db/platform/021_jobs_daily_schedule.sql; остальные файлы те же.
+PLATFORM_PACKAGES_VERSION=1.1.3
+PLATFORM_COMMIT=71fbe79504158f80897d77eca90902e335ada0d5
+PLATFORM_TAG=v1.1.3
+# Репозиторий-источник: business-ai, выпуск 1.1.3 (тег v1.1.3). Относительно 1.1.2 изменился
+# только compose.base.yml: сервис mask входит в базовый стек (BAI_IMAGE_MASK и MASK_TOKEN
+# обязательны, +1536 МиБ), IMAGE_SEND_PHOTO=true и MASK_URL по умолчанию; миграций нет, остальные
+# файлы те же, что в 1.1.2 (миграция db/platform/021_jobs_daily_schedule.sql пришла с 1.1.2).
 # Пути источника: deploy/compose.base.yml, deploy/nginx/, deploy/alloy/, db/migrate.sh, db/platform/.
 # Дополнительно: deploy/docker/project-app.Dockerfile(.dockerignore) и deploy/images.lock.example
 # лежат в deploy/docker/ и deploy/ проекта (образцы платформы, правятся проектом).
@@ -17,7 +18,7 @@ sha256 6eac3eed849b5be6cbb72e9e21b9c829d764cacd4eeaf9b4850e22919fdaf5f7  alloy/s
 sha256 ac6e3367eb4b9366ddde1e425777370532c5dde9cdefd6a95caf6585499504f7  alloy/sinks/lib.alloy
 sha256 4b81c40e1f651b040af9a4debfffb566868013439867535804905dd49839ff67  alloy/sinks/local.alloy
 sha256 f93ebed53d46a00e149440c23854ad70ce3cdf3645e172b12c0d409f52f53691  alloy/sinks/remote.alloy
-sha256 e214dfa1417878a7908f78abfbde107e2a3395697c76764ab4fc25cb10e15d05  compose.base.yml
+sha256 8b92a7af2501e2662d32ad6dc35c21e9f700c0d0e498471703a04699c5704aff  compose.base.yml
 sha256 810d5ca01750549ff09d74bdcb50a3749c2b8d00a4c6b64395e6e32f10e92f2e  db/migrate.sh
 sha256 b50cd1e1cb33f27b03206b303bebe84abc01686b182c8975dab3e246df19eada  db/platform/001_core.sql
 sha256 5db5f3ab4a8ced39a618de6d7936336556d557f247f2098ef48cf487cb5fd2f4  db/platform/002_threads.sql

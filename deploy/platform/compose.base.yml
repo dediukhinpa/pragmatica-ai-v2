@@ -10,27 +10,26 @@
 #   docker compose --env-file images.lock --env-file .env -f <compose проекта> up -d
 #
 # Остальной текст шапки унаследован от deploy/docker-compose.yml и остаётся верным.
-# Образы сервисов необязательных профилей (mask, speech, agent-sandbox, telemetry) заданы через
+# Образы сервисов необязательных профилей (speech, agent-sandbox, telemetry) заданы через
 # `:-<заглушка>`, а не `:?`: compose интерполирует весь файл, включая выключенные профили, и
 # обязательная переменная ломала бы любую команду (в том числе откат на старый lock, где ключа
 # ещё нет). Заглушка - не существующий образ: при включённом профиле pull/up упадёт. Наличие
-# ключа в lock для включённых профилей проверяет `bai` до изменений (deploy/bai).
-# Размеры mem_limit рассчитаны на ВМ 16 ГБ: база (вместе с mask 1536m) 14864 МиБ (~14,5 ГиБ)
-# при пиках, не совпадающих по времени; при включённом профиле telemetry (сборщик alloy 384m
-# и прокси Docker API 64m) сумма 14864 + 448 = 15312 МиБ; лимит - потолок, а не резерв. tmpfs
-# контейнера (/tmp) занимает память САМОГО контейнера, то есть входит в его mem_limit и в сумму
-# не добавляется.
+# ключа в lock для включённых профилей проверяет `bai` до изменений (deploy/bai). mask с 1.1.3 -
+# обязательный сервис базы (`:?`); отсутствие BAI_IMAGE_MASK в lock bai называет до изменений.
+# Размеры mem_limit рассчитаны на ВМ 16 ГБ: база (с 1.1.3 вместе с mask 1536m) 14032 МиБ
+# (~13,7 ГиБ) при пиках, не совпадающих по времени; при включённом профиле telemetry (сборщик
+# alloy 320m и прокси Docker API 64m) сумма 14032 + 384 = 14416 МиБ; лимит - потолок, а не
+# резерв. tmpfs контейнера (/tmp) занимает память САМОГО контейнера, то есть входит в его
+# mem_limit и в сумму не добавляется.
 # Бюджет: ВМ 16384 МиБ минус запас хосту 1024 (ОС, dockerd, файловый кэш) = 15360 МиБ. База +
-# telemetry (15312) укладывается с запасом всего 48 МиБ; превышение бюджета compose-security.test.py
+# telemetry (14416) укладывается с запасом 944 МиБ; превышение бюджета compose-security.test.py
 # считает ошибкой, а check-host.sh отказывает ВМ, на которой не помещается сама сумма лимитов.
-# Реально ВМ «16 ГБ» видит ~15,6 ГиБ (~15974 МиБ): запас хосту при базе ~1110 МиБ, с telemetry
-# ~662 МиБ при целевом 1 ГиБ (check-host.sh в этом случае предупреждает, а не отказывает;
-# профиль из COMPOSE_PROFILES он учитывает).
-# Профиль agent-sandbox (песочница скриптов, 2204m) выключен по умолчанию и в эту сумму не
-# входит: ядро без него работает (инструмента нет). Он считается отдельно и на ВМ «16 ГБ»
-# вместе с остальным стеком не помещается: 14864 + 2204 + 1024 = 18092 МиБ нужно ВМ (с
-# telemetry 18540). Для него нужна ВМ с большей памятью (check-host.sh и compose-security.test.py
-# печатают нужный объём); подробности - RUNBOOK, «Песочница».
+# Реально ВМ «16 ГБ» видит ~15,6 ГиБ (~15993 МиБ): запас хосту при базе + telemetry ~1577 МиБ.
+# Профили agent-sandbox (+768m) и speech (+1152m) выключены по умолчанию и в эту сумму не
+# входят: ядро без них работает. Они считаются отдельно: база + песочница + запас = 15824 МиБ
+# (с telemetry 16208), база + speech + запас = 16208 МиБ - на ВМ «16 ГБ» впритык или не
+# помещаются (check-host.sh и compose-security.test.py печатают нужный объём; RUNBOOK,
+# «Песочница»).
 # Лимиты pseudonymizer и embeddings сняты замером пиков (16.10.2026, см. их блоки ниже);
 # compose-security.test.py держит сумму в согласии с check-host.sh.
 # На 8 ГБ ВМ стек не запускать (check-host.sh отказывает).
@@ -304,40 +303,43 @@ services:
     # Поднимать вместе с PSEUDONYMIZER_MAX_CONCURRENCY или PSEUDONYMIZER_MAX_TEXT_CHARS.
     mem_limit: 1400m
 
-  # Распознавание и маскирование текста на картинках (labops_pii.media.mask): нужен режиму
-  # IMAGE_TEXT_MODE=tokens только при IMAGE_TEXT_OCR_IN_DOCUMENTS=false (по умолчанию текст с
-  # фото читает Tesseract в сервисе documents). Профиль mask: в обязательную сумму лимитов не
-  # входит (+1536 МиБ). Включение: COMPOSE_PROFILES=mask, затем IMAGE_TEXT_OCR_IN_DOCUMENTS=false,
-  # MASK_URL=http://mask:8320 и MASK_TOKEN (создаёт gen-secrets.sh) в окружении app и indexer.
-  # Клиенты: app и indexer (оба в сети backend, общий Bearer MASK_TOKEN). В pseudonymizer-net mask
-  # нет, и индексатор псевдонимизатор не видит: текст с фото индексатор хранит как обычный текст
-  # документа, обезличивание делает ядро на границе с моделью.
+  # Распознавание и маскирование текста на картинках (labops_pii.media.mask). С 1.1.3 входит в
+  # базовый стек без профиля (решение владельца, +1536 МиБ в обязательной сумме лимитов): ядро
+  # закрашивает им ПДн на фото перед отправкой в модель зрения (IMAGE_SEND_PHOTO), индексатор и
+  # ядро при IMAGE_SEND_PHOTO=false и IMAGE_TEXT_OCR_IN_DOCUMENTS=false читают им текст с фото.
+  # Клиенты: app и indexer (оба в сети backend, MASK_URL=http://mask:8320 по умолчанию, общий
+  # Bearer MASK_TOKEN - создаёт gen-secrets.sh, на старой установке дописывает
+  # `gen-secrets.sh --add-missing` или bai update). В pseudonymizer-net mask нет, и индексатор
+  # псевдонимизатор не видит: текст с фото индексатор хранит как обычный текст документа,
+  # обезличивание делает ядро на границе с моделью.
   mask:
     <<: *hardened
-    profiles: [mask]
-    image: ${BAI_IMAGE_MASK:-bai-image-mask-missing-from-lock}
+    image: ${BAI_IMAGE_MASK:?нет BAI_IMAGE_MASK, передайте images.lock (--env-file images.lock)}
     networks: [backend]
     volumes:
       # Предметная настройка сервиса снаружи (словари, паттерны, корпуса): только чтение. Пустой
       # или отсутствующий каталог - поведение как без настройки (docs/SERVICE-CONFIG.md).
       - ${BAI_CONFIG_HOST_DIR:-/etc/agentplatform/config}:/config:ro
     environment:
-      # Без :? - compose разбирает ВЕСЬ файл, и обязательная переменная выключенного профиля
-      # ломала бы любую команду, когда mask не включён. Пустой токен сервис mask не примет
-      # (проверка при старте), поэтому включая профиль, задайте MASK_TOKEN (gen-secrets.sh).
-      MEDIA_MASKER_API_TOKEN: ${MASK_TOKEN:-}
+      # Обязателен, как токен псевдонимизатора: пустой сервис mask не примет. Старой установке
+      # его дописывает `gen-secrets.sh --add-missing` (bai update делает это сам).
+      MEDIA_MASKER_API_TOKEN: ${MASK_TOKEN:?задайте MASK_TOKEN (gen-secrets.sh --add-missing)}
       MEDIA_MASKER_HOST: 0.0.0.0
       MEDIA_MASKER_PORT: "8320"
       MEDIA_MASKER_OCR_LANGS: rus+eng
       MEDIA_MASKER_MAX_CONCURRENCY: "2"
       MEDIA_MASKER_ADDRESS_MASK: ${PSEUDONYMIZER_ADDRESS_MASK:-on}
+      # С labops-pii 1.1.3 закрашиваются только находки детектора ПДн: нечитаемый текст и слабо
+      # распознанные слова остаются (false). true - прежняя строгая закраска.
+      MEDIA_MASKER_HIDE_UNREADABLE: ${MEDIA_MASKER_HIDE_UNREADABLE:-false}
+      MEDIA_MASKER_PAINT_LOW_CONF: ${MEDIA_MASKER_PAINT_LOW_CONF:-false}
       # Крупные буферы numpy/OpenCV возвращаются системе, как у pseudonymizer.
       MALLOC_MMAP_THRESHOLD_: "131072"
     read_only: true
     tmpfs: ["/tmp:size=128m"]
     # Оценка без замера: 2 слота OCR + детектор ПДн (как pseudonymizer ~470 МиБ на слот).
-    # Заменить замером перед включением профиля в бою и пересчитать бюджет (check-host.sh,
-    # compose-security.test.py, docs/RUNBOOK.md). В обязательную сумму mem_limit не входит.
+    # Заменить замером на боевых фото и пересчитать бюджет (check-host.sh,
+    # compose-security.test.py, docs/RUNBOOK.md). С 1.1.3 входит в обязательную сумму mem_limit.
     mem_limit: 1536m
 
   documents:
@@ -693,12 +695,12 @@ services:
       VISION_INDEXER_API_KEY: ${VISION_INDEXER_API_KEY:-}
       # Фото с текстом: tokens (по умолчанию) | block | log_only. tokens: текст читает сервис
       # mask локально и индексатор хранит его как обычный текст документа (обезличивание - на
-      # границе с моделью, в ядре; псевдонимизатор в индексатор не подключается). Сервис mask -
-      # профиль mask: без него (MASK_URL и MASK_TOKEN пусты) индексатор откатывается в block с
-      # предупреждением в журнале. Включая профиль, задайте MASK_URL=http://mask:8320.
+      # границе с моделью, в ядре; псевдонимизатор в индексатор не подключается). Сервис mask в
+      # базовом стеке (с 1.1.3); пустой MASK_URL в .env (не задан) - адрес по умолчанию. Без
+      # MASK_URL индексатор откатывается в block с предупреждением в журнале.
       IMAGE_TEXT_MODE: ${IMAGE_TEXT_MODE:-tokens}
-      MASK_URL: ${MASK_URL:-}
-      MASK_TOKEN: ${MASK_TOKEN:-}
+      MASK_URL: ${MASK_URL:-http://mask:8320}
+      MASK_TOKEN: ${MASK_TOKEN:?задайте MASK_TOKEN (gen-secrets.sh --add-missing)}
       MASK_TIMEOUT_MS: ${MASK_TIMEOUT_MS:-30000}
       DOCUMENTS_OCR_TEXT_MIN_CONF: ${DOCUMENTS_OCR_TEXT_MIN_CONF:-40}
     volumes:
@@ -1012,11 +1014,12 @@ services:
       # Режим фото с текстом: tokens (по умолчанию) | block | log_only. Пустое значение в .env
       # равно «не задано» (синтаксис :-), т.е. tokens. По умолчанию текст с фото читает Tesseract в
       # documents (флаг ниже), картинка с текстом в модель не уходит, затем текст проходит
-      # псевдонимизатор. tokens без IMAGE_TEXT_OCR_IN_DOCUMENTS=true требует MASK_URL и MASK_TOKEN
-      # (сервис mask, профиль mask), иначе app не стартует. Откат на блокировку: IMAGE_TEXT_MODE=block.
+      # псевдонимизатор. tokens без IMAGE_TEXT_OCR_IN_DOCUMENTS=true читает текст сервисом mask
+      # (базовый стек, MASK_URL и MASK_TOKEN по умолчанию заданы). Откат на блокировку:
+      # IMAGE_TEXT_MODE=block. Всё это - только при IMAGE_SEND_PHOTO=false (см. ниже).
       IMAGE_TEXT_MODE: ${IMAGE_TEXT_MODE:-tokens}
-      MASK_URL: ${MASK_URL:-}
-      MASK_TOKEN: ${MASK_TOKEN:-}
+      MASK_URL: ${MASK_URL:-http://mask:8320}
+      MASK_TOKEN: ${MASK_TOKEN:?задайте MASK_TOKEN (gen-secrets.sh --add-missing)}
       MASK_TIMEOUT_MS: ${MASK_TIMEOUT_MS:-}
       # Фото в режиме tokens: сроки включают очередь documents. Нормализация стоит в очереди
       # разбора (420 с), распознавание текста - в очереди OCR (300 с + проход + запас, 360 с).
@@ -1024,12 +1027,17 @@ services:
       IMAGE_NORMALIZE_TIMEOUT_MS: ${IMAGE_NORMALIZE_TIMEOUT_MS:-}
       IMAGE_RECOGNIZE_TIMEOUT_MS: ${IMAGE_RECOGNIZE_TIMEOUT_MS:-}
       # true: в режиме tokens текст с фото читает Tesseract в documents (/images/recognize-text,
-      # ручка DOCUMENTS_IMAGE_TEXT_ENDPOINT), сервис mask и MASK_URL/MASK_TOKEN не нужны. false -
-      # прежний путь через сервис mask (профиль mask). В коде ядра умолчание false; здесь true,
-      # потому что mask вынесен в профиль.
+      # ручка DOCUMENTS_IMAGE_TEXT_ENDPOINT). false - текст читает сервис mask. В коде ядра
+      # умолчание false; здесь true (так было, пока mask был профилем; с 1.1.3 не меняется).
+      # Действует только при IMAGE_SEND_PHOTO=false: закраску фото всегда делает mask.
       IMAGE_TEXT_OCR_IN_DOCUMENTS: ${IMAGE_TEXT_OCR_IN_DOCUMENTS:-true}
       # Порог качества текста с фото, 0..100 (по умолчанию 40): ниже - фото не отправляется.
       DOCUMENTS_OCR_TEXT_MIN_CONF: ${DOCUMENTS_OCR_TEXT_MIN_CONF:-40}
+      # Фото в модель зрения картинкой (решение владельца, по умолчанию true): фото с текстом
+      # закрашивает сервис mask (базовый стек, MASK_URL/MASK_TOKEN), а если убрать ПДн не
+      # получилось (сбой, занят, отказ) - уходит оригинал С ПДн. Режим текста выше тогда не
+      # действует. false - прежнее поведение IMAGE_TEXT_MODE (текст вместо фото).
+      IMAGE_SEND_PHOTO: ${IMAGE_SEND_PHOTO:-true}
       # Приветствие при первом сообщении сотрудника (роль, примеры, кнопки): по умолчанию выкл.
       CHAT_GREETING_ENABLED: ${CHAT_GREETING_ENABLED:-false}
       # Журнал хода чата: принятое событие записывается в БД до подтверждения источнику, ход после
