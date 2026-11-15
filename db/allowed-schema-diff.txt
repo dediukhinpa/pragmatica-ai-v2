@@ -10,3 +10,4 @@ INDEX knowledge_chunks_scope_idx	платформенное имя индекс�
 FUNCTION hybrid_search(text, public.vector, integer, text, text, integer, integer, integer, double precision)	платформенная редакция: параметр filter_scope, столбец scope, иные комментарии в теле
 FUNCTION knowledge_fts_query(text)	платформенная редакция: STABLE вместо IMMUTABLE, комментарии тела без слов предметной области
 FUNCTION hybrid_search_suppliers(text, public.vector, integer, integer, integer, integer, double precision)	предметная функция читает столбец scope (app/026) вместо supplier_id
+TABLE jobs	платформа 1.1.x (миграция 021): столбцы daily_at, time_zone и ограничение jobs_daily_schedule_check для расписания «часы дня»; у Прагматики не используются, откат — rollback/021_down.sql
