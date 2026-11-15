@@ -29,6 +29,22 @@ PII_DECISIONS = {
     "IMAGE_TEXT_GATE": "enforce",
     "WEB_PAGE_PII_STRIP": "enforce",
 }
+# Новые переменные платформы 1.1.3: объявлены в образце только закомментированными
+# (умолчания платформы, ничего не включено).
+PLATFORM_1_1_3_COMMENTED = (
+    "IMAGE_SEND_PHOTO",
+    "MEDIA_MASKER_HIDE_UNREADABLE",
+    "MEDIA_MASKER_PAINT_LOW_CONF",
+    "MASK_URL",
+    "MASK_TOKEN",
+)
+# Устаревшие после 1.1.3 формулировки: mask больше не профиль и в боевой набор входит.
+STALE_MASK_PHRASES = (
+    "профиль compose mask",
+    "COMPOSE_PROFILES=mask",
+    "в боевой набор не входит",
+    "(профиль mask)",
+)
 # Переменные образов подставляет images.lock, в образце они не объявляются.
 IMAGE_VAR_PREFIX = "BAI_IMAGE_"
 # Переменные, которые compose сам подставляет из окружения оболочки или обёртки.
@@ -124,6 +140,38 @@ class EnvExampleTest(unittest.TestCase):
             and not line.startswith("#DOCUMENT_TEMPLATE_ALLOWLIST=")
         ]
         self.assertEqual([], long_lines)
+
+    def test_platform_1_1_3_vars_commented(self) -> None:
+        """Новые переменные 1.1.3 объявлены, но закомментированы: образец ничего не включает."""
+        text = loader.ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+        active = active_values()
+        for name in PLATFORM_1_1_3_COMMENTED:
+            with self.subTest(name=name):
+                self.assertRegex(text, rf"(?m)^#{name}=")
+                self.assertNotIn(name, active)
+
+    def test_platform_1_1_3_defaults(self) -> None:
+        """Закомментированные значения равны умолчаниям платформы 1.1.3."""
+        text = loader.ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+        defaults = {
+            "IMAGE_SEND_PHOTO": "true",
+            "MEDIA_MASKER_HIDE_UNREADABLE": "false",
+            "MEDIA_MASKER_PAINT_LOW_CONF": "false",
+        }
+        for name, expected in defaults.items():
+            with self.subTest(name=name):
+                self.assertIn(f"\n#{name}={expected}\n", text)
+
+    def test_no_stale_mask_profile_text(self) -> None:
+        """В образце нет устаревших фраз про профиль mask и «не входит в боевой набор»."""
+        text = loader.ENV_EXAMPLE_FILE.read_text(encoding="utf-8")
+        found = [phrase for phrase in STALE_MASK_PHRASES if phrase in text]
+        self.assertEqual([], found)
+
+    def test_compose_project_mask_comment_not_stale(self) -> None:
+        """Комментарий mask в compose проекта не называет сервис выключенным профилем."""
+        text = loader.PROJECT_COMPOSE_FILE.read_text(encoding="utf-8")
+        self.assertNotIn("профиль mask, на бою выключен", text)
 
 
 if __name__ == "__main__":

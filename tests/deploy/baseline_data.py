@@ -37,7 +37,9 @@ SERVICES: dict[str, ServiceFacts] = {
     "embeddings": ServiceFacts("1400m", (), ("backend",)),
     "gateway-mtls": ServiceFacts("128m", (), ("backend", "egress")),
     "indexer": ServiceFacts("384m", (), ("backend",)),
-    "mask": ServiceFacts("1536m", ("mask",), ("backend",)),
+    # С платформы 1.1.3 mask входит в базовый стек без профиля (на бою эталона был профиль mask);
+    # отличие записано в allowed-diff.txt этапа 8u и в «Решениях владельца».
+    "mask": ServiceFacts("1536m", (), ("backend",)),
     "migrate": ServiceFacts("-", ("tools",), ("backend",)),
     "postgres": ServiceFacts("4g", (), ("backend",)),
     "pseudonymizer": ServiceFacts("1400m", (), ("pseudonymizer-net",)),
