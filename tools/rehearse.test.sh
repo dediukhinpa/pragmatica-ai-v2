@@ -186,6 +186,12 @@ assert "права копий 640, без чтения для всех" \
 assert "lib: bash -n и строки не длиннее $LIMIT" \
   "bash -n '$FILES_LIB' && ! awk 'length > $LIMIT' '$FILES_LIB' | grep -q ."
 
+# 6b. Проверка совместимости хранилища псевдонимизатора вызывается из копирования хранилища.
+assert "rehearse.sh вызывает check-pseudonymizer-store.sh" \
+  "grep -q 'check-pseudonymizer-store.sh' '$SCRIPT'"
+assert "вызов передаёт образ, том и файл проверок" \
+  "grep -q -e '--checks-file \"\$CHECKS_FILE\"' '$SCRIPT'"
+
 # 7. Сам скрипт: синтаксис и длина строк.
 assert "bash -n" "bash -n '$SCRIPT'"
 assert "строки rehearse.sh не длиннее $LIMIT" \

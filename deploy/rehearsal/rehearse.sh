@@ -1105,6 +1105,15 @@ PY
     check "хранилище: самопроверка" fail \
       "расшифровка не прошла (код $rc): $(tail -1 "$RES/pseudonymizer-selfcheck.txt")"
   fi
+  # Совместимость хранилища с версией 1.1.x (этап 8u): копия-в-копии, только счётчики и ok/fail,
+  # без ключа и значений; результат дописывается в checks.tsv самим скриптом.
+  if [[ -f "$REH_DIR/check-pseudonymizer-store.sh" ]]; then
+    PSEUDONYMIZER_KEY="$PSEUDO_KEY" bash "$REH_DIR/check-pseudonymizer-store.sh" \
+      --image "$(pseudo_image)" --volume "$vol" --checks-file "$CHECKS_FILE" \
+      >"$RES/pseudonymizer-store-check.txt" 2>>"$LOG_FILE" || true
+  else
+    check "хранилище: проверка совместимости 1.1.x" warn "check-pseudonymizer-store.sh нет в пакете"
+  fi
   phase_end
 }
 
