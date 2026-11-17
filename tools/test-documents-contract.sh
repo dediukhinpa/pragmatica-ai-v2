@@ -65,20 +65,18 @@ while (($#)); do
   shift
 done
 [[ "$PORT" =~ ^[0-9]+$ ]] || { echo "порт не число" >&2; exit "$EXIT_USAGE"; }
-if [[ -n "$IMAGE" ]]; then
-  [[ -z "$PYTHON" ]] || { echo "--image и --python вместе нельзя" >&2; exit "$EXIT_USAGE"; }
-else
-  [[ -n "$PYTHON" && -n "$PLATFORM_SRC" ]] || usage
-  [[ -x "$PYTHON" && -d "$PLATFORM_SRC/services/documents" ]] \
-    || { echo "python или платформенные исходники не найдены" >&2; exit "$EXIT_USAGE"; }
-fi
+[[ -n "$PYTHON" && -n "$PLATFORM_SRC" ]] || usage
+[[ -x "$PYTHON" && -d "$PLATFORM_SRC/services/documents" ]] \
+  || { echo "python или платформенные исходники не найдены" >&2; exit "$EXIT_USAGE"; }
+[[ -z "$IMAGE" || "$PLATFORM_ONLY" -eq 0 ]] \
+  || { echo "--no-project-layer только без --image" >&2; exit "$EXIT_USAGE"; }
 
 WORK="$(mktemp -d)"
 DOCS_PATH="$ROOT/services/documents-docx"
 PLATFORM_PATH="${PLATFORM_SRC:+$PLATFORM_SRC/services/documents:$PLATFORM_SRC/vendor/labops-pii}"
 
 # Фикстуры строятся хостовым python (в образе нет pytest и построителей).
-BUILDER="${PYTHON:-$(command -v python3)}"
+BUILDER="$PYTHON"
 log "строю синтетические docx"
 PYTHONPATH="$DOCS_PATH${PLATFORM_PATH:+:$PLATFORM_PATH}" "$BUILDER" -W ignore \
   "$DOCS_PATH/tests/make_contract_fixtures.py" "$WORK/fixtures" >/dev/null
@@ -86,8 +84,9 @@ PYTHONPATH="$DOCS_PATH${PLATFORM_PATH:+:$PLATFORM_PATH}" "$BUILDER" -W ignore \
 if [[ -n "$IMAGE" ]]; then
   CONTAINER="${CONTAINER_NAME_PREFIX}-$$"
   log "запускаю контейнер $IMAGE на 127.0.0.1:$PORT"
+  # DOCUMENTS_HOST=0.0.0.0: на бою адрес слушания задаёт compose, умолчание образа - loopback
   docker run -d --name "$CONTAINER" -p "127.0.0.1:$PORT:$CONTAINER_PORT" \
-    --label bai.stage=8v "$IMAGE" >/dev/null
+    -e DOCUMENTS_HOST=0.0.0.0 --label bai.stage=8v "$IMAGE" >/dev/null
 else
   entry="pragmatika_documents"
   ((! EXPECT_MISSING && ! PLATFORM_ONLY)) || entry="documents"
