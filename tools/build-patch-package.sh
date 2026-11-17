@@ -128,6 +128,9 @@ bad="$(cd "$OUT" && find . -type f | sed 's|^\./||' \
 if grep -rIlE '^(-----BEGIN [A-Z ]*PRIVATE KEY-----|AGE-SECRET-KEY-)' "$OUT" >/dev/null 2>&1; then
   fail "в пакете найдено закрытое ключевое содержимое"
 fi
+# Права как у обычной распаковки: файлы читаются всеми (секретов в пакете нет), скрипты исполняются.
+find "$OUT" -type d -exec chmod 755 {} +
+find "$OUT" -type f ! -perm -u+x -exec chmod 644 {} +
 [[ ! -e "$OUT/db" ]] || fail "в патч-пакете не должно быть db (миграций у патча нет)"
 
 log "MANIFEST.sha256"

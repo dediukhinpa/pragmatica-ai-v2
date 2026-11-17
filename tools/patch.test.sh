@@ -100,7 +100,7 @@ case "$1" in
       # Откат не удался: после первого пересоздания app больше не отвечает
       if [[ "${STUB_STUCK:-0}" == 1 && -e "$STUB/started" ]]; then echo "app недоступен"; exit 1; fi
       echo "200 {\"bots\":{\"ready\":$bots}}"
-    elif [[ "$*" == *"smoke_contract"* ]]; then
+    elif [[ "$*" == *"--entrypoint python"* ]]; then
       echo "OK amend"; echo "result=${STUB_SMOKE:-OK}"
       [[ "${STUB_SMOKE:-OK}" == OK ]] || exit 1
     fi ;;
@@ -296,7 +296,7 @@ assert "успех: образ и тег legacy-docx не трогались" \
   "! grep -qE '^(rmi|image rm|image prune|tag|untag)' '$TMP/docker-apply.log'"
 assert "успех: documents работает на новом образе" "grep -q '$NEW_DOCS' '$STUB/containers'"
 assert "успех: смоук запущен до и после снятия обхода" \
-  "[[ \$(grep -c 'smoke_contract' '$TMP/docker-apply.log') -eq 2 ]]"
+  "[[ \$(grep -c 'entrypoint python' '$TMP/docker-apply.log') -eq 2 ]]"
 assert "успех: архив результатов создан" "compgen -G '$TMP/home-apply/patch-*.tgz'"
 assert "успех: токен не попал в журнал" \
   "! grep -rq 'live-secret-token-0123456789' '$TMP/home-apply' --include='*.log' --include='*.tsv'"

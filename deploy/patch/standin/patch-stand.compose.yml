@@ -18,6 +18,7 @@ services:
           return new Response(JSON.stringify({ bots: { ready: 4 } }),
             { headers: { "content-type": "application/json" } });
         } });
+        process.on("SIGTERM", () => process.exit(0));
         setInterval(() => {}, 1 << 30);
     depends_on: !override {}
     networks: !override [backend]

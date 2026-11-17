@@ -588,10 +588,10 @@ verify_smoke() {
   local out="$RES/smoke-$1.txt" rc=0 container ref
   container="$(service_containers documents | head -1)"
   ref="$(lock_ref BAI_IMAGE_DOCUMENTS)"
-  docker run --rm --network "container:$container" --memory "$SMOKE_MEM" --cap-drop ALL \
-    --security-opt no-new-privileges:true -e PYTHONDONTWRITEBYTECODE=1 \
-    -v "$SMOKE_SCRIPT:/smoke/smoke_contract.py:ro" --entrypoint python "$ref" \
-    -I /smoke/smoke_contract.py "http://127.0.0.1:$DOCUMENTS_PORT" >"$out" 2>&1 || rc=$?
+  # Скрипт идёт через stdin: без монтирования файла (права пакета и пользователя образа не важны).
+  docker run --rm -i --network "container:$container" --memory "$SMOKE_MEM" --cap-drop ALL \
+    --security-opt no-new-privileges:true -e PYTHONDONTWRITEBYTECODE=1 --entrypoint python "$ref" \
+    -I - "http://127.0.0.1:$DOCUMENTS_PORT" <"$SMOKE_SCRIPT" >"$out" 2>&1 || rc=$?
   cat "$out" >>"$LOG_FILE"
   ((rc == 0)) \
     || die "$EXIT_FAILED" "смоук сборки договора не прошёл (smoke-$1.txt):" \
