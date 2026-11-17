@@ -697,7 +697,8 @@ rollback_patch() {
   if [[ "$bypass" == 1 && -f "$live/$HOTFIX_COMPOSE_REL" ]]; then
     extra="$live/$HOTFIX_COMPOSE_REL"
   fi
-  CUTOVER_EXTRA_COMPOSE="$extra"
+  # Файл обхода идёт ПЕРЕД прочими надстройками стенда (на бою их нет): их переопределения сильнее.
+  CUTOVER_EXTRA_COMPOSE="$(echo "$extra ${CUTOVER_EXTRA_COMPOSE:-}" | xargs)"
   # Порядок: legacy -> documents -> роутер -> остальное (app последним).
   local up=()
   [[ -z "$extra" ]] || up+=(documents-legacy)

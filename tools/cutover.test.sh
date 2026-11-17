@@ -700,6 +700,23 @@ rc=0; routes_case 3 || rc=$?
 assert "проверить образ не удалось: тоже отказ (не успех)" \
   "[[ $rc -eq $EXIT_REFUSED ]] && grep -q 'не удалось' '$TMP/rc.refuse'"
 
+# cut_documents_flags: флаги маршрутов documents берутся из окружения сервиса по compose config.
+ROUTES_TOOLS_DIR="$ROOT/tools"
+(
+  dc_new() {
+    echo '{"services":{"documents":{"environment":{"DOCUMENTS_EDIT_ENDPOINTS":"true",
+      "DOCUMENTS_ARCHIVES_ENABLED":null,"DOCUMENTS_SECRET_TOKEN":"must-not-leak",
+      "OTHER":"x"}}}}'
+  }
+  eval "$(sed -n '/^cut_documents_flags() {/,/^}/p' "$SRC_DIR/lib.sh")"
+  cut_documents_flags >"$TMP/flags.out"
+)
+assert "cut_documents_flags: флаги из окружения documents, пустой флаг пуст" \
+  "grep -qx 'DOCUMENTS_EDIT_ENDPOINTS=true' '$TMP/flags.out' \
+   && grep -qx 'DOCUMENTS_ARCHIVES_ENABLED=' '$TMP/flags.out'"
+assert "cut_documents_flags: прочее окружение не читается и не печатается" \
+  "! grep -qE 'must-not-leak|OTHER|SECRET' '$TMP/flags.out'"
+
 # remove_bypass_containers из rollback.sh: контейнеры обхода убираются по меткам compose, образы и
 # тег legacy-docx не трогаются; нет контейнеров - не ошибка.
 bypass_case() { # bypass_case <имена через пробел, которые вернёт ps>

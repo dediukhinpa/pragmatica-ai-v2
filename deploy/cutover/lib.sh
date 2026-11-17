@@ -554,7 +554,8 @@ except (ValueError, KeyError, TypeError):
     sys.exit(0)
 for name in sorted(names):
     if name in env:
-        print(f"{name}={env[name] if env[name] is not None else \"\"}")
+        value = env[name]
+        print(name + "=" + ("" if value is None else str(value)))
 ' "$ROUTES_TOOLS_DIR/route-flags.tsv"
 }
 
