@@ -30,7 +30,9 @@ class ServiceFacts:
 
 
 SERVICES: dict[str, ServiceFacts] = {
-    "alloy": ServiceFacts("320m", ("telemetry",), ("backend", "docker-api", "telemetry-egress")),
+    # alloy: 320m в эталоне боя; 448m - решение владельца 17.11.2026 (памяти не хватало с запасом,
+    # alloy держалась около 80 % лимита). Отличие записано в allowed-diff.txt этапа 8v.
+    "alloy": ServiceFacts("448m", ("telemetry",), ("backend", "docker-api", "telemetry-egress")),
     "app": ServiceFacts("1856m", (), ("backend", "egress", "pseudonymizer-net")),
     "docker-socket-proxy": ServiceFacts("64m", ("telemetry",), ("docker-api",)),
     "documents": ServiceFacts("4312m", (), ("backend",)),

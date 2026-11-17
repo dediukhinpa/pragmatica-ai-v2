@@ -381,6 +381,11 @@ services:
   alloy:
     <<: *log_tag
     hostname: ${TELEMETRY_HOST:-pragmatika}
+    # Решение владельца 17.11.2026 (разбор G7): на бою alloy держится около 80 % прежнего лимита
+    # платформы (255 из 320 МиБ), запас на всплеск мал. Лимит поднят до 448m (+128 МиБ к сумме
+    # лимитов); мягкий предел кучи GOMEMLIMIT платформы (256MiB) не менялся. Остальные лимиты - как
+    # в базе платформы.
+    mem_limit: 448m
     environment:
       ALLOY_COMPOSE_PROJECT: ${ALLOY_COMPOSE_PROJECT:-pragmatika}
       TELEMETRY_PG_DSN: ${TELEMETRY_PG_DSN:-postgresql://pragmatika_monitor@postgres:5432/${POSTGRES_DB:-pragmatika}?sslmode=disable}
