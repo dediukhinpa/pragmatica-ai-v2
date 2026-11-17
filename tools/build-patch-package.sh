@@ -17,7 +17,7 @@
 #                                            compat.env, platform/compose.base.yml,
 #                                            platform/PLATFORM-VERSION
 #   images.lock, signatures.txt, cosign.pub  образы по digest, подтверждение подписей, открытый ключ
-#   RUNBOOK.md                               инструкция владельцу (если дан --runbook)
+#   OWNER-RUNBOOK.md                             инструкция владельцу (если дан --runbook)
 #   MANIFEST.sha256                          контрольные суммы всех файлов пакета
 # Секретов, .env и ключей в пакет не кладётся: проверяется перед записью манифеста. Подтверждение
 # подписей обязано относиться к ЭТОМУ lock (sha256) и всем его образам: проверяется при сборке.
@@ -120,7 +120,7 @@ for f in "${DEPLOY_FILES[@]}"; do show "deploy/$f" "$OUT/deploy/$f"; done
 cp "$LOCK" "$OUT/images.lock"
 cp "$SIGNATURES" "$OUT/signatures.txt"
 cp "$COSIGN_PUB" "$OUT/cosign.pub"
-[[ -z "$RUNBOOK" ]] || cp "$RUNBOOK" "$OUT/RUNBOOK.md"
+[[ -z "$RUNBOOK" ]] || cp "$RUNBOOK" "$OUT/OWNER-RUNBOOK.md"
 
 bad="$(cd "$OUT" && find . -type f | sed 's|^\./||' \
   | grep -E "$FORBIDDEN_RE" | grep -vE "$ALLOWED_RE" || true)"

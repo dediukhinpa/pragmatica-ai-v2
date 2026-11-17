@@ -62,7 +62,7 @@ rc=0
 run --out "$OUT" --runbook "$TMP/RUNBOOK.md" --tgz "$TMP/p.tgz" >"$TMP/out.log" 2>&1 || rc=$?
 assert "сборка проходит" "[[ $rc -eq 0 ]]"
 for f in patch.sh lib.sh verify-signatures.sh smoke_contract.py routes.tsv images.lock \
-  signatures.txt cosign.pub RUNBOOK.md MANIFEST.sha256 tools/check-routes.sh \
+  signatures.txt cosign.pub OWNER-RUNBOOK.md MANIFEST.sha256 tools/check-routes.sh \
   tools/check-image-routes.sh tools/route-flags.tsv deploy/compose.yml \
   deploy/compose.project.yml deploy/compat.env deploy/platform/compose.base.yml \
   deploy/platform/PLATFORM-VERSION; do
