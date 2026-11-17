@@ -109,6 +109,11 @@ ENV_RETIRED="$STACK/deploy/rehearsal/env-retired.txt"
 SCHEMA_EXPECTED="$HERE/schema-expected.sql"
 SCHEMA_TOOL="$HERE/tools/check_migrations_schema.py"
 [[ -f "$SCHEMA_TOOL" ]] || SCHEMA_TOOL="$STACK/tools/check_migrations_schema.py"
+# Проверка маршрутов: инструменты и манифест (в пакете tools/ и routes.tsv, в дереве проекта tools/
+# и deploy/cutover/routes.tsv).
+ROUTES_TOOLS_DIR="$HERE/tools"
+[[ -f "$ROUTES_TOOLS_DIR/check-routes.sh" ]] || ROUTES_TOOLS_DIR="$STACK/tools"
+ROUTES_MANIFEST="$(pkg_file routes.tsv deploy/cutover/routes.tsv)"
 # Обратные миграции в порядке применения при откате: сначала платформенная 021 (платформа 1.1.x),
 # затем проектная 026; обе исполняются одной транзакцией в rollback.sh.
 DOWN_SQL_NAMES=(021_down.sql 026_down.sql)
@@ -534,6 +539,30 @@ ensure_images() {
   check "образы v2" ok "${#refs[@]} образов по digest на месте"
 }
 
+# Маршруты documents в образе до остановки боя: платформенный образ без проектного слоя не знает
+# /docx/* (404 на бою при сборке договора). Образа без проверки не пускаем.
+check_documents_routes() {
+  phase "маршруты сервиса documents в образе (до остановки боя)"
+  local ref out="$RES/routes-image.txt" rc=0
+  if [[ -n "${CUTOVER_SERVICES:-}" && " $CUTOVER_SERVICES " != *" documents "* ]]; then
+    check "маршруты documents в образе" warn "documents вне CUTOVER_SERVICES: не проверялось"
+    return 0
+  fi
+  [[ -f "$ROUTES_MANIFEST" && -f "$ROUTES_TOOLS_DIR/check-image-routes.sh" ]] \
+    || refuse "нет инструментов проверки маршрутов ($ROUTES_TOOLS_DIR, $ROUTES_MANIFEST)"
+  ref="$(dc_new --profile tools config --images documents 2>/dev/null | head -1)"
+  [[ -n "$ref" ]] || refuse "compose не назвал образ documents (проверка маршрутов невозможна)"
+  cut_check_routes_image "$ref" "$out" || rc=$?
+  cat "$out" >>"$LOG_FILE"
+  case "$rc" in
+    0) check "маршруты documents в образе" ok "$(tail -1 "$out" | sed 's/^\[[^]]*\] //')" ;;
+    "$ROUTES_EXIT_MISSING")
+      refuse "в образе documents нет маршрутов, которые вызывает app (routes-image.txt):" \
+        "$(grep -c 'нет маршрута' "$out") шт.; образ без проектного слоя /docx/*" ;;
+    *) refuse "маршруты образа documents проверить не удалось, код $rc (routes-image.txt)" ;;
+  esac
+}
+
 # Дерево v2: /opt/pragmatika-v2/deploy и db; боевой .env без снятых имён, ссылка на secrets.env.
 prepare_tree() {
   phase "дерево v2 в $CUTOVER_NEW_DIR"
@@ -908,6 +937,19 @@ print(sum(1 for a in items if a.get("status", {}).get("state") == "active"))
 PY
 }
 
+# Маршруты в живом стеке: пробы изнутри сети app. 404/405 или ошибка пробы - провал и откат;
+# «существование не проверено» (401/403 без токена) - предупреждение, не провал.
+verify_routes() {
+  local out="$RES/routes-stack.txt" rc=0 summary
+  [[ -f "$ROUTES_MANIFEST" && -f "$ROUTES_TOOLS_DIR/check-routes.sh" ]] \
+    || die "$EXIT_FAILED" "нет инструментов проверки маршрутов ($ROUTES_TOOLS_DIR)"
+  cut_check_routes_stack "$out" || rc=$?
+  cat "$out" >>"$LOG_FILE"
+  summary="$(tail -1 "$out" | cut -c1-200)"
+  ((rc == 0)) || die "$EXIT_FAILED" "проверка маршрутов не прошла (routes-stack.txt): $summary"
+  check "маршруты стека" ok "$summary"
+}
+
 verify_v2() {
   phase "проверки после переключения"
   local bots=0 body started left restarts_before restarts_now alerts
@@ -931,6 +973,7 @@ verify_v2() {
     die "$EXIT_FAILED" "журнал app: ошибки или не хватает bitrix24_bot_ready (app-log-summary.txt)"
   fi
   verify_running_images
+  verify_routes
   metrics_check
   # Выдержка: контейнеры не перезапускаются, /ready зелёный.
   restarts_before="$(restart_total)"
@@ -1011,6 +1054,7 @@ main() {
   check "конфигурация v2" ok "compose config без ошибок"
   ensure_images
   check_app_start
+  check_documents_routes
   plan_check "$RES/migrate-plan-pre.txt" "на живой базе боя"
   if ((PREFLIGHT_ONLY)); then
     check "режим" ok "--preflight-only: бой не менялся"

@@ -13,7 +13,9 @@
 #   --auto      вызов из cutover.sh (только для журнала)
 #
 # Что делает (обычный откат, без --restore-db):
-#   1. Убирает контейнеры v2 (тома, образы и сети не трогает).
+#   1. Убирает контейнеры v2 (тома, образы и сети не трогает) и, если они есть, контейнеры
+#      временного обхода /docx/* (documents-router, documents-legacy): прежний стек их не
+#      использует. Образ pragmatika-documents:legacy-docx и его тег остаются.
 #   2. Если миграции v2 начинались: поднимает прежний postgres и применяет обратные миграции
 #      db/app/rollback/021_down.sql (платформа 1.1.x: снимает серии «часы дня» и столбцы
 #      jobs.daily_at/time_zone) и 026_down.sql (столбец scope -> supplier_id, функции поиска
@@ -138,6 +140,27 @@ remove_project_containers() {
   done
   for name in "${names[@]}"; do docker rm "$name" >>"$LOG_FILE" 2>&1 || true; done
   log "убрано контейнеров: ${#names[@]}"
+}
+
+# Контейнеры временного обхода /docx/* (hotfix-docx): по метке сервиса compose, а не по имени.
+# Их тег образа legacy-docx не трогаем: он нужен для возврата обхода. Нет контейнеров - не ошибка.
+BYPASS_SERVICES=(documents-router documents-legacy)
+remove_bypass_containers() {
+  local svc names=() name
+  for svc in "${BYPASS_SERVICES[@]}"; do
+    mapfile -t -O "${#names[@]}" names < <(docker ps -a \
+      --filter "label=com.docker.compose.project=$CUTOVER_PROJECT" \
+      --filter "label=com.docker.compose.service=$svc" --format '{{.Names}}' | sort)
+  done
+  if ((${#names[@]} == 0)); then
+    log "контейнеров обхода /docx/* нет"
+    return 0
+  fi
+  for name in "${names[@]}"; do
+    docker stop -t "$STOP_TIMEOUT_S" "$name" >>"$LOG_FILE" 2>&1 || true
+    docker rm "$name" >>"$LOG_FILE" 2>&1 || true
+  done
+  log "убрано контейнеров обхода /docx/*: ${#names[@]} (${names[*]})"
 }
 
 start_old_postgres() {
@@ -273,6 +296,7 @@ main() {
   if [[ "$(state_get V2_STARTED)" == 1 || $RESTORE_DB == 1 ]]; then
     remove_project_containers
   fi
+  remove_bypass_containers
   if [[ "$(state_get DB_MIGRATE_STARTED)" == 1 || $RESTORE_DB == 1 ]]; then
     start_old_postgres
     if ((RESTORE_DB)); then restore_from_backup; else apply_down; fi

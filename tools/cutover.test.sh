@@ -657,6 +657,90 @@ assert "ready_bots: число и 0 без поля" "[[ \"\$(line 2)\$(line 3)\
 assert "mail_summary" "[[ \"\$(line 4)\$(line 5)\" == 'ok/7/0 - ' ]]"
 assert "cut_load_config: окружение сильнее файла" "[[ \"\$(line 6)\" == 'env file ' ]]"
 
+# 8а. Проверка маршрутов: манифест свежий, ход cutover.sh и обход в rollback.sh.
+if command -v bun >/dev/null 2>&1; then
+  bun "$ROOT/tools/route-manifest.ts" >"$TMP/routes-now.tsv" 2>/dev/null || true
+  assert "deploy/cutover/routes.tsv совпадает с манифестом из исходников (route-manifest.ts)" \
+    "cmp -s '$TMP/routes-now.tsv' '$ROOT/deploy/cutover/routes.tsv'"
+fi
+assert "preflight вызывает проверку маршрутов образа после условий старта app" \
+  "sed -n '/^main() {/,/^}/p' '$SRC_DIR/cutover.sh' \
+   | awk '/check_app_start/{a=NR} /check_documents_routes/{b=NR} /plan_check/{c=NR} \
+     END{exit !(a && b && c && a<b && b<c)}'"
+assert "проверка маршрутов стека идёт в verify_v2 до выдержки" \
+  "sed -n '/^verify_v2() {/,/^}/p' '$SRC_DIR/cutover.sh' \
+   | awk '/verify_routes/{a=NR} /выдержка/{b=NR} END{exit !(a && b && a<b)}'"
+# check_documents_routes из cutover.sh в подоболочке с заглушками: 0 - успех, 1 и 3 - отказ.
+routes_case() { # routes_case <код проверки образа>; код выхода подоболочки = код cutover.sh
+  rm -f "$TMP/rc.refuse"
+  (
+    RES="$TMP/rc-res"; LOG_FILE="$TMP/rc.log"; CUTOVER_SERVICES=""
+    ROUTES_MANIFEST="$TMP/rc-routes.tsv"; ROUTES_TOOLS_DIR="$TMP/rc-tools"
+    ROUTES_EXIT_MISSING=1; FAKE_IMAGE_RC="$1"
+    mkdir -p "$RES" "$ROUTES_TOOLS_DIR"; : >"$LOG_FILE"; : >"$ROUTES_MANIFEST"
+    : >"$ROUTES_TOOLS_DIR/check-image-routes.sh"
+    phase() { :; }
+    check() { :; }
+    refuse() { echo "$*" >"$TMP/rc.refuse"; exit "$EXIT_REFUSED"; }
+    dc_new() { echo "r/documents@sha256:$DIGEST_A"; }
+    cut_check_routes_image() {
+      printf '[x] нет маршрута в образе: POST /docx/amend\n[x] итог\n' >"$2"
+      return "$FAKE_IMAGE_RC"
+    }
+    eval "$(sed -n '/^check_documents_routes() {/,/^}/p' "$SRC_DIR/cutover.sh")"
+    check_documents_routes
+  )
+}
+rc=0; routes_case 0 || rc=$?
+assert "образ с маршрутами: проверка проходит" "[[ $rc -eq 0 && ! -e '$TMP/rc.refuse' ]]"
+rc=0; routes_case 1 || rc=$?
+assert "образ без /docx/*: отказ кодом 3 до остановки боя" "[[ $rc -eq $EXIT_REFUSED ]]"
+assert "отказ называет проектный слой /docx/*" "grep -q '/docx' '$TMP/rc.refuse'"
+rc=0; routes_case 3 || rc=$?
+assert "проверить образ не удалось: тоже отказ (не успех)" \
+  "[[ $rc -eq $EXIT_REFUSED ]] && grep -q 'не удалось' '$TMP/rc.refuse'"
+
+# remove_bypass_containers из rollback.sh: контейнеры обхода убираются по меткам compose, образы и
+# тег legacy-docx не трогаются; нет контейнеров - не ошибка.
+bypass_case() { # bypass_case <имена через пробел, которые вернёт ps>
+  : >"$TMP/bp.docker"
+  (
+    CUTOVER_PROJECT=pragmatika; STOP_TIMEOUT_S=5; LOG_FILE="$TMP/bp.log"
+    : >"$LOG_FILE"
+    log() { :; }
+    docker() {
+      printf '%s\n' "$*" >>"$TMP/bp.docker"
+      if [[ "$1" == ps && "$*" == *"service=documents-router"* ]]; then
+        for n in $FAKE_NAMES; do [[ "$n" == *router* ]] && echo "$n"; done
+      elif [[ "$1" == ps && "$*" == *"service=documents-legacy"* ]]; then
+        for n in $FAKE_NAMES; do [[ "$n" == *legacy* ]] && echo "$n"; done
+      fi
+      return 0
+    }
+    FAKE_NAMES="$1"
+    eval "$(sed -n '/^BYPASS_SERVICES=/p;/^remove_bypass_containers() {/,/^}/p' \
+      "$SRC_DIR/rollback.sh")"
+    remove_bypass_containers
+  )
+}
+bypass_case "pragmatika-documents-router-1 pragmatika-documents-legacy-1"
+assert "rollback: остановлены и удалены оба контейнера обхода" \
+  "grep -q '^stop .*pragmatika-documents-router-1' '$TMP/bp.docker' \
+   && grep -q '^rm pragmatika-documents-router-1' '$TMP/bp.docker' \
+   && grep -q '^stop .*pragmatika-documents-legacy-1' '$TMP/bp.docker' \
+   && grep -q '^rm pragmatika-documents-legacy-1' '$TMP/bp.docker'"
+assert "rollback: образы и тег legacy-docx не трогаются (нет rmi, image rm, tag)" \
+  "! grep -qE '^(rmi|image rm|image prune|tag|volume|network)' '$TMP/bp.docker'"
+assert "rollback: отбор по метке проекта и сервиса, не по имени" \
+  "grep -q 'label=com.docker.compose.project=pragmatika' '$TMP/bp.docker' \
+   && grep -q 'label=com.docker.compose.service=documents-legacy' '$TMP/bp.docker'"
+bypass_case ""
+assert "rollback: обхода нет - ни stop, ни rm, код 0" \
+  "! grep -qE '^(stop|rm) ' '$TMP/bp.docker'"
+assert "rollback вызывает remove_bypass_containers до подъёма прежнего postgres" \
+  "sed -n '/^main() {/,/^}/p' '$SRC_DIR/rollback.sh' \
+   | awk '/remove_bypass_containers/{a=NR} /start_old_postgres/{b=NR} END{exit !(a && b && a<b)}'"
+
 # 9. Стиль всех скриптов пакета.
 for f in cutover.sh rollback.sh lib.sh; do
   assert "bash -n $f" "bash -n '$SRC_DIR/$f'"

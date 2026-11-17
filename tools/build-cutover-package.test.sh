@@ -37,6 +37,10 @@ for f in CHECKLIST.md README.md expected-host-dirs.txt; do
 done
 echo "app/026_x" >"$REPO/deploy/rehearsal/expected-pending.txt"
 echo "# tool" >"$REPO/tools/check_migrations_schema.py"
+for f in check-routes.sh check-image-routes.sh route-flags.tsv; do
+  echo "# $f" >"$REPO/tools/$f"
+done
+printf 'documents\tPOST\t/parse\troute\n' >"$REPO/deploy/cutover/routes.tsv"
 printf '# Последняя синхронизация\n\n- Коммит старого репозитория: `%s`\n' "$FREEZE" \
   >"$REPO/tools/last-sync.md"
 git -C "$REPO" init -q
@@ -57,10 +61,13 @@ assert "сборка проходит" "[[ $rc -eq 0 ]]"
 for f in cutover.sh rollback.sh lib.sh verify-signatures.sh units-old-tree.sh CHECKLIST.md \
   README.md expected-host-dirs.txt images.lock cosign.pub schema-expected.sql \
   expected-pending.txt FREEZE_SRC tools/check_migrations_schema.py stack/deploy/compose.yml \
+  tools/check-routes.sh tools/check-image-routes.sh tools/route-flags.tsv routes.tsv \
   stack/deploy/platform/compose.base.yml stack/db/app/001_x.sql \
   stack/db/app/rollback/021_down.sql stack/db/app/rollback/026_down.sql MANIFEST.sha256; do
   assert "в пакете есть $f" "[[ -f '$OUT/$f' ]]"
 done
+assert "скрипты проверки маршрутов исполняемые" \
+  "[[ -x '$OUT/tools/check-routes.sh' && -x '$OUT/tools/check-image-routes.sh' ]]"
 assert "cutover.sh и rollback.sh исполняемые" "[[ -x '$OUT/cutover.sh' && -x '$OUT/rollback.sh' ]]"
 assert "FREEZE_SRC из last-sync.md" "[[ \"\$(cat '$OUT/FREEZE_SRC')\" == '$FREEZE' ]]"
 assert "копии скриптов нет в stack" "[[ ! -e '$OUT/stack/deploy/cutover' ]]"

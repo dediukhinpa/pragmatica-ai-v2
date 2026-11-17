@@ -526,3 +526,59 @@ PY
       "$side (600)"
   fi
 }
+
+# ---------------------------------------------------------------------------------------------
+# Проверка маршрутов (урок G6/G7: на бою у documents не было проектных /docx/*, а предпроверка
+# молчала). Инструменты и манифест ищет вызывающий скрипт: ROUTES_TOOLS_DIR (check-routes.sh,
+# check-image-routes.sh, route-flags.tsv) и ROUTES_MANIFEST (routes.tsv).
+# ---------------------------------------------------------------------------------------------
+# Коды check-image-routes.sh: 1 - маршрутов нет, 3 - проверку выполнить не удалось.
+ROUTES_EXIT_MISSING=1
+# Сервисы, которые check-routes.sh проверяет в стеке (имена compose).
+ROUTES_STACK_SERVICES=(documents pseudonymizer embeddings mask speech)
+
+# cut_documents_flags: строки ИМЯ=ЗНАЧЕНИЕ флагов маршрутов documents, как их видит compose v2
+# (после подстановки умолчаний и .env). Имена берутся из route-flags.tsv; прочее окружение сервиса
+# не читается и не печатается. Без вывода (compose недоступен) флаги считаются неизвестными.
+cut_documents_flags() {
+  dc_new --profile tools config --format json 2>/dev/null | python3 -I -c '
+import json, sys
+names = set()
+for line in open(sys.argv[1], encoding="utf-8"):
+    cols = line.rstrip("\n").split("\t")
+    if len(cols) == 3 and not line.startswith("#") and cols[0] == "documents":
+        names.add(cols[2])
+try:
+    env = json.load(sys.stdin)["services"]["documents"].get("environment", {})
+except (ValueError, KeyError, TypeError):
+    sys.exit(0)
+for name in sorted(names):
+    if name in env:
+        print(f"{name}={env[name] if env[name] is not None else \"\"}")
+' "$ROUTES_TOOLS_DIR/route-flags.tsv"
+}
+
+# cut_check_routes_image <образ documents> <файл вывода>: маршруты манифеста есть в образе.
+# Код check-image-routes.sh (0 - есть, 1 - нет, 3 - не удалось проверить).
+cut_check_routes_image() {
+  local flags=() line
+  while IFS= read -r line; do
+    [[ -z "$line" ]] || flags+=(--flag "$line")
+  done < <(cut_documents_flags)
+  bash "$ROUTES_TOOLS_DIR/check-image-routes.sh" --image "$1" --manifest "$ROUTES_MANIFEST" \
+    --flags-file "$ROUTES_TOOLS_DIR/route-flags.tsv" ${flags[@]+"${flags[@]}"} >"$2" 2>&1
+}
+
+# cut_check_routes_stack <файл вывода>: пробы маршрутов в сети запущенного стека (только чтение).
+# Сервисы вне CUTOVER_SERVICES (урезанный стенд) пропускаются явно.
+cut_check_routes_stack() {
+  local skip=() svc
+  if [[ -n "${CUTOVER_SERVICES:-}" ]]; then
+    for svc in "${ROUTES_STACK_SERVICES[@]}"; do
+      [[ " $CUTOVER_SERVICES " == *" $svc "* ]] || skip+=(--skip-service "$svc")
+    done
+  fi
+  bash "$ROUTES_TOOLS_DIR/check-routes.sh" --stack --project "$CUTOVER_PROJECT" \
+    --app-container "$CUTOVER_APP_CONTAINER" --manifest "$ROUTES_MANIFEST" \
+    --flags-file "$ROUTES_TOOLS_DIR/route-flags.tsv" ${skip[@]+"${skip[@]}"} >"$1" 2>&1
+}

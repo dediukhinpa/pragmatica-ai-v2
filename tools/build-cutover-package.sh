@@ -18,6 +18,9 @@
 #   expected-pending.txt                 миграции, которые должны ожидать на схеме боя
 #   FREEZE_SRC                           коммит старого репозитория (заморозка G5)
 #   tools/check_migrations_schema.py     сравнение схем
+#   tools/check-routes.sh, check-image-routes.sh, route-flags.tsv, routes.tsv
+#                                        проверка маршрутов (образ до остановки боя, стек после
+#                                        запуска v2; отдельно для боя: только чтение)
 #   stack/deploy, stack/db               compose, миграции (с rollback/021_down.sql, 026_down.sql),
 #                                        платформа
 #   bai                                  (необязательно) CLI платформы: только для `bai status`
@@ -35,6 +38,8 @@ STACK_PATHS=(deploy db)
 # Файлы пакета из deploy/cutover/ (скрипты исполняемые).
 SCRIPTS=(cutover.sh rollback.sh lib.sh verify-signatures.sh units-old-tree.sh)
 DOCS=(CHECKLIST.md README.md expected-host-dirs.txt)
+# Инструменты проверки маршрутов (tools/ проекта -> tools/ пакета).
+ROUTE_TOOLS=(check-routes.sh check-image-routes.sh route-flags.tsv)
 FORBIDDEN_RE='(^|/)(\.env|\.env\..*|secrets\.env|.*\.key|.*\.pem|.*\.bak.*)$'
 ALLOWED_RE='(^|/)\.env\.example$'
 SHA_RE='^[0-9a-f]{40}$'
@@ -111,6 +116,13 @@ for down in 021_down.sql 026_down.sql; do
 done
 git -C "$ROOT" show HEAD:tools/check_migrations_schema.py >"$OUT/tools/check_migrations_schema.py"
 git -C "$ROOT" show HEAD:deploy/rehearsal/expected-pending.txt >"$OUT/expected-pending.txt"
+# Проверка маршрутов: инструменты рядом со схемой, манифест маршрутов в корне пакета.
+for f in "${ROUTE_TOOLS[@]}"; do
+  git -C "$ROOT" show "HEAD:tools/$f" >"$OUT/tools/$f" || fail "в HEAD нет tools/$f"
+  case "$f" in *.sh) chmod +x "$OUT/tools/$f" ;; esac
+done
+git -C "$ROOT" show HEAD:deploy/cutover/routes.tsv >"$OUT/routes.tsv" \
+  || fail "в HEAD нет deploy/cutover/routes.tsv"
 cp "$LOCK" "$OUT/images.lock"
 cp "$COSIGN_PUB" "$OUT/cosign.pub"
 cp "$SCHEMA_EXPECTED" "$OUT/schema-expected.sql"
