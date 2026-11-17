@@ -106,6 +106,8 @@ log "сервис отвечает"
 export DOCUMENTS_CONTRACT_URL="http://127.0.0.1:$PORT"
 export DOCUMENTS_CONTRACT_FIXTURES="$WORK/fixtures"
 ((! EXPECT_MISSING)) || export DOCUMENTS_CONTRACT_EXPECT=missing
+# В образе проекта есть LibreOffice: проверяется и конвертация RTF (на хосте с venv его нет).
+[[ -z "$IMAGE" ]] || export DOCUMENTS_CONTRACT_CONVERT=1
 cd "$ROOT"
 if bun test tests/kit/adapters/http-contract-amender.contract.test.ts; then
   log "контрактный тест зелёный"

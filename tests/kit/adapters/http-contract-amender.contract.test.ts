@@ -19,6 +19,8 @@ const baseUrl = process.env['DOCUMENTS_CONTRACT_URL'];
 const fixturesDir = process.env['DOCUMENTS_CONTRACT_FIXTURES'];
 const expectMissing = process.env['DOCUMENTS_CONTRACT_EXPECT'] === 'missing';
 const enabled = baseUrl !== undefined && baseUrl !== '' && fixturesDir !== undefined;
+// Конвертация RTF/.doc идёт через LibreOffice: в образе проекта он есть, на хосте с venv нет.
+const convertEnabled = process.env['DOCUMENTS_CONTRACT_CONVERT'] === '1';
 
 const DOCX_ROUTES = ['amend', 'party-block', 'replace-signatory', 'classify'] as const;
 const STATUS_NOT_FOUND = 404;
@@ -73,6 +75,21 @@ describe.skipIf(!enabled || expectMissing)('HttpContractAmender против с�
     expect(block.lines.length).toBeGreaterThan(0);
   });
 
+  test.skipIf(!convertEnabled)(
+    'RTF приводится к docx (LibreOffice): party-block читает блок, amend отдаёт docx',
+    async () => {
+      const amended = await amender.amend({
+        fileName: 'Договор.rtf',
+        bytes: fixture('contract.rtf'),
+        own: { name: meta.ownName, lines: meta.ownLines },
+      });
+      expect(amended.convertedFrom).toBe('rtf');
+      expect(isDocx(amended.bytes)).toBe(true);
+      const block = await amender.readPartyBlock({ bytes: amended.bytes, role: 'Заказчик' });
+      expect(block.name).toBe(meta.ownName);
+    },
+  );
+
   test('classify: чужой договор — supplier, наш шаблон — own_template', async () => {
     const common = {
       templates: [fixture('own-template.docx')],
@@ -108,7 +125,7 @@ describe.skipIf(!enabled || expectMissing)('HttpContractAmender против с�
 });
 
 describe.skipIf(!enabled || !expectMissing)('платформенный documents без проектного слоя', () => {
-  test.each(DOCX_ROUTES)('/docx/%s отвечает 404', async (route) => {
+  test.each([...DOCX_ROUTES])('/docx/%s отвечает 404', async (route) => {
     const response = await fetch(`${baseUrl ?? ''}/docx/${route}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

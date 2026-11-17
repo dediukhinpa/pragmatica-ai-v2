@@ -15,12 +15,44 @@ from test_contract_kind import OUR_INN, OUR_NAME, our_template, supplier_contrac
 from test_docx_amend import OUR_LINES, make_contract  # noqa: E402
 from test_docx_signatory import _template as signatory_template  # noqa: E402
 
+def _rtf_escape(text: str) -> str:
+    """Экранирует текст для RTF: не ASCII - в виде `\\uN?` (знаковое 16-битное число)."""
+    parts: list[str] = []
+    for char in text:
+        code = ord(char)
+        if char in "\\{}":
+            parts.append("\\" + char)
+        elif code < 128:
+            parts.append(char)
+        else:
+            parts.append(f"\\u{code - 65536 if code > 32767 else code}?")
+    return "".join(parts)
+
+
+def rtf_contract() -> bytes:
+    """Договор в RTF с пустым блоком заказчика (проверка конвертации LibreOffice)."""
+    lines = [
+        "ДОГОВОР № 1/ТЕСТ-26 от 05.11.2026",
+        "ООО «Исполнитель-Тест», именуемое «Исполнитель», и "
+        "___________________, именуемое «Заказчик», заключили договор.",
+        "Заказчик:",
+        "",
+        "ИНН ________ КПП ________",
+        "Р/с ____________",
+        "БИК _______",
+    ]
+    body = "".join(f"\\pard {_rtf_escape(line)}\\par\n" for line in lines)
+    head = "{\\rtf1\\ansi\\ansicpg1251\\deff0\\uc1{\\fonttbl{\\f0 Arial;}}\n"
+    return (head + body + "}").encode("ascii")
+
+
 # Имя файла -> байты. Имена зашиты в контрактный тест адаптера.
 FIXTURES = {
     "contract.docx": make_contract,
     "signatory-template.docx": signatory_template,
     "own-template.docx": our_template,
     "supplier.docx": supplier_contract,
+    "contract.rtf": rtf_contract,
 }
 # Параметры для теста вынесены в JSON, чтобы тест не знал внутренностей построителей.
 META = {"ownName": OUR_NAME, "ownInn": OUR_INN, "ownLines": OUR_LINES}
