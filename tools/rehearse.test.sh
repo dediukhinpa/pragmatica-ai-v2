@@ -37,7 +37,20 @@ case "$1" in
   inspect) echo "running"; exit 0 ;;
   exec) echo "$STUB_DB_BYTES"; exit 0 ;;
   info) echo "$STUB_DOCKER_ROOT"; exit 0 ;;
-  image) [[ -n "${STUB_NO_IMAGES:-}" ]] && exit 1; exit 0 ;;
+  image) [[ -n "${STUB_NO_IMAGES:-}" ]] && exit 1
+         # Проверка маршрутов образа читает Cmd образа documents (точка входа python -m).
+         [[ "$*" == *--format* ]] && echo '["python","-m","pragmatika_documents"]'
+         exit 0 ;;
+  run) # одноразовый контейнер проверки маршрутов образа: без сети, прибор печатает вердикты
+       if [[ "$*" == *REQUIRED_ROUTES=* ]]; then
+         for a in "$@"; do [[ "$a" != REQUIRED_ROUTES=* ]] || routes="${a#REQUIRED_ROUTES=}"; done
+         while IFS= read -r line; do
+           [[ -n "$line" ]] || continue
+           [[ -n "${STUB_ROUTES_MISSING:-}" && "$line" == *"/docx/"* ]] \
+             && echo "MISSING $line" || echo "OK $line"
+         done <<<"$routes"
+       fi
+       exit 0 ;;
   ps) if [[ "$*" == *pragmatika-rehearsal* && -n "${STUB_PROJECT_EXISTS:-}" ]]; then echo abc; fi
       exit 0 ;;
   *) exit 0 ;;
@@ -53,6 +66,7 @@ echo "BAI_IMAGE_PSEUDONYMIZER=ps@sha256:bb" >>"$TMP/images.lock"
 echo "BAI_IMAGE_APP=app@sha256:cc" >>"$TMP/images.lock"
 # Платформа 1.1.3: образ mask в lock обязателен (compose без него не собирается).
 echo "BAI_IMAGE_MASK=mask@sha256:dd" >>"$TMP/images.lock"
+echo "BAI_IMAGE_DOCUMENTS=docs@sha256:ee" >>"$TMP/images.lock"
 grep -v '^BAI_IMAGE_MASK=' "$TMP/images.lock" >"$TMP/images-nomask.lock"
 echo "POSTGRES_USER=pragmatika" >"$TMP/battle.env"
 
@@ -139,8 +153,24 @@ assert "mask-образ не тянется" "! grep -q 'mask@sha256' '$TMP/dock
 rc=0
 run pass "$TMP/meminfo.ok" --preflight-only || rc=$?
 assert "предусловия пройдены: код 0" "[[ $rc -eq 0 ]]"
+# Единственный разрешённый run - одноразовая проверка маршрутов образа: без сети, без привилегий.
 assert "предусловия пройдены: нет изменяющих вызовов docker" \
-  "! grep -E '$MUTATING_RE' '$TMP/docker-pass.log' | grep -vq '^compose version'"
+  "! grep -E '$MUTATING_RE' '$TMP/docker-pass.log' | grep -v '^compose version' \
+   | grep -v '^run --rm --network none --cap-drop ALL' | grep -q ."
+assert "проверка маршрутов образа documents: контейнер без сети" \
+  "grep -q '^run --rm --network none --cap-drop ALL' '$TMP/docker-pass.log'"
+assert "проверка маршрутов образа documents: ok в checks" \
+  "grep -q 'маршруты documents в образе.ok' '$TMP/home-pass/.reh/run-'*/results/checks.tsv"
+# Образ без проектных /docx/*: отказ кодом 3 до всякого хода.
+rc=0
+STUB_ROUTES_MISSING=1 run noroutes "$TMP/meminfo.ok" --preflight-only || rc=$?
+assert "образ без /docx/*: отказ (код 3)" "[[ $rc -eq $EXIT_REFUSED ]]"
+assert "образ без /docx/*: причина названа" "grep -q 'нет маршрутов' '$TMP/out-noroutes.log'"
+# Образ documents не загружен (лёгкий режим): проверка пропущена явно, предусловия проходят.
+rc=0
+STUB_NO_IMAGES=1 run noimg "$TMP/meminfo.ok" --preflight-only || rc=$?
+assert "образа documents нет: предусловия проходят, проверка помечена как пропущенная" \
+  "[[ $rc -eq 0 ]] && grep -q 'не проверялось' '$TMP/out-noimg.log'"
 archive="$(compgen -G "$TMP/home-pass/rehearsal-*.tgz" | head -1)"
 assert "архив результатов создан" "[[ -f '$archive' ]]"
 mkdir -p "$TMP/unpack"

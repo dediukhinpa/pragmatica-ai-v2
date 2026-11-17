@@ -26,6 +26,9 @@ printf '#!/usr/bin/env bash\necho rehearse\n' >"$REPO/deploy/rehearsal/rehearse.
 echo "# README" >"$REPO/deploy/rehearsal/README.md"
 echo "app/026_x" >"$REPO/deploy/rehearsal/expected-pending.txt"
 echo "# tool" >"$REPO/tools/check_migrations_schema.py"
+for f in check-image-routes.sh route-flags.tsv; do echo "# $f" >"$REPO/tools/$f"; done
+mkdir -p "$REPO/deploy/cutover"
+printf 'documents\tPOST\t/parse\troute\n' >"$REPO/deploy/cutover/routes.tsv"
 # Скрипт переключения упоминает PRIVATE KEY в тексте (проверка заголовков): в пакет репетиции
 # он не должен попадать и не должен срабатывать как утечка ключа.
 mkdir -p "$REPO/deploy/cutover"
@@ -52,6 +55,7 @@ run --out "$OUT" --expected-env-names "$TMP/names.txt" >"$TMP/out.log" 2>&1 || r
 assert "сборка проходит" "[[ $rc -eq 0 ]]"
 for f in rehearse.sh README.md images.lock cosign.pub schema-expected.sql expected-pending.txt \
   expected-env-names.txt tools/check_migrations_schema.py stack/deploy/compose.yml \
+  tools/check-image-routes.sh tools/route-flags.tsv routes.tsv \
   stack/deploy/platform/compose.base.yml stack/db/app/001_x.sql MANIFEST.sha256; do
   assert "в пакете есть $f" "[[ -f '$OUT/$f' ]]"
 done

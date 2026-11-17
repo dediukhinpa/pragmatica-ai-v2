@@ -197,6 +197,17 @@ LOCK_FILE="${LOCK_FILE:-$([[ -f "$HERE/images.lock" ]] && echo "$HERE/images.loc
 # Помощник сравнения схем: в пакете лежит рядом (tools/), в дереве проекта - в tools/ проекта.
 SCHEMA_TOOL="$HERE/tools/check_migrations_schema.py"
 [[ -f "$SCHEMA_TOOL" ]] || SCHEMA_TOOL="$STACK/tools/check_migrations_schema.py"
+# Проверка маршрутов образа documents: инструменты и манифест (в пакете tools/ и routes.tsv, в
+# дереве проекта tools/ и deploy/cutover/routes.tsv).
+ROUTES_TOOLS_DIR="$HERE/tools"
+[[ -f "$ROUTES_TOOLS_DIR/check-image-routes.sh" ]] || ROUTES_TOOLS_DIR="$STACK/tools"
+ROUTES_MANIFEST="$HERE/routes.tsv"
+[[ -f "$ROUTES_MANIFEST" ]] || ROUTES_MANIFEST="$STACK/deploy/cutover/routes.tsv"
+# Флаги маршрутов documents и их умолчания compose v2 (compose.project.yml, compose.base.yml):
+# значение берётся из боевого .env, иначе умолчание.
+DOCUMENTS_FLAG_DEFAULTS=(DOCUMENTS_EDIT_ENDPOINTS=true DOCUMENTS_TEMPLATE_ENDPOINTS=true
+  DOCUMENTS_IMAGE_TEXT_ENDPOINT=true DOCUMENTS_ARCHIVES_ENABLED=)
+ROUTES_EXIT_MISSING=1
 
 # ---------------------------------------------------------------------------------------------
 # Каталоги запуска и журнал
@@ -529,6 +540,7 @@ PY
       "командой docker compose -p $PROJECT down -v"
   fi
   ensure_images
+  check_documents_routes
   check "предусловия" ok "память ${avail} МиБ, диск ${home_free} МиБ, БД ${db_mib} МиБ, образы есть"
   phase_end
 }
@@ -565,6 +577,36 @@ ensure_images() {
   else
     check "подпись образа app" warn "подпись не проверена: нет cosign или cosign.pub"
   fi
+}
+
+# Маршруты documents в образе из lock: платформенный образ без проектного слоя не знает /docx/*.
+# Репетиция лёгкая и образ documents не тянет: если его нет локально, проверка пропускается явно.
+check_documents_routes() {
+  local ref out="$RES/routes-image.txt" rc=0 item name value flags=()
+  ref="$(lock_value BAI_IMAGE_DOCUMENTS)"
+  [[ -n "$ref" ]] || refuse "в $LOCK_FILE нет BAI_IMAGE_DOCUMENTS"
+  if ! docker image inspect "$ref" >/dev/null 2>&1; then
+    check "маршруты documents в образе" warn "образ documents не загружен (лёгкий режим его не" \
+      "тянет): не проверялось; на переключении проверка обязательна"
+    return 0
+  fi
+  [[ -f "$ROUTES_MANIFEST" && -f "$ROUTES_TOOLS_DIR/check-image-routes.sh" ]] \
+    || refuse "нет инструментов проверки маршрутов ($ROUTES_TOOLS_DIR, $ROUTES_MANIFEST)"
+  for item in "${DOCUMENTS_FLAG_DEFAULTS[@]}"; do
+    name="${item%%=*}"
+    value="$(env_value "$BATTLE_ENV_FILE" "$name")"
+    flags+=(--flag "$name=${value:-${item#*=}}")
+  done
+  bash "$ROUTES_TOOLS_DIR/check-image-routes.sh" --image "$ref" --manifest "$ROUTES_MANIFEST" \
+    --flags-file "$ROUTES_TOOLS_DIR/route-flags.tsv" "${flags[@]}" >"$out" 2>&1 || rc=$?
+  cat "$out" >>"$LOG_FILE"
+  case "$rc" in
+    0) check "маршруты documents в образе" ok "$(tail -1 "$out" | sed 's/^\[[^]]*\] //')" ;;
+    "$ROUTES_EXIT_MISSING")
+      refuse "в образе documents нет маршрутов, которые вызывает app (routes-image.txt):" \
+        "$(grep -c 'нет маршрута' "$out") шт.; образ без проектного слоя /docx/*" ;;
+    *) refuse "маршруты образа documents проверить не удалось, код $rc (routes-image.txt)" ;;
+  esac
 }
 
 # ---------------------------------------------------------------------------------------------

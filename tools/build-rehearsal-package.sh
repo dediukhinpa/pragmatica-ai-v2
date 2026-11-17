@@ -95,6 +95,10 @@ rm -f "$OUT/stack/deploy/images.lock"
 cp "$ROOT/deploy/rehearsal/rehearse.sh" "$OUT/rehearse.sh"
 cp "$ROOT/deploy/rehearsal/README.md" "$OUT/README.md"
 cp "$ROOT/tools/check_migrations_schema.py" "$OUT/tools/check_migrations_schema.py"
+# Проверка маршрутов образа documents: инструменты рядом со схемой, манифест в корне пакета.
+for f in check-image-routes.sh route-flags.tsv; do cp "$ROOT/tools/$f" "$OUT/tools/$f"; done
+chmod +x "$OUT/tools/check-image-routes.sh"
+cp "$ROOT/deploy/cutover/routes.tsv" "$OUT/routes.tsv"
 cp "$LOCK" "$OUT/images.lock"
 cp "$COSIGN_PUB" "$OUT/cosign.pub"
 cp "$SCHEMA_EXPECTED" "$OUT/schema-expected.sql"
