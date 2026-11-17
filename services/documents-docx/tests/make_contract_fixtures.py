@@ -15,6 +15,7 @@ from test_contract_kind import OUR_INN, OUR_NAME, our_template, supplier_contrac
 from test_docx_amend import OUR_LINES, make_contract  # noqa: E402
 from test_docx_signatory import _template as signatory_template  # noqa: E402
 
+
 def _rtf_escape(text: str) -> str:
     """Экранирует текст для RTF: не ASCII - в виде `\\uN?` (знаковое 16-битное число)."""
     parts: list[str] = []
