@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { HttpContractAmender } from '../../../src/kit/adapters/http/http-contract-amender';
+import { HttpContractAmender } from '../../src/kit/adapters/http/http-contract-amender';
 
 /**
  * Контрактный тест адаптера дополнения договора против живого сервиса документов проекта
@@ -43,9 +43,9 @@ function isDocx(bytes: Uint8Array): boolean {
 
 describe.skipIf(!enabled || expectMissing)('HttpContractAmender против сервиса проекта', () => {
   const amender = new HttpContractAmender({ baseUrl: baseUrl ?? '', timeoutMs: TIMEOUT_MS });
-  const meta = metaSchema.parse(
-    JSON.parse(readFileSync(join(fixturesDir ?? '', 'meta.json'), 'utf8')),
-  );
+  // Тело describe выполняется и у пропущенного набора: файл читаем только по требованию теста.
+  const loadMeta = (): z.infer<typeof metaSchema> =>
+    metaSchema.parse(JSON.parse(readFileSync(join(fixturesDir ?? '', 'meta.json'), 'utf8')));
 
   test('replace-signatory подставляет подписанта и отдаёт docx', async () => {
     const result = await amender.replaceSignatory({
@@ -63,6 +63,7 @@ describe.skipIf(!enabled || expectMissing)('HttpContractAmender против с�
   });
 
   test('amend дополняет блок заказчика, party-block читает его обратно', async () => {
+    const meta = loadMeta();
     const amended = await amender.amend({
       fileName: 'Договор.docx',
       bytes: fixture('contract.docx'),
@@ -78,6 +79,7 @@ describe.skipIf(!enabled || expectMissing)('HttpContractAmender против с�
   test.skipIf(!convertEnabled)(
     'RTF приводится к docx (LibreOffice): party-block читает блок, amend отдаёт docx',
     async () => {
+      const meta = loadMeta();
       const amended = await amender.amend({
         fileName: 'Договор.rtf',
         bytes: fixture('contract.rtf'),
@@ -91,6 +93,7 @@ describe.skipIf(!enabled || expectMissing)('HttpContractAmender против с�
   );
 
   test('classify: чужой договор — supplier, наш шаблон — own_template', async () => {
+    const meta = loadMeta();
     const common = {
       templates: [fixture('own-template.docx')],
       ownInns: [meta.ownInn],

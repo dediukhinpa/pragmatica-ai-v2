@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Контрактный тест адаптера v2 (HttpContractAmender) против сервиса документов: поднимает сервис
 # на 127.0.0.1, строит синтетические docx и запускает bun-тест
-# tests/kit/adapters/http-contract-amender.contract.test.ts.
+# tests/project/http-contract-amender.contract.test.ts.
 #
 #   tools/test-documents-contract.sh --image <ссылка на образ> [--port N] [--expect-missing]
 #   tools/test-documents-contract.sh --python <python> --platform-src <каталог> [--port N]
@@ -109,7 +109,7 @@ export DOCUMENTS_CONTRACT_FIXTURES="$WORK/fixtures"
 # В образе проекта есть LibreOffice: проверяется и конвертация RTF (на хосте с venv его нет).
 [[ -z "$IMAGE" ]] || export DOCUMENTS_CONTRACT_CONVERT=1
 cd "$ROOT"
-if bun test tests/kit/adapters/http-contract-amender.contract.test.ts; then
+if bun test tests/project/http-contract-amender.contract.test.ts; then
   log "контрактный тест зелёный"
 else
   log "контрактный тест КРАСНЫЙ"
