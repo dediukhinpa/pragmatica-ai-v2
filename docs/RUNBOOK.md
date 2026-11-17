@@ -4,6 +4,11 @@
 business-ai 1.1.3, образ app `1.1.3-pragmatika.1`. Разбор переключения —
 `~/reports/business-ai-modular/stage-8r/REPORT.md` (сервер Fornex, не в репозитории).
 
+**Патч G8 (этап 8v)** переносит проектные маршруты `/docx/*` в образ документов проекта
+(`pragmatika-documents` `1.1.3-pragmatika.2`) и снимает временный обход. Раздел 2 описывает оба
+состояния: «патч G8 применён» (штатное) и «патч G8 ещё не применён» (обход). Применяет патч
+владелец по `OWNER-RUNBOOK.md` патч-пакета (`patch.sh`); без него бой остаётся на обходе.
+
 Все операции на боевом хосте `pragmatika-ru` — красная зона: выполняет владелец. Перед любым
 изменением боя делать бэкап. Имена на бою неизменны: compose-проект `pragmatika`, тома
 `pragmatika_*`, контейнеры `pragmatika-<сервис>-1`, пути `/etc/pragmatika`, `/srv/pragmatika`,
@@ -20,7 +25,44 @@ business-ai 1.1.3, образ app `1.1.3-pragmatika.1`. Разбор перек�
 | Журнал переезда | `~/.pragmatika-cutover/run-20261117T164258Z/` |
 | Метрики textfile | `/var/lib/pragmatika/metrics` (в Alloy: `/var/lib/agentplatform/metrics`) |
 
-## 2. Как запускать и перезапускать стек (временный обход `/docx/*`)
+## 2. Как запускать и перезапускать стек
+
+### 2.1. После патча G8 (обход снят): штатное состояние
+
+Сервис `documents` — образ проекта `pragmatika-documents` (`FROM` платформенного `bai-documents`
+1.1.3 по digest + проектные маршруты `/docx/*` и LibreOffice для .doc/RTF); app смотрит на
+`DOCUMENTS_URL=http://documents:8310`, контейнеров `documents-router` и `documents-legacy` нет.
+Стек запускается обычным compose проекта `pragmatika` с теми же env-файлами, что у `cutover.sh`:
+порядок `images.lock`, `.env`, `secrets.env`, `secrets.mask.env`, профили из боевого `.env`.
+Готовая обёртка остаётся в `hotfix/dc-v2.sh`; ключ `HOTFIX_DOCX=0` отключает обход, поэтому
+после патча в `/opt/pragmatika-v2/deploy` пользоваться так:
+
+```bash
+cd /opt/pragmatika-v2/deploy
+HOTFIX_DOCX=0 bash hotfix/dc-v2.sh ps
+HOTFIX_DOCX=0 bash hotfix/dc-v2.sh up -d app          # пересоздать app
+HOTFIX_DOCX=0 bash hotfix/dc-v2.sh logs --since 10m app
+```
+
+Теперь допустимы `cutover.sh`, `rollback.sh` и `bai update` (с предусловиями раздела 3): обходу
+нечего терять. Тег образа `pragmatika-documents:legacy-docx` на хосте НЕ удалять до конца срока
+отката патча (он нужен, чтобы вернуть обход).
+
+**Проверка маршрутов (только чтение):** каждый HTTP-маршрут, который вызывает app у соседних
+сервисов, не должен отвечать 404/405. Команда из патч-пакета (или `tools/` дерева проекта):
+
+```bash
+bash tools/check-routes.sh --stack --project pragmatika --manifest routes.tsv \
+  --flags-file tools/route-flags.tsv
+```
+
+Пробы идут изнутри сети стека одноразовым контейнером (`--rm`, 128 МиБ), ничего не создаётся и не
+меняется; 401/403 без токена печатаются как «существование не проверено». Код 0 — провалов нет,
+1 — есть 404/405 или сервис недоступен. Та же проверка встроена в preflight `cutover.sh` (образ
+documents до остановки боя) и в проверки после запуска v2 (в живом стеке, провал ведёт к откату),
+а образ documents — ещё и в preflight репетиции `rehearse.sh`.
+
+### 2.2. Пока патч G8 не применён: временный обход `/docx/*`
 
 Платформенный сервис документов 1.1.3 не знает проектных маршрутов `/docx/*`
 (`replace-signatory`, `party-block`, `classify`, `amend`). Пока маршруты не вошли в образ
@@ -38,19 +80,28 @@ bash hotfix/dc-v2.sh logs --since 10m app
 
 Обёртка собирает те же `--env-file` (lock, `.env`, `secrets.env`, `secrets.mask.env`), профили из
 боевого `.env`, проект `pragmatika` и файл `hotfix/compose.hotfix-docx.yml`.
-`HOTFIX_DOCX=0 bash hotfix/dc-v2.sh …` — стек без обхода (только для снятия обхода и сверки).
+`HOTFIX_DOCX=0 bash hotfix/dc-v2.sh …` — стек без обхода (после патча G8 это штатный вызов).
 
-**Нельзя** запускать стек голым `docker compose`, `cutover.sh` или `bai update`: обход потеряется
-(контейнеры router/legacy будут считаться сиротами, app вернётся на платформенный documents) и
-сборка договоров снова упадёт с 404.
+**Нельзя** до патча запускать стек голым `docker compose`, `cutover.sh` или `bai update`: обход
+потеряется (контейнеры router/legacy будут считаться сиротами, app вернётся на платформенный
+documents) и сборка договоров снова упадёт с 404.
 
-Снять обход (когда маршруты `/docx/*` появились в образе документов, образ проверен, новый
-app-lock опубликован и прошла репетиция):
+Снять обход — только патчем G8 (`patch.sh`): он сверяет подписи, проверяет маршруты образа и
+стека, делает смоук сборки договора и сам убирает контейнеры обхода. Вручную снимать обход не
+нужно и без проверок не стоит.
+
+### 2.3. Откат патча G8
+
+Автоматически при любом сбое после начала замены (код 1). Вручную, если проблему заметили позже:
 
 ```bash
-HOTFIX_DOCX=0 bash hotfix/dc-v2.sh up -d app
-docker rm -f pragmatika-documents-router-1 pragmatika-documents-legacy-1
+bash patch.sh --rollback [--run-dir ~/.pragmatika-cutover/patch-<время>]
 ```
+
+Файлы `/opt/pragmatika-v2/deploy` возвращаются из бэкапа `~/backups/pragmatika-patch-<время>`,
+поднимается стек с обходом (`documents-legacy`, `documents-router`, app на роутер), проверяются
+`/ready` и образы. Эквивалент вручную: вернуть файлы дерева из бэкапа и `bash hotfix/dc-v2.sh
+up -d`. БД патч не трогает, откат данных не нужен.
 
 ## 3. Как обновлять через `bai`
 
@@ -64,8 +115,9 @@ docker rm -f pragmatika-documents-router-1 pragmatika-documents-legacy-1
 
 ### Предусловия
 
-1. **Обход `/docx/*` снят** (раздел 2). `bai` вызывает `docker compose -f <один файл>`
-   и не знает `hotfix/compose.hotfix-docx.yml`.
+1. **Обход `/docx/*` снят патчем G8** (раздел 2.1). `bai` вызывает `docker compose -f <один
+   файл>` и не знает `hotfix/compose.hotfix-docx.yml`; после патча он не нужен. **После патча
+   G8 `bai update` снова допустим** (при остальных предусловиях ниже).
 2. **Штатный бэкап настроен** (`BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`,
    `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`, ключ age) и
    `backup.sh --verify` проходит. Иначе шаг бэкапа в `bai update` откажет до любых изменений.
@@ -113,7 +165,8 @@ trivy), затем новый `images.lock`, пакет и репетиция (`
 
 Только решение владельца; срок — до 2026-12-01 и не дольше первой новой миграции после G7.
 
-1. Снять обход `/docx/*` (раздел 2, `docker rm -f` двух контейнеров).
+1. Если патч G8 применён, обход уже снят; если нет — `rollback.sh` сам убирает контейнеры
+   обхода `documents-router` и `documents-legacy` (образ и тег `legacy-docx` остаются).
 2. `bash rollback.sh` из пакета G7: прежние образы + обратные миграции, данные после хода
    сохраняются.
 3. Крайний случай: `bash rollback.sh --restore-db --i-understand-data-loss` — БД и том
@@ -124,15 +177,16 @@ trivy), затем новый `images.lock`, пакет и репетиция (`
 ## 5. Проверка здоровья
 
 ```bash
-bash hotfix/dc-v2.sh ps                        # все healthy
+HOTFIX_DOCX=0 bash hotfix/dc-v2.sh ps          # все healthy (до патча G8 - без HOTFIX_DOCX=0)
 docker stats --no-stream                       # память
 docker logs --since 10m pragmatika-app-1 | grep -c '"level":"error"'
 docker logs --since 1h pragmatika-documents-1 | grep -c '"status":404'   # должно быть 0
 systemctl --failed
 ```
 
-Ожидаемо: 13 контейнеров healthy (11 штатных + router и legacy обхода), `/ready` 200, четыре бота
-`bitrix24_bot_ready`, 404 у documents нет, `IMAGE_SEND_PHOTO=false` в окружении app.
+Ожидаемо после патча G8: 11 контейнеров healthy, `/ready` 200, четыре бота `bitrix24_bot_ready`,
+404 у documents нет, `IMAGE_SEND_PHOTO=false` в окружении app, `check-routes.sh` (раздел 2.1) с
+кодом 0. До патча: 13 контейнеров (ещё router и legacy обхода).
 
 ## 6. Известные хвосты
 
@@ -142,7 +196,12 @@ systemctl --failed
 - После пересоздания app реестр договоров ~2 мин не читается (холодный кэш хэшей источника файлов).
 - Панель «Контейнеры: Есть упавший» держится ~1 ч после хода из-за разовых `pragmatika-app-run-*`.
 - «Квота Яндекс Поиска исчерпана» на одиночный 429 — различать частоту и квоту.
-- Сумма лимитов памяти контейнеров (18440 МиБ с обходом) больше памяти ВМ (15993 МиБ);
-  реальное потребление ≈ 2,9 ГиБ. alloy держится около 80 % своего лимита (320 МиБ).
-- Правильный фикс `/docx/*`: маршруты в образ документов проекта, новый app-lock, репетиция,
-  проверка «каждый маршрут, который вызывает app, не отвечает 404» в preflight и репетиции.
+- Сумма лимитов памяти контейнеров больше памяти ВМ (15993 МиБ): **16392 МиБ без обхода** (после
+  патча G8; было 18440 МиБ с обходом: без `documents-legacy` 2048 и `documents-router` 128 МиБ
+  это 16264, плюс alloy 320 → 448 МиБ, +128). Реальное потребление ≈ 2,9 ГиБ. alloy держался около
+  80 % прежнего лимита (255 из 320 МиБ), решение владельца 17.11.2026 — лимит 448 МиБ; мягкий
+  предел кучи Go (`GOMEMLIMIT` 256MiB, платформа) не менялся.
+- `cert-expiry.sh` в дереве v2 нет: скрипт и юнит остаются в прежнем дереве `/opt/pragmatika`,
+  режим 755 в git v2 ставить не на что (см. пункт выше про `203/EXEC`).
+- Проверка «каждый маршрут, который вызывает app, не отвечает 404» (главный урок G6/G7) теперь
+  часть preflight `cutover.sh`, `rehearse.sh` и патча G8 (раздел 2.1).
