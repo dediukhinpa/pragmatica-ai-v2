@@ -10,10 +10,11 @@
 ARG BAI_DOCUMENTS_BASE=bai-documents
 FROM ${BAI_DOCUMENTS_BASE}
 # База держит PYTHONPATH=/app и непривилегированного пользователя 10001: пакет кладётся рядом с
-# платформенным `documents` под root (файлы только для чтения), запуск остаётся от 10001.
+# платформенным `documents` под root (права файлов берутся из git: 644/755, писать пользователю
+# сервиса нельзя), запуск остаётся от 10001. Флаг --chmod не используется: классический сборщик
+# без BuildKit его не знает.
 USER root
-COPY --chown=root:root --chmod=0644 services/documents-docx/pragmatika_documents \
-    /app/pragmatika_documents
+COPY --chown=root:root services/documents-docx/pragmatika_documents /app/pragmatika_documents
 USER 10001:10001
 # Тот же порт и healthcheck, что у базы (/health платформы); входит в проектный слой только
 # точка запуска.
