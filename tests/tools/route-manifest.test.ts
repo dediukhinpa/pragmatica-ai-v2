@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
@@ -354,5 +354,37 @@ describe('tools/route-manifest.ts: проблемы разбора и коман
     for (const path of DOCX_ROUTES) {
       expect(lines).toContain(`documents\tPOST\t${path}\troute`);
     }
+  });
+});
+
+describe('tools/route-flags.tsv: карта «маршрут -> флаг сервиса»', () => {
+  const manifest = collectManifest({ platformRoot: PLATFORM_ROOT, projectRoot: PROJECT_ROOT });
+  const entries = readFileSync(join(ROOT, 'tools', 'route-flags.tsv'), 'utf-8')
+    .split('\n')
+    .filter((line) => line !== '' && !line.startsWith('#'))
+    .map((line) => line.split('\t'));
+
+  test('формат: сервис, путь, имя переменной (три колонки)', () => {
+    expect(entries.length).toBeGreaterThan(0);
+    for (const cols of entries) {
+      expect(cols).toHaveLength(3);
+      expect(cols[0]).toMatch(/^[a-z][a-z0-9-]*$/);
+      expect(cols[1]?.startsWith('/')).toBe(true);
+      expect(cols[2]).toMatch(/^[A-Z][A-Z0-9_]*$/);
+    }
+  });
+
+  test('каждый путь из карты есть в манифесте реального дерева как route', () => {
+    for (const [service, path] of entries) {
+      const found = manifest.rows.filter(
+        (r) => r.service === service && r.path === path && r.kind === 'route',
+      );
+      expect(found.length, `${service} ${path} нет в манифесте`).toBeGreaterThan(0);
+    }
+  });
+
+  test('карта не содержит повторов маршрута', () => {
+    const keys = entries.map((cols) => `${cols[0]} ${cols[1]}`);
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });

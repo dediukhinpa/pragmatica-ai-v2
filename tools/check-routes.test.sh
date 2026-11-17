@@ -49,7 +49,7 @@ s.bind(("127.0.0.1", int(sys.argv[1])))' "$port" 2>/dev/null || continue
   exit 1
 }
 for name in PORT_NO_DOCX PORT_FULL PORT_AUTH PORT_405 PORT_DEAD PORT_SLOW PORT_ALL \
-  PORT_STACK_DOCS PORT_STACK_PSEUDO PORT_STACK_MASK PORT_STACK_EMB; do
+  PORT_STACK_DOCS PORT_STACK_PSEUDO PORT_STACK_MASK PORT_STACK_EMB PORT_FLAGS PORT_FLAGS_STACK; do
   alloc_port "$name" # PORT_DEAD: порт без заглушки (никто не слушает)
 done
 HOST=127.0.0.1
@@ -270,12 +270,14 @@ case "$1" in
   ps)
     case "$*" in
       *service=app*) echo "appcid" ;;
+      *service=documents*) [[ -n "${NO_DOCS:-}" ]] || echo "docscid" ;;
       *service=speech*) ;;
       *) echo "othercid" ;;
     esac ;;
   inspect)
     [[ -z "${NO_APP:-}" ]] || exit 1
-    if [[ "$*" == *".Config.Env"* ]]; then cat "$APP_ENV_FILE"
+    if [[ "$*" == *".Config.Env"*docscid* ]]; then cat "$DOCS_ENV_FILE"
+    elif [[ "$*" == *".Config.Env"* ]]; then cat "$APP_ENV_FILE"
     else echo "sha256:probe-image"; fi ;;
   run) bun -e "${@: -1}" ;;
   *) exit 0 ;;
@@ -323,6 +325,106 @@ env PATH="$BIN:$PATH" DOCKER_LOG="$TMP/docker.log" APP_ENV_FILE="$TMP/app.env" N
   bash "$SCRIPT" --stack --manifest "$TMP/stack.tsv" >"$TMP/out-noapp" 2>&1 || RC=$?
 assert "--stack: нет контейнера app - код 1 с понятной причиной" \
   "[[ $RC -eq $EXIT_FAILED ]] && out_has noapp 'нет контейнера app'"
+
+# 9a. Маршруты за флагами сервиса (tools/route-flags.tsv): выключенный флаг - SKIP, не FAIL.
+printf '%s\n' \
+  $'documents\tPOST\t/parse\troute' \
+  $'documents\tPOST\t/parse-archive\troute' \
+  $'documents\tPOST\t/edit-prices\troute' >"$TMP/flags.tsv"
+start_stub "$PORT_FLAGS" flags '{"default":404,"routes":{"POST /parse":422}}'
+flag_base="documents=$(url "$PORT_FLAGS")"
+run flagoff --manifest "$TMP/flags.tsv" --base "$flag_base" \
+  --flag DOCUMENTS_ARCHIVES_ENABLED=false --flag DOCUMENTS_EDIT_ENDPOINTS=
+assert "флаг выключен, заглушка 404: SKIP и код 0" \
+  "[[ $RC -eq 0 ]] && row_has flagoff '/parse-archive +- +SKIP \\(флаг DOCUMENTS_ARCHIVES_ENABLED'"
+assert "флаг выключен: пустое значение тоже выключает" \
+  "row_has flagoff '/edit-prices +- +SKIP \\(флаг DOCUMENTS_EDIT_ENDPOINTS выключен'"
+assert "флаг выключен: отдельный счётчик в итоге" "out_has flagoff 'OK=1 FAIL=0 ERROR=0 .*SKIP=2'"
+assert "флаг выключен: маршрут не пробовался" "! grep -q '/parse-archive' '$TMP/flags.log'"
+: >"$TMP/flags.log"
+run flagon --manifest "$TMP/flags.tsv" --base "$flag_base" \
+  --flag DOCUMENTS_ARCHIVES_ENABLED=ON --flag DOCUMENTS_EDIT_ENDPOINTS=1
+assert "флаг включён (ON, 1), заглушка 404: FAIL и код 1" \
+  "[[ $RC -eq $EXIT_FAILED ]] && row_has flagon '/parse-archive +404 +FAIL' \
+    && row_has flagon '/edit-prices +404 +FAIL' && out_has flagon 'SKIP=0'"
+run flagunk --manifest "$TMP/flags.tsv" --base "$flag_base"
+assert "флаг неизвестен, заглушка 404: FAIL и код 1" \
+  "[[ $RC -eq $EXIT_FAILED ]] && row_has flagunk '/parse-archive +404 +FAIL' \
+    && out_has flagunk 'флаг DOCUMENTS_ARCHIVES_ENABLED: значение неизвестно'"
+run flagwords --manifest "$TMP/flags.tsv" --base "$flag_base" \
+  --flag DOCUMENTS_ARCHIVES_ENABLED=0 --flag DOCUMENTS_EDIT_ENDPOINTS=enabled
+assert "флаг: 0 и посторонние слова - выключен" "[[ $RC -eq 0 ]] && out_has flagwords 'SKIP=2'"
+printf '%s\n' '# своя карта' $'documents\t/parse\tMY_FLAG' >"$TMP/myflags.tsv"
+run flagfile --manifest "$TMP/flags.tsv" --base "$flag_base" --flags-file "$TMP/myflags.tsv" \
+  --flag MY_FLAG=no
+assert "--flags-file: своя карта действует" \
+  "row_has flagfile '/parse +- +SKIP \\(флаг MY_FLAG' && row_has flagfile '/edit-prices +404 +FAIL'"
+run flagwarn --manifest "$TMP/flags.tsv" --base "$flag_base" --flag NO_SUCH_FLAG=1
+assert "--flag вне карты: предупреждение" "out_has flagwarn 'NO_SUCH_FLAG не упомянут в карте'"
+printf '%s\n' $'documents\t/parse' >"$TMP/badflags.tsv"
+run flagbad --manifest "$TMP/flags.tsv" --base "$flag_base" --flags-file "$TMP/badflags.tsv"
+assert "карта флагов неверного вида - код 2" "[[ $RC -eq $EXIT_USAGE ]]"
+run flagnone --manifest "$TMP/flags.tsv" --base "$flag_base" --flags-file "$TMP/нет.tsv"
+assert "нет файла карты флагов - код 2" "[[ $RC -eq $EXIT_USAGE ]]"
+run flagbadarg --manifest "$TMP/flags.tsv" --base "$flag_base" --flag "без-значения"
+assert "неверный --flag - код 2" "[[ $RC -eq $EXIT_USAGE ]]"
+assert "карта флагов: tools/route-flags.tsv на месте и читается" \
+  "[[ -f '$HERE/route-flags.tsv' ]] \
+    && grep -q '^documents.*/parse-archive.*DOCUMENTS_ARCHIVES_ENABLED' \
+    '$HERE/route-flags.tsv'"
+
+# 9b. --stack: флаги из окружения контейнера documents; прочие переменные не читаются и не
+# печатаются.
+SECRET_DOCS="docs-secret-zz81f3"
+cat >"$TMP/docs.env" <<ENV
+PATH=/usr/bin
+DOCUMENTS_API_SECRET=$SECRET_DOCS
+DOCUMENTS_ARCHIVES_ENABLED=True
+DOCUMENTS_EDIT_ENDPOINTS=false
+DOCUMENTS_IMAGE_TEXT_ENDPOINT=
+ENV
+flags_url="$(url "$PORT_FLAGS_STACK")"
+sed "s#^DOCUMENTS_URL=.*#DOCUMENTS_URL=$flags_url#" "$TMP/app.env" >"$TMP/app-flags.env"
+printf '%s\n' \
+  $'documents\tPOST\t/parse\troute' \
+  $'documents\tPOST\t/parse-archive\troute' \
+  $'documents\tPOST\t/edit-prices\troute' \
+  $'documents\tPOST\t/xlsx/write\troute' \
+  $'documents\tPOST\t/images/recognize-text\troute' >"$TMP/stackflags.tsv"
+start_stub "$PORT_FLAGS_STACK" sflags \
+  '{"default":404,"routes":{"POST /parse":422,"POST /parse-archive":422}}'
+stack_flags() { # stack_flags <имя> [аргументы]: --stack на заглушке docker с окружением documents
+  local name="$1"
+  shift
+  RC=0
+  env PATH="$BIN:$PATH" DOCKER_LOG="$TMP/docker-$name.log" APP_ENV_FILE="$TMP/app-flags.env" \
+    DOCS_ENV_FILE="$TMP/docs.env" CHECK_ROUTES_TIMEOUT_S=2 ${NO_DOCS:+NO_DOCS=1} \
+    bash "$SCRIPT" --stack --manifest "$TMP/stackflags.tsv" "$@" >"$TMP/out-$name" 2>&1 || RC=$?
+}
+stack_flags sflags
+assert "--stack: флаги из окружения documents: код 0" "[[ $RC -eq 0 ]]"
+assert "--stack: включённый флаг (True) - маршрут пробуется и OK" \
+  "row_has sflags '/parse-archive +422 +OK' \
+    && out_has sflags 'флаг DOCUMENTS_ARCHIVES_ENABLED: включён'"
+assert "--stack: выключенный флаг, пустой флаг и флаг, которого нет, - SKIP" \
+  "row_has sflags '/edit-prices +- +SKIP' && row_has sflags '/images/recognize-text +- +SKIP' \
+    && row_has sflags '/xlsx/write +- +SKIP \\(флаг DOCUMENTS_TEMPLATE_ENDPOINTS' \
+    && out_has sflags 'OK=2 FAIL=0 ERROR=0 UNVERIFIED=0 SKIP=3'"
+assert "--stack: другие переменные контейнера не печатаются" \
+  "! grep -qE '$SECRET_DOCS|DOCUMENTS_API_SECRET' '$TMP/out-sflags' '$TMP/docker-sflags.log'"
+assert "--stack: окружение читалось у контейнера documents (docker inspect по его id)" \
+  "grep -q '^inspect -f .*Config.Env.* docscid\$' '$TMP/docker-sflags.log'"
+assert "--stack: SKIP-маршруты не отправлялись" \
+  "! grep -qE '/edit-prices|/xlsx/write|/images/recognize-text' '$TMP/sflags.log'"
+: >"$TMP/sflags.log"
+stack_flags sflagover --flag DOCUMENTS_ARCHIVES_ENABLED=0 --flag DOCUMENTS_EDIT_ENDPOINTS=true
+assert "--stack: --flag сильнее окружения контейнера" \
+  "[[ $RC -eq $EXIT_FAILED ]] && row_has sflagover '/parse-archive +- +SKIP' \
+    && row_has sflagover '/edit-prices +404 +FAIL'"
+NO_DOCS=1 stack_flags sflagnocont
+assert "--stack: контейнера documents нет - значение неизвестно, маршруты пробуются (FAIL на 404)" \
+  "[[ $RC -eq $EXIT_FAILED ]] && row_has sflagnocont '/edit-prices +404 +FAIL' \
+    && out_has sflagnocont 'значение неизвестно'"
 
 # 10. Неверные вызовы: код 2.
 run usage1

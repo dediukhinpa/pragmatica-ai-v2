@@ -1,0 +1,12 @@
+# Карта «маршрут -> флаг окружения сервиса» для tools/check-routes.sh.
+# Часть маршрутов сервис регистрирует только при включённом флаге (переменная окружения САМОГО
+# сервиса, не app). Флаг выключен - app маршрут не вызывает, и 404 на пробе не провал (SKIP).
+# Колонки (TAB): сервис, путь, переменная окружения сервиса. Строки с # и пустые пропускаются.
+# Флаг включён, если значение в нижнем регистре: 1, true, yes или on; пусто или нет - выключен.
+# Путь должен быть в манифесте tools/route-manifest.ts (это проверяет tests/tools/).
+documents	/parse-archive	DOCUMENTS_ARCHIVES_ENABLED
+documents	/edit-prices	DOCUMENTS_EDIT_ENDPOINTS
+documents	/xlsx/inspect	DOCUMENTS_TEMPLATE_ENDPOINTS
+documents	/xlsx/clear	DOCUMENTS_TEMPLATE_ENDPOINTS
+documents	/xlsx/write	DOCUMENTS_TEMPLATE_ENDPOINTS
+documents	/images/recognize-text	DOCUMENTS_IMAGE_TEXT_ENDPOINT

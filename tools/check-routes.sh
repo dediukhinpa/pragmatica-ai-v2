@@ -27,6 +27,17 @@
 #                          после 401/403 и нигде не печатается. С --stack токены pseudonymizer и
 #                          mask берутся из окружения контейнера app, если не заданы явно.
 #   --skip-service ИМЯ     явно не проверять сервис (повторяемо); печатается отдельной строкой
+#   --flags-file ФАЙЛ      карта «маршрут -> флаг окружения сервиса» (по умолчанию
+#                          tools/route-flags.tsv рядом со скриптом): TSV «сервис путь ПЕРЕМЕННАЯ»,
+#                          # - комментарий. Маршрут, который сервис регистрирует только при флаге
+#                          (DOCUMENTS_ARCHIVES_ENABLED и др.), при выключенном флаге не пробуется
+#                          (вердикт SKIP, не FAIL): app его в этом случае не вызывает.
+#   --flag ИМЯ=ЗНАЧЕНИЕ    значение флага (повторяемо). Включён, если значение в нижнем регистре -
+#                          1, true, yes или on; пустое и любое другое - выключен. С --stack флаги,
+#                          не заданные --flag, читаются из окружения контейнера своего сервиса
+#                          (по меткам compose; только имена из карты, остальное не читается и не
+#                          печатается; переменной нет в контейнере - флаг выключен). Значение
+#                          неизвестно (нет контейнера, нет --flag) - маршрут пробуется как обычно.
 #   --project ИМЯ          compose-проект (по умолчанию COMPOSE_PROJECT, CUTOVER_PROJECT, иначе
 #                          pragmatika)
 #   --app-container ИМЯ    контейнер app (по умолчанию ищется по меткам compose проекта)
@@ -34,8 +45,9 @@
 #
 # Что делается с маршрутом (вид route манифеста):
 #   POST с телом {} и Content-Type: application/json (маршрут GET в манифесте - GET). Статус
-#   404/405 - FAIL; 502/504 - ERROR (прокси без ответа сервиса); сеть недоступна или таймаут -
-#   ERROR; 401/403 без токена - UNVERIFIED (существование не проверено; с токеном запрос
+#   404/405 - FAIL (кроме маршрутов с выключенным флагом: SKIP); 502/504 - ERROR (прокси без
+#   ответа сервиса); сеть недоступна или таймаут - ERROR; 401/403 без токена - UNVERIFIED
+#   (существование не проверено; с токеном запрос
 #   повторяется); любой другой (200, 400, 413, 415, 422, 500...) - OK: маршрут существует.
 #   Вид template (маршрут с параметром, /jobs/{jobId}) не пробуется: подстановка дала бы честный
 #   404 «задания нет»; вид external (шлюз, телеметрия) не пробуется: запрос ушёл бы за стек.
@@ -129,6 +141,8 @@ usage() { sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d' | sed 's/^# \{0
 declare -A BASES=()
 declare -A TOKEN_VARS=()
 declare -A SKIP=()
+declare -A FLAG_GIVEN=()
+FLAGS_FILE="$HERE/route-flags.tsv"
 MANIFEST=""
 STACK=0
 PROJECT="${COMPOSE_PROJECT:-${CUTOVER_PROJECT:-pragmatika}}"
@@ -153,6 +167,13 @@ while (($#)); do
       else
         die_usage "неверный --token-env «$spec»: нужно имя переменной окружения"
       fi
+      shift ;;
+    --flags-file) FLAGS_FILE="${2:?--flags-file ФАЙЛ}"; shift ;;
+    --flag)
+      spec="${2:?--flag ИМЯ=ЗНАЧЕНИЕ}"
+      [[ "$spec" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] \
+        || die_usage "неверный --flag «$spec»: нужен вид ИМЯ=ЗНАЧЕНИЕ"
+      FLAG_GIVEN["${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
       shift ;;
     --skip-service) SKIP["${2:?--skip-service ИМЯ}"]=1; shift ;;
     --project) PROJECT="${2:?--project ИМЯ}"; shift ;;
@@ -214,12 +235,16 @@ if ((${#PROBE_ROWS[@]} == 0)); then
   exit "$EXIT_FAILED"
 fi
 
-# Сервисы, которые нужно пробовать (в порядке манифеста).
-SERVICES=()
-for row in "${PROBE_ROWS[@]}"; do
-  svc="${row%%$'\t'*}"
-  [[ " ${SERVICES[*]:-} " == *" $svc "* ]] || SERVICES+=("$svc")
-done
+# Карта «маршрут -> флаг окружения сервиса»: TSV «сервис путь ПЕРЕМЕННАЯ».
+declare -A FLAG_OF=()
+[[ -f "$FLAGS_FILE" ]] || die_usage "нет файла карты флагов: $FLAGS_FILE"
+while IFS=$'\t' read -r fsvc fpath fvar fextra || [[ -n "${fsvc:-}" ]]; do
+  [[ -z "${fsvc:-}" || "$fsvc" == \#* ]] && continue
+  [[ "$fsvc" =~ ^[a-z][a-z0-9-]*$ && "${fpath:-}" == /* && -z "${fextra:-}" \
+    && "${fvar:-}" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] \
+    || die_usage "строка карты флагов неверного вида ($FLAGS_FILE): $fsvc $fpath"
+  FLAG_OF["$fsvc $fpath"]="$fvar"
+done <"$FLAGS_FILE"
 
 # ---------------------------------------------------------------------------------------------
 # Стек: контейнер app, адреса, токены
@@ -253,6 +278,73 @@ if ((STACK == 1)); then
 else
   log "режим прямых адресов: пробы с этого хоста"
 fi
+
+# Флаги маршрутов: значение из --flag, иначе (в стеке) из окружения контейнера сервиса. Значения
+# печатаются только как «включён/выключен»; из окружения читаются лишь имена из карты.
+declare -A FLAG_STATE=()   # ИМЯ -> on|off|unknown
+declare -A FLAG_SOURCE=()
+declare -A SVC_ENV=()      # сервис -> окружение контейнера (не печатается)
+declare -A SKIP_FLAG=()    # «сервис метод путь» -> ИМЯ выключенного флага
+is_flag_on() { # is_flag_on <значение>
+  local value="${1//[[:space:]]/}"
+  case "${value,,}" in 1 | true | yes | on) return 0 ;; *) return 1 ;; esac
+}
+resolve_flag() { # resolve_flag <сервис> <ИМЯ>
+  local svc="$1" var="$2" cid value
+  [[ -z "${FLAG_STATE[$var]:-}" ]] || return 0
+  if [[ -n "${FLAG_GIVEN[$var]+x}" ]]; then
+    value="${FLAG_GIVEN[$var]}"
+    FLAG_SOURCE["$var"]="--flag"
+  elif ((STACK == 1)); then
+    if [[ -z "${SVC_ENV[$svc]+x}" ]]; then
+      cid="$(docker ps -a -q --filter "label=com.docker.compose.project=$PROJECT" \
+        --filter "label=com.docker.compose.service=$svc" 2>/dev/null | head -1)"
+      if [[ -n "$cid" ]]; then
+        SVC_ENV["$svc"]="$(docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' "$cid" \
+          2>/dev/null)" || SVC_ENV["$svc"]=""
+      else
+        SVC_ENV["$svc"]="?нет-контейнера"
+      fi
+    fi
+    if [[ "${SVC_ENV[$svc]}" == "?нет-контейнера" ]]; then
+      FLAG_STATE["$var"]=unknown
+      return 0
+    fi
+    value="$(sed -n "s/^$var=//p" <<<"${SVC_ENV[$svc]}" | head -1)"
+    FLAG_SOURCE["$var"]="окружение контейнера $svc"
+  else
+    FLAG_STATE["$var"]=unknown
+    return 0
+  fi
+  if is_flag_on "$value"; then FLAG_STATE["$var"]=on; else FLAG_STATE["$var"]=off; fi
+}
+for row in "${PROBE_ROWS[@]}"; do
+  IFS=$'\t' read -r svc method path <<<"$row"
+  var="${FLAG_OF[$svc $path]:-}"
+  [[ -n "$var" ]] || continue
+  resolve_flag "$svc" "$var"
+  [[ "${FLAG_STATE[$var]}" != off ]] || SKIP_FLAG["$svc $method $path"]="$var"
+done
+unset SVC_ENV
+for var in "${!FLAG_STATE[@]}"; do
+  case "${FLAG_STATE[$var]}" in
+    on) log "флаг $var: включён (${FLAG_SOURCE[$var]}): маршруты проверяются" ;;
+    off) log "флаг $var: выключен (${FLAG_SOURCE[$var]}): его маршруты не проверяются (SKIP)" ;;
+    *) log "флаг $var: значение неизвестно, его маршруты проверяются как обычно" ;;
+  esac
+done
+for var in "${!FLAG_GIVEN[@]}"; do
+  [[ " ${FLAG_OF[*]} " == *" $var "* ]] \
+    || log "предупреждение: --flag $var не упомянут в карте $FLAGS_FILE"
+done
+
+# Сервисы, которые нужно пробовать (в порядке манифеста; без маршрутов, снятых флагами).
+SERVICES=()
+for row in "${PROBE_ROWS[@]}"; do
+  IFS=$'\t' read -r svc method path <<<"$row"
+  [[ -z "${SKIP_FLAG[$svc $method $path]:-}" ]] || continue
+  [[ " ${SERVICES[*]:-} " == *" $svc "* ]] || SERVICES+=("$svc")
+done
 
 # Адреса сервисов.
 declare -A BASE_OF=()
@@ -302,8 +394,8 @@ unset APP_ENV
 INPUT=""
 N_PROBED=0
 for row in "${PROBE_ROWS[@]}"; do
-  svc="${row%%$'\t'*}"
-  [[ -z "${MISSING_OPTIONAL[$svc]:-}" ]] || continue
+  IFS=$'\t' read -r svc method path <<<"$row"
+  [[ -z "${MISSING_OPTIONAL[$svc]:-}" && -z "${SKIP_FLAG[$svc $method $path]:-}" ]] || continue
   INPUT+="$row"$'\t'"${BASE_OF[$svc]}"$'\n'
   N_PROBED=$((N_PROBED + 1))
 done
@@ -341,12 +433,18 @@ COUNT_OK=0
 COUNT_FAIL=0
 COUNT_ERROR=0
 COUNT_UNVERIFIED=0
+COUNT_SKIP=0
 TABLE=()
 UNVERIFIED_NOTES=()
 for row in "${PROBE_ROWS[@]}"; do
   IFS=$'\t' read -r svc method path <<<"$row"
   [[ -z "${MISSING_OPTIONAL[$svc]:-}" ]] || continue
   key="$svc $method $path"
+  if [[ -n "${SKIP_FLAG[$key]:-}" ]]; then
+    COUNT_SKIP=$((COUNT_SKIP + 1))
+    TABLE+=("$svc"$'\t'"$method"$'\t'"$path"$'\t'"-"$'\t'"SKIP (флаг ${SKIP_FLAG[$key]} выключен)")
+    continue
+  fi
   status="${STATUS_OF[$key]:-нет-ответа}"
   auth="${AUTH_OF[$key]:-none}"
   case "$status" in
@@ -392,6 +490,7 @@ done
 for svc in "${!SKIPPED_COUNT[@]}"; do
   log "предупреждение: сервис $svc пропущен по --skip-service (маршрутов: ${SKIPPED_COUNT[$svc]})"
 done
+((COUNT_SKIP == 0)) || log "маршрутов пропущено по выключенным флагам сервиса: $COUNT_SKIP (SKIP)"
 ((N_TEMPLATE == 0)) || log "маршрутов с параметром не пробовалось: $N_TEMPLATE (вид template)"
 ((N_EXTERNAL == 0)) \
   || log "маршрутов внешних сервисов не пробовалось: $N_EXTERNAL (${EXTERNAL_SERVICES# })"
@@ -400,7 +499,8 @@ if ((COUNT_UNVERIFIED > 0)); then
   for note in "${UNVERIFIED_NOTES[@]}"; do echo "  $note"; done
   log "передайте токен: --token-env сервис=ИМЯ_ПЕРЕМЕННОЙ (или --stack: токены берутся из app)"
 fi
-log "итого: OK=$COUNT_OK FAIL=$COUNT_FAIL ERROR=$COUNT_ERROR UNVERIFIED=$COUNT_UNVERIFIED"
+log "итого: OK=$COUNT_OK FAIL=$COUNT_FAIL ERROR=$COUNT_ERROR UNVERIFIED=$COUNT_UNVERIFIED" \
+  "SKIP=$COUNT_SKIP"
 if ((COUNT_FAIL + COUNT_ERROR > 0)); then
   log "РЕЗУЛЬТАТ: есть FAIL или ERROR - маршруты отсутствуют или сервис недоступен"
   exit "$EXIT_FAILED"
