@@ -110,6 +110,9 @@ echo '{"name":"proj","private":true}' >"$PROJ/package.json"
 echo 'export const committed = 1;' >"$PROJ/src/main.ts"
 echo 'SELECT 1;' >"$PROJ/db/app/001_base.sql"
 echo 'FROM scratch' >"$PROJ/deploy/docker/project-app.Dockerfile"
+echo 'FROM scratch' >"$PROJ/deploy/docker/project-documents.Dockerfile"
+mkdir -p "$PROJ/services/documents-docx/pragmatika_documents"
+echo '"""пакет"""' >"$PROJ/services/documents-docx/pragmatika_documents/__init__.py"
 IGNORE_FILE="$PROJ/deploy/docker/project-app.Dockerfile.dockerignore"
 printf '*\n!package.json\n!src/\n!src/**\n!db/\n!db/app/\n!db/app/**\n' >"$IGNORE_FILE"
 echo 'вне контекста' >"$PROJ/README.md"
@@ -151,6 +154,7 @@ LOCK_OUT="$WORK/out/project.lock"
 
 # Чистое окружение: переменные задаёт только вызывающий проверку.
 unset BAI_STAGE BAI_COSIGN_LEGACY BAI_ALLOW_CLOUD_REGISTRY BAI_APP_IMAGE_NAME \
+  BAI_DOCUMENTS_IMAGE_NAME \
   BAI_SIGNING_PUBKEY BAI_SIGNING_PASSWORD_FILE FAKE_BUILD_FAIL FAKE_PUSH_NO_DIGEST \
   FAKE_SIGN_FAIL FAKE_VERIFY_FAIL FAKE_TRIVY_FAIL
 export CALLS LISTING CTX_MAIN
@@ -429,6 +433,54 @@ check "сбой trivy отмечен" 1 "$(count 'сканирование не 
 reset_out
 check "--no-scan: код 0" 0 "$(run_std 1.6.2 --push --no-scan)"
 check "--no-scan: trivy не вызывался" 0 "$(count '^trivy' "$CALLS")"
+reset_out
+
+
+# --- образ documents проекта (--kind documents) ----------------------------------------------
+reset_out
+DOCS_BASE_REF="$REG_LOCAL/bai-documents@$DG_DOCS"
+check "kind: неизвестный вид: код 2" 2 "$(run_std 1.7.0 --kind frob)"
+check "kind documents: код 0" 0 "$(run_std 1.7.1 --kind documents --push --no-scan)"
+check "kind documents: BAI_DOCUMENTS_BASE из BAI_IMAGE_DOCUMENTS" 1 \
+  "$(grep '^docker build' "$CALLS" | grep -cF -- "--build-arg BAI_DOCUMENTS_BASE=$DOCS_BASE_REF" \
+    || true)"
+check "kind documents: Dockerfile проекта документов" 1 \
+  "$(grep '^docker build' "$CALLS" \
+    | grep -cE -- '-f [^ ]+/deploy/docker/project-documents\.Dockerfile ' || true)"
+check "kind documents: локальный тег pragmatika-documents" 1 \
+  "$(grep '^docker build' "$CALLS" | grep -cF -- '-t pragmatika-documents:1.7.1' || true)"
+check "kind documents: контекст — пакет маршрутов" 1 \
+  "$(count '^\./services/documents-docx/pragmatika_documents/__init__.py$' "$LISTING")"
+check "kind documents: src приложения в контекст не попал" 0 "$(count '^\./src/' "$LISTING")"
+DOCS_DG="sha256:$(printf '%s' "$REG_LOCAL/pragmatika-documents" | sha256sum | cut -c1-64)"
+check "kind documents: BAI_IMAGE_DOCUMENTS указывает на образ проекта" 1 \
+  "$(count "^BAI_IMAGE_DOCUMENTS=$REG_LOCAL/pragmatika-documents@$DOCS_DG\$" "$LOCK_OUT")"
+check "kind documents: платформенный образ сохранён в _BASE" 1 \
+  "$(count "^BAI_IMAGE_DOCUMENTS_BASE=$DOCS_BASE_REF\$" "$LOCK_OUT")"
+check "kind documents: старый APP и прочие ключи сохранены" 1 \
+  "$(count "^BAI_IMAGE_APP=$REG_LOCAL/old-app@$DG_OLDAPP\$" "$LOCK_OUT")"
+# Повторная сборка поверх собственного lock берёт базу из _BASE, а не образ проекта.
+BASE_LOCK_SAVE="$BASE_LOCK"
+BASE_LOCK="$LOCK_OUT"
+LOCK_OUT="$WORK/out/second-docs.lock"
+check "kind documents: пересборка поверх своего lock: код 0" 0 \
+  "$(run_std 1.7.2 --kind documents --push --no-scan)"
+check "kind documents: пересборка берёт платформенную базу" 1 \
+  "$(grep '^docker build' "$CALLS" | grep -cF -- "--build-arg BAI_DOCUMENTS_BASE=$DOCS_BASE_REF" \
+    || true)"
+check "kind documents: пересборка: _BASE не изменился" 1 \
+  "$(count "^BAI_IMAGE_DOCUMENTS_BASE=$DOCS_BASE_REF\$" "$LOCK_OUT")"
+BASE_LOCK="$BASE_LOCK_SAVE"
+LOCK_OUT="$WORK/out/project.lock"
+check "kind documents: BAI_DOCUMENTS_IMAGE_NAME меняет имя" 1 \
+  "$(BAI_DOCUMENTS_IMAGE_NAME=docs-x run_std 1.7.3 --kind documents --push --no-scan >/dev/null; \
+    grep '^docker push' "$CALLS" | grep -cF -- "$REG_LOCAL/docs-x:1.7.3" || true)"
+printf '%b' "BAI_VERSION=1.0.0\nBAI_IMAGE_ALLOY=$REG_LOCAL/alloy@$DG_ALLOY\n" >"$WORK/no-docs.lock"
+BASE_LOCK_SAVE="$BASE_LOCK"
+BASE_LOCK="$WORK/no-docs.lock"
+check "kind documents: нет BAI_IMAGE_DOCUMENTS в base lock: код 2" 2 \
+  "$(run_std 1.7.4 --kind documents --push)"
+BASE_LOCK="$BASE_LOCK_SAVE"
 reset_out
 
 # --- стиль исходников ------------------------------------------------------------------------

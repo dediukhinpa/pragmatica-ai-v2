@@ -2,7 +2,8 @@
 # Сборка, публикация и подпись образа `app` проекта поверх базового образа платформы и запись
 # images.lock проекта:
 #   tools/build-app-image.sh <версия> --base-lock <файл> --lock-out <файл> [--registry <путь>]
-#                                     [--push] [--sign] [--no-scan] [--help]
+#                                     [--kind app|documents] [--push] [--sign] [--no-scan]
+#                                     [--help]
 #
 # Что делает:
 #   1. строго разбирает lock платформы (--base-lock): нужны BAI_VERSION и BAI_IMAGE_APP_BASE;
@@ -16,8 +17,17 @@
 #      BAI_IMAGE_APP и новый BAI_IMAGE_APP; ключи по алфавиту. Запись атомарная, права 644,
 #      результат проходит тот же строгий разбор, что и base lock.
 #
+# Два вида образа (--kind, по умолчанию app):
+#   app        образ приложения поверх BAI_IMAGE_APP_BASE (Dockerfile project-app);
+#   documents  образ сервиса документов проекта поверх платформенного bai-documents: берётся из
+#              BAI_IMAGE_DOCUMENTS_BASE (если есть) или BAI_IMAGE_DOCUMENTS, добавляет проектные
+#              маршруты /docx/* (Dockerfile project-documents). В lock-out ключ
+#              BAI_IMAGE_DOCUMENTS указывает на образ проекта, а платформенный образ остаётся в
+#              BAI_IMAGE_DOCUMENTS_BASE (его подпись проверяется вместе с остальными).
+#
 # Аргументы:
 #   <версия>        ^[0-9A-Za-z][0-9A-Za-z._-]*$; она же тег образа и BAI_VERSION нового lock
+#   --kind          вид образа: app (по умолчанию) или documents
 #   --base-lock     lock платформы (BAI_VERSION, BAI_IMAGE_APP_BASE=<репозиторий>@sha256:...)
 #   --lock-out      куда записать lock проекта (не совпадает с --base-lock)
 #   --registry      реестр образа (по умолчанию префикс репозитория BAI_IMAGE_APP_BASE до
@@ -27,7 +37,8 @@
 #   --no-scan       не запускать trivy
 #
 # Переменные окружения:
-#   BAI_APP_IMAGE_NAME   имя образа в реестре (по умолчанию pragmatika-app)
+#   BAI_APP_IMAGE_NAME   имя образа в реестре (по умолчанию pragmatika-app; для --kind
+#                        documents - BAI_DOCUMENTS_IMAGE_NAME, по умолчанию pragmatika-documents)
 #   BAI_PROJECT_DIR      git-репозиторий проекта (по умолчанию корень репозитория скрипта)
 #   BAI_BUILD_DIR        каталог сборки: контекст, отчёты, журнал (по умолчанию
 #                        $BAI_PROJECT_DIR/build/app-image)
@@ -67,22 +78,30 @@ readonly LOCAL_REGISTRY_RE='^(127\.0\.0\.1|localhost)(:|/|$)'
 
 # Ключи lock и имена образов.
 readonly VERSION_KEY="BAI_VERSION"
-readonly BASE_KEY="BAI_IMAGE_APP_BASE"
-readonly APP_KEY="BAI_IMAGE_APP"
-readonly BASE_REPO_NAME="bai-app-base"
-readonly APP_TITLE="pragmatika-app"
+# Значения зависят от --kind и выставляются в apply_kind (по умолчанию - образ app).
+BASE_KEY="BAI_IMAGE_APP_BASE"
+APP_KEY="BAI_IMAGE_APP"
+BASE_REPO_NAME="bai-app-base"
+APP_TITLE="pragmatika-app"
+BASE_BUILD_ARG="BAI_APP_BASE"
+IMAGE_NAME_ENV="BAI_APP_IMAGE_NAME"
+# Ключ lock, где образ проекта хранит ссылку на платформенную базу (только --kind documents).
+EXTRA_BASE_KEY=""
 readonly DEFAULT_STAGE="7"
 readonly REVISION_LEN=12
 readonly LOCK_FILE_MODE=644
 readonly TRIVY_SEVERITIES="HIGH,CRITICAL"
 
 # Что попадает в контекст сборки (из HEAD) и где в нём Dockerfile.
-readonly DOCKERFILE_REL="deploy/docker/project-app.Dockerfile"
-readonly CONTEXT_PATHS=(package.json src db/app deploy/docker)
+DOCKERFILE_REL="deploy/docker/project-app.Dockerfile"
+CONTEXT_PATHS=(package.json src db/app deploy/docker)
+KIND="app"
+readonly KIND_APP="app"
+readonly KIND_DOCUMENTS="documents"
 
 PROJECT_DIR="${BAI_PROJECT_DIR:-$ROOT}"
 BUILD_DIR="${BAI_BUILD_DIR:-$PROJECT_DIR/build/app-image}"
-IMAGE_NAME="${BAI_APP_IMAGE_NAME:-$APP_TITLE}"
+IMAGE_NAME=""
 STAGE_LABEL="${BAI_STAGE:-$DEFAULT_STAGE}"
 SIGNING_KEY="${BAI_SIGNING_KEY:-$HOME/.config/bai-signing/cosign.key}"
 SIGNING_PASSWORD_FILE="${BAI_SIGNING_PASSWORD_FILE:-$(dirname "$SIGNING_KEY")/cosign.password}"
@@ -151,6 +170,11 @@ parse_args() {
         REGISTRY="$2"
         shift
         ;;
+      --kind)
+        [[ $# -ge 2 && -n "$2" ]] || usage_error "--kind требует app или documents"
+        KIND="$2"
+        shift
+        ;;
       --push) DO_PUSH=1 ;;
       --sign) DO_SIGN=1 ;;
       --no-scan) DO_SCAN=0 ;;
@@ -171,6 +195,24 @@ parse_args() {
   [[ -n "$BASE_LOCK" ]] || usage_error "не указан --base-lock"
   [[ -n "$LOCK_OUT" ]] || usage_error "не указан --lock-out"
   ((! DO_SIGN || DO_PUSH)) || usage_error "--sign без --push: подписывать нечего"
+  [[ "$KIND" == "$KIND_APP" || "$KIND" == "$KIND_DOCUMENTS" ]] \
+    || usage_error "--kind: допустимо app или documents"
+}
+
+# Выставляет значения, зависящие от вида образа.
+apply_kind() {
+  if [[ "$KIND" == "$KIND_DOCUMENTS" ]]; then
+    BASE_KEY="BAI_IMAGE_DOCUMENTS"
+    EXTRA_BASE_KEY="BAI_IMAGE_DOCUMENTS_BASE"
+    APP_KEY="BAI_IMAGE_DOCUMENTS"
+    BASE_REPO_NAME="bai-documents"
+    APP_TITLE="pragmatika-documents"
+    BASE_BUILD_ARG="BAI_DOCUMENTS_BASE"
+    IMAGE_NAME_ENV="BAI_DOCUMENTS_IMAGE_NAME"
+    DOCKERFILE_REL="deploy/docker/project-documents.Dockerfile"
+    CONTEXT_PATHS=(services/documents-docx/pragmatika_documents deploy/docker)
+  fi
+  IMAGE_NAME="${!IMAGE_NAME_ENV:-$APP_TITLE}"
 }
 
 # --- строгий разбор lock ---------------------------------------------------------------------
@@ -256,13 +298,17 @@ check_environment() {
   done
   git -C "$PROJECT_DIR" cat-file -e "HEAD:$DOCKERFILE_REL" 2>/dev/null \
     || die_usage "в HEAD нет $DOCKERFILE_REL"
-  [[ "$IMAGE_NAME" =~ $IMAGE_NAME_RE ]] || die_usage "BAI_APP_IMAGE_NAME недопустимо"
+  [[ "$IMAGE_NAME" =~ $IMAGE_NAME_RE ]] || die_usage "$IMAGE_NAME_ENV недопустимо"
   [[ "$STAGE_LABEL" =~ $LABEL_VALUE_RE ]] || die_usage "BAI_STAGE недопустимо"
   [[ "$COSIGN_LEGACY" == "0" || "$COSIGN_LEGACY" == "1" ]] \
     || die_usage "BAI_COSIGN_LEGACY: допустимо 0 или 1"
 
   parse_lock "$BASE_LOCK" || die_usage "base lock: $LOCK_ERROR"
-  BASE_REF="${LOCK_IMAGES[$BASE_KEY]:-}"
+  # Образ проекта, собранный раньше, хранит платформенную базу в отдельном ключе: берём её, а не
+  # собственный образ (иначе пересборка наслаивалась бы на предыдущую).
+  BASE_REF=""
+  [[ -z "$EXTRA_BASE_KEY" ]] || BASE_REF="${LOCK_IMAGES[$EXTRA_BASE_KEY]:-}"
+  [[ -n "$BASE_REF" ]] || BASE_REF="${LOCK_IMAGES[$BASE_KEY]:-}"
   [[ -n "$BASE_REF" ]] || die_usage "base lock: нет ключа $BASE_KEY"
   [[ ! "$BASE_LOCK" -ef "$LOCK_OUT" ]] || die_usage "--lock-out совпадает с --base-lock"
 
@@ -325,7 +371,7 @@ build_image() {
     | tar -x -C "$CONTEXT_DIR" || die "не удалось выгрузить контекст из HEAD"
   mapfile -t args < <(label_args)
   log "сборка $APP_TITLE:$VERSION поверх базы из base lock"
-  docker build "${args[@]}" --build-arg "BAI_APP_BASE=$BASE_REF" -t "$APP_TITLE:$VERSION" \
+  docker build "${args[@]}" --build-arg "$BASE_BUILD_ARG=$BASE_REF" -t "$APP_TITLE:$VERSION" \
     -f "$CONTEXT_DIR/$DOCKERFILE_REL" "$CONTEXT_DIR" >>"$LOG_FILE" 2>&1 \
     || die "сборка образа не удалась (журнал $LOG_FILE)"
   log "образ собран: $APP_TITLE:$VERSION"
@@ -387,12 +433,13 @@ sign_and_verify() {
 # Пишет lock проекта: версия, образы платформы кроме APP и новый APP, ключи по алфавиту.
 write_lock() {
   local app_ref="$1" key
+  [[ -z "$EXTRA_BASE_KEY" ]] || LOCK_IMAGES["$EXTRA_BASE_KEY"]="$BASE_REF"
   LOCK_IMAGES["$APP_KEY"]="$app_ref"
   mkdir -p "$(dirname "$LOCK_OUT")"
   TMP_LOCK="$(mktemp "$LOCK_OUT.XXXXXX")"
   {
     echo "# images.lock проекта: создан tools/build-app-image.sh, правится только им."
-    echo "# Образы платформы взяты из base lock, образ app собран поверх BAI_IMAGE_APP_BASE."
+    echo "# Образы платформы взяты из base lock, образ $APP_TITLE собран поверх $BASE_KEY."
     echo "$VERSION_KEY=$VERSION"
     printf '%s\n' "${!LOCK_IMAGES[@]}" | LC_ALL=C sort | while IFS= read -r key; do
       echo "$key=${LOCK_IMAGES[$key]}"
@@ -409,6 +456,7 @@ write_lock() {
 
 main() {
   parse_args "$@"
+  apply_kind
   mkdir -p "$BUILD_DIR" || die_usage "не создать каталог сборки"
   BUILD_DIR="$(cd "$BUILD_DIR" && pwd)"
   LOG_FILE="$BUILD_DIR/build-$VERSION.log"
