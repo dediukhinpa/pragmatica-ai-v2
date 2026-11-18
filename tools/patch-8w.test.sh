@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Тест deploy/patch-8w/patch.sh (патч G8w: образ app 1.1.4 и две переменные Яндекс-поиска) без
+# Тест deploy/patch-8w/patch.sh (патч G8w: образ app 1.1.5 и две переменные Яндекс-поиска) без
 # настоящего Docker: вместо docker - заглушка с памятью о контейнерах, их образах, окружении и
 # времени старта. Проверяются отказы по предусловиям (бой не тронут, код 3), в том числе «патч G8
 # не применён», --preflight-only (дерево побайтно прежнее), успешный ход (app пересоздан, documents
@@ -184,7 +184,7 @@ write_lock() { # write_lock <файл> <образ app> <основа app> <ве
 }
 mkdir -p "$GOLDEN/platform" "$GOLDEN/hotfix" "$PKGG/deploy/platform" "$PKGG/tools"
 write_lock "$GOLDEN/images.lock" "$OLD_APP" "r/app-base@sha256:$H_OLD_BASE" "1.1.3-pragmatika.2"
-write_lock "$PKGG/images.lock" "$NEW_APP" "r/app-base@sha256:$H_NEW_BASE" "1.1.4-pragmatika.1"
+write_lock "$PKGG/images.lock" "$NEW_APP" "r/app-base@sha256:$H_NEW_BASE" "1.1.5-pragmatika.1"
 echo "services: {}" >"$GOLDEN/compose.yml"
 echo "MARK=old" >"$GOLDEN/compat.env"
 printf 'services:\n  app: {}\n' >"$GOLDEN/compose.project.yml"
@@ -202,7 +202,7 @@ date -u +%FT%TZ >"$GOLDEN/.cutover-deployed"
   printf '      YANDEX_SEARCH_MIN_INTERVAL_MS: ${YANDEX_SEARCH_MIN_INTERVAL_MS:-1000}\n'
 } >"$PKGG/deploy/compose.project.yml"
 cp "$PKGG/deploy/compose.project.yml" "$PKGG/deploy/platform/compose.base.yml"
-echo "PLATFORM_PACKAGES_VERSION=1.1.4" >"$PKGG/deploy/platform/PLATFORM-VERSION"
+echo "PLATFORM_PACKAGES_VERSION=1.1.5" >"$PKGG/deploy/platform/PLATFORM-VERSION"
 cp "$ROOT/deploy/cutover/lib.sh" "$PKGG/lib.sh"
 cp "$SRC/patch.sh" "$PKGG/patch.sh"
 cp "$ROOT/tools/route-flags.tsv" "$PKGG/tools/route-flags.tsv"
@@ -446,7 +446,7 @@ assert "успех: код 0" "[[ $RC -eq 0 ]]"
 assert "успех: lock боя новый (образ app)" "grep -q '$NEW_APP' '$LIVE/images.lock'"
 assert "успех: compose.project.yml новый" \
   "grep -q 'YANDEX_SEARCH_MAX_CONCURRENCY' '$LIVE/compose.project.yml'"
-assert "успех: PLATFORM-VERSION новый" "grep -q '1.1.4' '$LIVE/platform/PLATFORM-VERSION'"
+assert "успех: PLATFORM-VERSION новый" "grep -q '1.1.5' '$LIVE/platform/PLATFORM-VERSION'"
 assert "успех: файлы вне патча (compose.yml, .env) прежние" \
   "cmp -s '$LIVE/compose.yml' '$GOLDEN/compose.yml' && cmp -s '$LIVE/.env' '$GOLDEN/.env'"
 assert "успех: права .env прежние (600)" "[[ \$(stat -c %a '$LIVE/.env') == 600 ]]"

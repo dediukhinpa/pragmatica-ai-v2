@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Сборка патч-пакета G8w (ядро платформы 1.1.4: образ app и две переменные поиска Яндекса):
+# Сборка патч-пакета G8w (ядро платформы 1.1.5: образ app и две переменные поиска Яндекса):
 # каталог, который переносят на боевой хост и запускают там `bash patch.sh` (см. OWNER-RUNBOOK.md).
 # Ставится строго после патча G8. Красная зона: запускает владелец.
 #
@@ -111,7 +111,7 @@ else
 fi
 for key in BAI_IMAGE_MASK BAI_IMAGE_APP BAI_IMAGE_DOCUMENTS; do
   grep -qE "^$key=[^@[:space:]]+@sha256:[0-9a-f]{64}\$" "$LOCK" \
-    || fail "в $LOCK нет $key (образ по digest): нужен lock платформы 1.1.4 после патча G8"
+    || fail "в $LOCK нет $key (образ по digest): нужен lock платформы 1.1.5 после патча G8"
 done
 grep -qE '^BAI_VERSION=[^[:space:]]+$' "$LOCK" || fail "в $LOCK нет BAI_VERSION"
 

@@ -29,7 +29,7 @@ for f in compose.project.yml platform/compose.base.yml; do
   printf '# %s\nYANDEX_SEARCH_MAX_CONCURRENCY: 1\n' "$f" >"$REPO/deploy/$f"
   echo 'YANDEX_SEARCH_MIN_INTERVAL_MS: 1000' >>"$REPO/deploy/$f"
 done
-echo "PLATFORM_PACKAGES_VERSION=1.1.4" >"$REPO/deploy/platform/PLATFORM-VERSION"
+echo "PLATFORM_PACKAGES_VERSION=1.1.5" >"$REPO/deploy/platform/PLATFORM-VERSION"
 # Файлы, которых в пакете G8w быть не должно (G8 их заменял, G8w - нет).
 for f in compose.yml compat.env; do echo "# $f" >"$REPO/deploy/$f"; done
 printf '#!/usr/bin/env bash\n' >"$REPO/deploy/patch-8w/patch.sh"
@@ -44,7 +44,7 @@ printf 'documents\tPOST\t/parse\troute\n' >"$REPO/deploy/cutover/routes.tsv"
 git -C "$REPO" init -q
 commit init
 
-printf 'BAI_VERSION=1.1.4\nBAI_IMAGE_APP=r/app@sha256:%s\nBAI_IMAGE_MASK=r/mask@sha256:%s\n' \
+printf 'BAI_VERSION=1.1.5\nBAI_IMAGE_APP=r/app@sha256:%s\nBAI_IMAGE_MASK=r/mask@sha256:%s\n' \
   "$DIGEST_A" "$DIGEST_M" >"$TMP/images.lock"
 printf 'BAI_IMAGE_DOCUMENTS=r/documents@sha256:%s\n' "$DIGEST_D" >>"$TMP/images.lock"
 echo "public-key" >"$TMP/cosign.pub"
