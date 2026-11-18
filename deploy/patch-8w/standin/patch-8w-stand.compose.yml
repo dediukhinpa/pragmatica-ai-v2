@@ -24,6 +24,9 @@ services:
       disable: true
     depends_on: !override {}
     volumes: !override []
+    # Сеть backend платформы internal: порты контейнеров в ней наружу не публикуются, поэтому
+    # заглушки сидят ещё и в обычной сети стенда stand-pub (иначе проба с хоста не дойдёт).
+    networks: !override [backend, stand-pub]
     ports:
       - "127.0.0.1:${STAND_DOCS_PORT:-21201}:8310"
   app:
@@ -41,7 +44,10 @@ services:
       - DOCUMENTS_URL=${STAND_APP_DOCUMENTS_URL:-http://documents:8310}
       - ${STAND_APP_EXTRA_ENV:-STAND_APP_EXTRA=none}
     depends_on: !override {}
-    networks: !override [backend]
+    networks: !override [backend, stand-pub]
     volumes: !override []
     ports:
       - "127.0.0.1:${STAND_APP_PORT:-21200}:8088"
+
+networks:
+  stand-pub: {}
