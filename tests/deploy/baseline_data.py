@@ -93,6 +93,8 @@ ACCESS_ACTIONS: tuple[str, ...] = (
     "prices.confirm_jump",
     "site.confirm_publish",
     "suppliers.confirm_card",
+    # Этап 8y: запись карточек менеджерами закупок; закрыто, пока в политике нет явного allow.
+    "suppliers.manage_cards",
     "suppliers.export",
 )
 
