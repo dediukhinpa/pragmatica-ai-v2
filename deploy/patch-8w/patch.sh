@@ -28,7 +28,7 @@
 #   2. Замена файлов из пакета и `up -d --no-deps app` (только app; без down и без
 #      --remove-orphans; простой app около 30 с).
 #   3. Проверки: образ app = lock, /ready 200 и ботов не меньше ожидаемого, в окружении app
-#      YANDEX_SEARCH_MAX_CONCURRENCY=1 и YANDEX_SEARCH_MIN_INTERVAL_MS=1000 (читаются только эти
+#      YANDEX_SEARCH_MAX_CONCURRENCY=1 и YANDEX_SEARCH_MIN_INTERVAL_MS=1200 (читаются только эти
 #      два ключа, остальное окружение и секреты не печатаются), documents не изменился и не
 #      перезапускался (образ и StartedAt те же), маршруты стека не 404/405 (tools/check-routes.sh),
 #      выдержка (по умолчанию 2 минуты: app не перезапускается, /ready 200).
@@ -86,7 +86,7 @@ DOCUMENTS_URL_RE='^https?://documents(:[0-9]+)?(/.*)?$'
 YANDEX_CONCURRENCY_KEY="YANDEX_SEARCH_MAX_CONCURRENCY"
 YANDEX_CONCURRENCY_WANT="1"
 YANDEX_INTERVAL_KEY="YANDEX_SEARCH_MIN_INTERVAL_MS"
-YANDEX_INTERVAL_WANT="1000"
+YANDEX_INTERVAL_WANT="1200"
 DEFAULT_SOAK_S=120
 SOAK_POLL_S=${PATCH8W_SOAK_POLL_S:-15}
 DEPLOYED_MARK=".cutover-deployed"

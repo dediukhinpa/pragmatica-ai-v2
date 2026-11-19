@@ -74,7 +74,7 @@ case "$1" in
           printf '{"services":{"app":{"environment":{"OPENAI_API_KEY":"%s",' "$APP_ENV_SECRET"
           printf '"YANDEX_SEARCH_MAX_CONCURRENCY":"1",'
           printf '"YANDEX_SEARCH_MIN_INTERVAL_MS":"%s"}},"documents":{"environment":{}}}}\n' \
-            "${STUB_CFG_INTERVAL:-1000}"
+            "${STUB_CFG_INTERVAL:-1200}"
         else
           printf '{"services":{"app":{"environment":{"OPENAI_API_KEY":"%s"}}}}\n' "$APP_ENV_SECRET"
         fi ;;
@@ -94,7 +94,7 @@ case "$1" in
         if grep -q 'YANDEX_SEARCH_MAX_CONCURRENCY' "$dir/compose.project.yml" \
           && [[ "${STUB_NO_YANDEX_ENV:-0}" != 1 ]]; then
           echo "YANDEX_SEARCH_MAX_CONCURRENCY=1" >>"$STUB/env/p-app-1.n"
-          echo "YANDEX_SEARCH_MIN_INTERVAL_MS=${STUB_ENV_INTERVAL:-1000}" >>"$STUB/env/p-app-1.n"
+          echo "YANDEX_SEARCH_MIN_INTERVAL_MS=${STUB_ENV_INTERVAL:-1200}" >>"$STUB/env/p-app-1.n"
         fi
         mv "$STUB/env/p-app-1.n" "$STUB/env/p-app-1"
         [[ "${STUB_DOCS_RESTART:-0}" != 1 ]] || bump_started p-documents-1 ;;
@@ -199,7 +199,7 @@ date -u +%FT%TZ >"$GOLDEN/.cutover-deployed"
 {
   printf 'services:\n  app:\n    environment:\n'
   printf '      YANDEX_SEARCH_MAX_CONCURRENCY: ${YANDEX_SEARCH_MAX_CONCURRENCY:-1}\n'
-  printf '      YANDEX_SEARCH_MIN_INTERVAL_MS: ${YANDEX_SEARCH_MIN_INTERVAL_MS:-1000}\n'
+  printf '      YANDEX_SEARCH_MIN_INTERVAL_MS: ${YANDEX_SEARCH_MIN_INTERVAL_MS:-1200}\n'
 } >"$PKGG/deploy/compose.project.yml"
 cp "$PKGG/deploy/compose.project.yml" "$PKGG/deploy/platform/compose.base.yml"
 echo "PLATFORM_PACKAGES_VERSION=1.1.5" >"$PKGG/deploy/platform/PLATFORM-VERSION"
@@ -466,10 +466,10 @@ assert "успех: app на новом образе" "app_is_new"
 assert "успех: documents не тронут (образ и StartedAt прежние)" "docs_untouched"
 assert "успех: в окружении app обе переменные" \
   "grep -qx 'YANDEX_SEARCH_MAX_CONCURRENCY=1' '$STUB/env/p-app-1' \
-   && grep -qx 'YANDEX_SEARCH_MIN_INTERVAL_MS=1000' '$STUB/env/p-app-1'"
+   && grep -qx 'YANDEX_SEARCH_MIN_INTERVAL_MS=1200' '$STUB/env/p-app-1'"
 assert "успех: журнал называет обе переменные со значениями" \
   "out_has apply 'YANDEX_SEARCH_MAX_CONCURRENCY=1' \
-   && out_has apply 'YANDEX_SEARCH_MIN_INTERVAL_MS=1000'"
+   && out_has apply 'YANDEX_SEARCH_MIN_INTERVAL_MS=1200'"
 assert "успех: архив patch8w-<время>.tgz создан" \
   "compgen -G '$TMP/home-apply/patch8w-*.tgz' >/dev/null"
 mkdir -p "$TMP/arch"

@@ -342,9 +342,9 @@ step_apply() {
   [[ "$(env_of "$APP" "$YANDEX_CONCURRENCY_KEY")" == 1 ]] \
     && result "apply: $YANDEX_CONCURRENCY_KEY=1 в окружении app" ok "1" \
     || result "apply: $YANDEX_CONCURRENCY_KEY=1 в окружении app" FAIL "иное"
-  [[ "$(env_of "$APP" "$YANDEX_INTERVAL_KEY")" == 1000 ]] \
-    && result "apply: $YANDEX_INTERVAL_KEY=1000 в окружении app" ok "1000" \
-    || result "apply: $YANDEX_INTERVAL_KEY=1000 в окружении app" FAIL "иное"
+  [[ "$(env_of "$APP" "$YANDEX_INTERVAL_KEY")" == 1200 ]] \
+    && result "apply: $YANDEX_INTERVAL_KEY=1200 в окружении app" ok "1200" \
+    || result "apply: $YANDEX_INTERVAL_KEY=1200 в окружении app" FAIL "иное"
   [[ "$(env_of "$APP" DOCUMENTS_URL)" == "$DOCS_URL_OK" ]] \
     && result "apply: app по-прежнему на documents" ok "$DOCS_URL_OK" \
     || result "apply: app по-прежнему на documents" FAIL "$(env_of "$APP" DOCUMENTS_URL)"

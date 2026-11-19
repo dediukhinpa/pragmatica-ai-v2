@@ -11,7 +11,7 @@ business-ai 1.1.3, образ app `1.1.3-pragmatika.1`. Разбор перек�
 
 **Патч G8w (этап 8w)** ставится строго после G8: обновляет ядро платформы до 1.1.5 (образ app
 `1.1.5-pragmatika.1`) и задаёт app две переменные ограничителя частоты Яндекс Поиска
-(`YANDEX_SEARCH_MAX_CONCURRENCY=1`, `YANDEX_SEARCH_MIN_INTERVAL_MS=1000`): ответ 429 по частоте
+(`YANDEX_SEARCH_MAX_CONCURRENCY=1`, `YANDEX_SEARCH_MIN_INTERVAL_MS=1200`): ответ 429 по частоте
 больше не считается исчерпанной квотой. Меняется только app; `documents` остаётся
 `1.1.3-pragmatika.2`. Применяет владелец по `OWNER-RUNBOOK.md` пакета (`patch.sh`, исходники
 `deploy/patch-8w/`). До G8w бой работает на ядре 1.1.3 и прежнем поведении.
