@@ -3,17 +3,17 @@ import { editPricesInSourceFile } from '../../src/agents/prices/price-edit-sourc
 import { PRICES_PROMPT } from '../../src/agents/prices/prompt';
 import { stagePriceRows } from '../../src/agents/prices/stage-price-rows';
 import { priceItemKey } from '../../src/kit/domain/price-diff';
-import { PriceEditRefusedError } from '../../src/kit/domain/errors.owned';
+import { PriceEditRefusedError } from '../../src/price-edit-refusal';
 import type { ToolContext } from '@business-ai/core';
 import type { PriceFileEditor } from '../../src/kit/ports/price-file-editor';
-import { SUPPLIER_ID, putFile } from './support';
+import { SUPPLIER_ID, putFile } from '../agents/support';
 import {
   COLUMNS,
   EMPLOYEE_THREAD,
   buildFullPricesDeps,
   employeeContext,
   type FullPricesDeps,
-} from './prices-support';
+} from '../agents/prices-support';
 
 /**
  * Новые форматы правки на месте: pptx, pdf с текстовым слоем (наложение), старый ppt.

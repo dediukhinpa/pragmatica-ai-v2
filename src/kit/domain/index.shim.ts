@@ -193,12 +193,9 @@ export {
   OwnSignatoryRefusal,
   OwnSignatoryRefusedError,
   PriceBaseChangedError,
-  PriceEditRefusal,
-  PriceEditRefusedError,
   PriceFileTooLargeError,
   PriceFileTooLargeReason,
   UnsupportedPriceFormatError,
-  isPriceEditRefusedError,
   isPriceFileTooLargeError,
   isUnsupportedPriceFormatError,
 } from './errors.owned';

@@ -47,33 +47,6 @@ export function isUnsupportedPriceFormatError(
 ): value is UnsupportedPriceFormatError {
   return value instanceof UnsupportedPriceFormatError;
 }
-/** Причина отказа правки файла проверками сервиса и место, к которому она относится. */
-export interface PriceEditRefusal {
-  /** Машинный код сервиса (`glyph_missing`, `no_fit`, `price_ambiguous`, ...). */
-  code: string;
-  table?: number | undefined;
-  row?: number | undefined;
-  col?: number | undefined;
-}
-/**
- * Сервис отказал править файл целиком: любая из строгих проверок (наложение цены в PDF, сверка
- * старого .ppt с конвертацией) не прошла. Файл не выдан, причины по местам. Код `invalid_input`
- * (набор кодов закрыт), признак - класс; инструмент по нему предлагает xlsx-копию, как для
- * `UnsupportedPriceFormatError`, но называет причины.
- */
-export class PriceEditRefusedError extends DomainError {
-  readonly reasons: readonly PriceEditRefusal[];
-
-  constructor(reasons: readonly PriceEditRefusal[]) {
-    super('invalid_input', 'Сервис отказал править файл на месте.');
-    this.name = 'PriceEditRefusedError';
-    this.reasons = reasons;
-  }
-}
-/** Type guard: правка файла отклонена проверками сервиса. */
-export function isPriceEditRefusedError(value: unknown): value is PriceEditRefusedError {
-  return value instanceof PriceEditRefusedError;
-}
 /**
  * Чем именно правка упёрлась в предел сервиса (413): от причины зависит совет сотруднику.
  * `file_size` - файл больше предела загрузки; `structure` - слишком много ячеек, узлов, строк

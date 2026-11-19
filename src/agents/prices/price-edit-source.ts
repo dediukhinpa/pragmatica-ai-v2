@@ -1,12 +1,11 @@
 import { z } from 'zod';
 import { DomainError } from '@business-ai/core';
 import {
-  isPriceEditRefusedError,
   isPriceFileTooLargeError,
   isUnsupportedPriceFormatError,
-  type PriceEditRefusal,
   type PriceFileTooLargeReason,
 } from '../../kit/domain/errors.owned';
+import { isPriceEditRefusedError, type PriceEditRefusal } from '../../price-edit-refusal';
 import { priceItemKey } from '../../kit/domain/price-diff';
 import type {
   EditedPriceFile,

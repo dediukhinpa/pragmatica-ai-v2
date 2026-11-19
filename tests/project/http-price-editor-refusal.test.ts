@@ -2,11 +2,9 @@ import { afterAll, describe, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { removeTempDirs, tempDir } from '@business-ai/testing';
-import { HttpPriceFileEditor } from '../../../src/kit/adapters/http/http-price-file-editor';
-import {
-  PriceEditRefusedError,
-  UnsupportedPriceFormatError,
-} from '../../../src/kit/domain/errors.owned';
+import { HttpPriceFileEditor } from '../../src/kit/adapters/http/http-price-file-editor';
+import { UnsupportedPriceFormatError } from '../../src/kit/domain/errors.owned';
+import { PriceEditRefusedError } from '../../src/price-edit-refusal';
 
 /**
  * Отказы и смена формата в ответе сервиса правки: 422 `edit_refused` с причинами по местам,

@@ -42,6 +42,8 @@ LONG_IMPORT_RE = re.compile(
 # записан в раскладке v2 и переносу не подлежит. Ключ - (файл в старой раскладке, спецификатор).
 PROJECT_SPECS = {
     ("src/application/agents/shared/common-tools.owned.ts", "../../legacy-tool-texts"),
+    ("src/application/agents/prices/price-edit-source.ts", "../../price-edit-refusal"),
+    ("src/adapters/http/http-price-file-editor.ts", "../../../price-edit-refusal"),
 }
 # Пути-литералы относительно файла теста: `join(import.meta.dir, '../x')` и
 # `new URL('../x', import.meta.url)`. Цель - файл или каталог в любом месте дерева.

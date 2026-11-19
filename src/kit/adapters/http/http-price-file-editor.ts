@@ -1,12 +1,11 @@
 import { z } from 'zod';
 import { DomainError } from '@business-ai/core';
 import {
-  PriceEditRefusedError,
   PriceFileTooLargeError,
   UnsupportedPriceFormatError,
-  type PriceEditRefusal,
   type PriceFileTooLargeReason,
 } from '../../domain/errors.owned';
+import { PriceEditRefusedError, type PriceEditRefusal } from '../../../price-edit-refusal';
 import { base64Of } from '@business-ai/core';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
