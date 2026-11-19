@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { DomainError } from '@business-ai/core';
 import {
+  PriceEditRefusedError,
   PriceFileTooLargeError,
   UnsupportedPriceFormatError,
+  type PriceEditRefusal,
   type PriceFileTooLargeReason,
 } from '../../domain/errors.owned';
 import { base64Of } from '@business-ai/core';
@@ -46,6 +48,8 @@ const BYTES_PER_MIB = 1024 * 1024;
 const LEGACY_JSON_MAX_FILE_BYTES = 5 * BYTES_PER_MIB;
 /** Код отказа сервиса: формат не правится на месте. */
 const UNSUPPORTED_FORMAT_CODE = 'unsupported_format';
+/** Код отказа сервиса: строгие проверки правки не прошли, файл не выдан (причины в теле). */
+const EDIT_REFUSED_CODE = 'edit_refused';
 
 const skippedResponse = z.object({
   sheet: z.string().nullish(),
@@ -61,6 +65,8 @@ const metaResponse = z.object({
   mime_type: z.string().min(1),
   changed: z.number().int().nonnegative(),
   skipped: z.array(skippedResponse),
+  /** Есть только у файла, сменившего формат (`ppt` -> pptx). */
+  converted_from: z.string().nullish(),
 });
 
 /** Прежний ответ: файл base64 внутри JSON. */
@@ -75,6 +81,14 @@ const volumeResponse = metaResponse.extend({
   }),
 });
 
+/** Причина отказа проверок: код и место (таблица, строка, столбец) без значений. */
+const refusalReason = z.object({
+  code: z.string(),
+  table: z.number().int().nullish(),
+  row: z.number().int().nullish(),
+  col: z.number().int().nullish(),
+});
+
 const errorBody = z.object({
   code: z.string().optional(),
   detail: z
@@ -84,10 +98,24 @@ const errorBody = z.object({
         code: z.string().optional(),
         error: z.string().optional(),
         reason: z.string().optional(),
+        reasons: z.array(refusalReason).optional(),
       }),
     ])
     .optional(),
 });
+
+/** Причины отказа из тела 422 `edit_refused`; нет тела с причинами - пустой список. */
+function refusalReasons(body: unknown): PriceEditRefusal[] {
+  const parsed = errorBody.safeParse(body);
+  const detail = parsed.success ? parsed.data.detail : undefined;
+  const reasons = typeof detail === 'object' ? (detail.reasons ?? []) : [];
+  return reasons.map((item) => ({
+    code: item.code,
+    ...(item.table == null ? {} : { table: item.table }),
+    ...(item.row == null ? {} : { row: item.row }),
+    ...(item.col == null ? {} : { col: item.col }),
+  }));
+}
 
 /** Причина 413 сервиса (код предела) -> класс причины для совета сотруднику. */
 const TOO_LARGE_REASONS: Readonly<Record<string, PriceFileTooLargeReason>> = {
@@ -141,9 +169,9 @@ function mapEditError(
     }
     if (isLegacyMultipartRefusal(status, body)) return new BadBodyError();
     if (status !== STATUS_UNPROCESSABLE) return undefined;
-    if (refusalCode(body) === UNSUPPORTED_FORMAT_CODE) {
-      return new UnsupportedPriceFormatError('файл');
-    }
+    const code = refusalCode(body);
+    if (code === UNSUPPORTED_FORMAT_CODE) return new UnsupportedPriceFormatError('файл');
+    if (code === EDIT_REFUSED_CODE) return new PriceEditRefusedError(refusalReasons(body));
     return new DomainError('invalid_input', 'Сервис документов отклонил правку цен.');
   };
 }
@@ -192,6 +220,11 @@ function skippedOf(item: z.output<typeof skippedResponse>): SkippedPriceEdit {
     col: item.col,
     reason: item.reason,
   };
+}
+
+/** Поле `convertedFrom` результата: только у файла, сменившего формат. */
+function convertedOf(parsed: z.output<typeof metaResponse>): { convertedFrom?: string } {
+  return parsed.converted_from == null ? {} : { convertedFrom: parsed.converted_from };
 }
 
 /** Имя файла без пути; пустое имя - отказ с понятной причиной (до запроса к сервису). */
@@ -288,6 +321,7 @@ export class HttpPriceFileEditor implements PriceFileEditor {
       bytes: bytesOf(Buffer.from(parsed.content_base64, 'base64')),
       changed: parsed.changed,
       skipped: parsed.skipped.map(skippedOf),
+      ...convertedOf(parsed),
     };
   }
 
@@ -352,6 +386,7 @@ export class HttpPriceFileEditor implements PriceFileEditor {
         file,
         changed: parsed.changed,
         skipped: parsed.skipped.map(skippedOf),
+        ...convertedOf(parsed),
       };
     } catch (error) {
       await release();

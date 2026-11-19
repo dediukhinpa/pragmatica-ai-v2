@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { DomainError } from '@business-ai/core';
 import {
+  isPriceEditRefusedError,
   isPriceFileTooLargeError,
   isUnsupportedPriceFormatError,
+  type PriceEditRefusal,
   type PriceFileTooLargeReason,
 } from '../../kit/domain/errors.owned';
 import { priceItemKey } from '../../kit/domain/price-diff';
@@ -93,9 +95,61 @@ const NO_COORDINATES_MESSAGE =
   'или записан иначе): исходный файл править нельзя. Предложите сотруднику прислать файл ' +
   'заново, тогда цены можно будет изменить прямо в нём.';
 const UNSUPPORTED_MESSAGE =
-  'Этот формат файла на месте не правится (xls, pdf, скан и подобные). Файл не отправлен. ' +
+  'Этот формат файла на месте не правится (xls, скан, pdf без текстового слоя, зашифрованный ' +
+  'файл и подобные). Файл не отправлен. ' +
   'Предложите сотруднику xlsx-копию с тем же содержимым (один лист, структура исходного, с ' +
   'новыми ценами) и делайте её ТОЛЬКО с его согласия.';
+
+/** Понятные сотруднику причины отказа строгих проверок сервиса (по машинному коду). */
+const REFUSAL_TEXTS: Readonly<Record<string, string>> = {
+  price_not_found: 'цена на этом месте в файле не найдена',
+  price_ambiguous: 'цена на этом месте найдена не однозначно (несколько совпадений)',
+  price_not_isolated: 'цена слита с другим текстом в одном блоке, отделить её нельзя',
+  glyph_missing: 'в шрифте файла нет нужных цифр или знаков новой цены',
+  font_unavailable: 'не удалось получить шрифт цены',
+  no_fit: 'новая цена не помещается на месте старой',
+  neighbor_overlap: 'новая цена налезла бы на соседний текст',
+  background_unclear: 'не удалось определить цвет фона под ценой',
+  verify_failed: 'проверка файла после записи не подтвердила новую цену',
+  mismatch: 'в файле другая цена, чем при разборе',
+  encrypted: 'файл зашифрован',
+  signed: 'файл подписан: правка сломала бы подпись',
+  table_not_found: 'таблицы с такими координатами в файле нет',
+  cell_out_of_range: 'ячейка вне таблицы',
+  empty_cell: 'ячейка пуста',
+  text_value: 'в ячейке не число',
+  negative_in_text: 'отрицательное число в текстовом файле не записывается',
+  slide_count: 'после приведения старого .ppt к pptx число слайдов не совпало с исходным',
+  numbers_differ: 'после приведения старого .ppt к pptx числа не совпали с исходным',
+  text_differs: 'после приведения старого .ppt к pptx состав текста слайдов не совпал с исходным',
+};
+/** Сколько причин отказа перечисляем в сообщении (остальные - числом). */
+const MAX_REFUSALS_LISTED = 10;
+
+/** Отказ проверок: причины по местам, файл не отправлен, xlsx-копия - по согласию. */
+function refusedMessage(
+  reasons: readonly PriceEditRefusal[],
+  keyAt: ReadonlyMap<string, string>,
+): string {
+  const lines = reasons.slice(0, MAX_REFUSALS_LISTED).map((reason) => {
+    const place =
+      reason.row === undefined
+        ? 'файл целиком'
+        : (keyAt.get(`${reason.table ?? ''}:${reason.row}`) ?? `строка ${reason.row}`);
+    return `${place}: ${REFUSAL_TEXTS[reason.code] ?? reason.code}`;
+  });
+  const rest = reasons.length - lines.length;
+  return (
+    'Файл на месте поправить нельзя: строгие проверки не прошли, файл не изменён и не ' +
+    `отправлен. Причины: ${lines.join('; ')}${rest > 0 ? `; и ещё ${rest}` : ''}. Назови их ` +
+    'сотруднику. Предложите xlsx-копию с тем же содержимым (один лист, структура ' +
+    'исходного, с новыми ценами) и делайте её ТОЛЬКО с его согласия.'
+  );
+}
+/** Дописывается к сообщению об отправке, когда старый .ppt приведён к pptx. */
+const CONVERTED_PPT_NOTE =
+  'Исходный файл был в старом формате .ppt: его привели к pptx и отправили pptx (обратная ' +
+  'конвертация теряет вёрстку). Скажи сотруднику об этом.';
 
 /** Запрет подменять исходный файл: общий для отказов по размеру (кроме временного). */
 const NO_SUBSTITUTE_MESSAGE =
@@ -388,11 +442,15 @@ const EMPTY_BYTES = new Uint8Array(0);
 
 /** Результат правки для инструмента: файл либо в памяти (`bytes`), либо на диске (`disk`). */
 interface EditedFile {
+  /** Имя результата по версии сервиса (расширение у файла, сменившего формат, - новое). */
+  fileName: string;
   mimeType: string;
   bytes: Uint8Array;
   disk?: TempDiskFile | undefined;
   changed: number;
   skipped: EditedPriceFile['skipped'];
+  /** Исходный формат, если файл приведён к другому (`ppt` -> pptx). */
+  convertedFrom?: string | undefined;
 }
 
 /**
@@ -425,16 +483,22 @@ export const editPricesInSourceFile = defineTool<EditInput, EditOutput, PricesDe
   readsFile: true,
   sideEffect: true,
   description:
-    'Изменить цены в ИСХОДНОМ файле прайса (xlsx, csv, docx с таблицей) и отправить его ' +
+    'Изменить цены в ИСХОДНОМ файле прайса (xlsx, csv, docx с таблицей, pptx, pdf с текстовым ' +
+    'слоем, старый ppt) и отправить его ' +
     'тому, кто просил в этом чате, с именем Прайс_<поставщик>_<дата>. Меняются только ячейки ' +
     'цен, структура и форматирование сохраняются; текстовые цены («от 100») не трогаются и ' +
     'перечисляются в skipped. Передайте supplierId и fileHash импорта (из stagePriceRows) и ' +
     'mode: percent (+percent, например 5 или -10) либо fixed (+fixed: [{key|sku, price}]). ' +
     'Работает только для файлов, разобранных с сохранением координат; иначе status=' +
-    'no_coordinates - предложите прислать файл заново. xls/pdf/скан на месте не правятся ' +
-    '(status=unsupported_format) - предложите xlsx-копию и делайте её только с согласия ' +
-    'сотрудника. status=too_large - файл или правки не приняты по размеру: передайте совет ' +
-    'из message сотруднику, исходный файл новой таблицей не подменять. ' +
+    'no_coordinates - предложите прислать файл заново. pptx: цены в таблицах слайдов, шрифт и ' +
+    'вёрстка сохраняются; цены в картинках, диаграммах и SmartArt не правятся (skipped). ' +
+    'pdf с текстовым слоем: новая цена накладывается на место старой тем же шрифтом, при ' +
+    'любом сомнении (цена найдена не однозначно, нет цифр в шрифте, не помещается, проверка ' +
+    'после записи) файл НЕ отправляется. Старый ppt приводится к pptx, и сотруднику уходит ' +
+    'pptx (скажите ему об этом). xls, скан, зашифрованный/подписанный pdf и отказ проверок ' +
+    '(status=unsupported_format, причины в message и skipped) - предложите xlsx-копию и ' +
+    'делайте её только с согласия сотрудника. status=too_large - файл или правки не приняты ' +
+    'по размеру: передайте совет из message сотруднику, исходный файл новой таблицей не подменять. ' +
     'Число знаков после запятой в новых ценах по умолчанию как в исходной ячейке; если ' +
     'сотрудник просит округлить («до 1 знака», «до целых»), передайте decimals (0-4). ' +
     'Сообщайте сотруднику message и числа из ответа дословно: сколько изменено и что ' +
@@ -509,9 +573,31 @@ export const editPricesInSourceFile = defineTool<EditInput, EditOutput, PricesDe
           message: TOO_LARGE_MESSAGES[error.reason],
         };
       }
+      if (isPriceEditRefusedError(error)) {
+        const skipped = error.reasons.map((reason) => ({
+          position:
+            reason.row === undefined
+              ? 'файл'
+              : (keyAt.get(`${reason.table ?? ''}:${reason.row}`) ?? `строка ${reason.row}`),
+          ...(reason.row === undefined ? {} : { row: reason.row }),
+          reason: REFUSAL_TEXTS[reason.code] ?? reason.code,
+        }));
+        return {
+          ...empty,
+          status: 'unsupported_format' as const,
+          skippedCount: skipped.length,
+          skipped: skipped.slice(0, MAX_SKIPPED_LISTED),
+          message: refusedMessage(error.reasons, keyAt),
+        };
+      }
       if (!isUnsupportedPriceFormatError(error)) throw error;
       return { ...empty, status: 'unsupported_format' as const, message: UNSUPPORTED_MESSAGE };
     }
+    // Старый .ppt приведён к pptx: имя и расширение отправляемого файла - по результату
+    const sendName =
+      edited.convertedFrom === undefined
+        ? fileName
+        : sourceFileName(supplier?.name ?? input.supplierId, day, edited.fileName);
     try {
       const skipped = [
         ...plan.skipped,
@@ -551,9 +637,9 @@ export const editPricesInSourceFile = defineTool<EditInput, EditOutput, PricesDe
         await deps.chat.sendFile(
           threadId,
           edited.disk === undefined
-            ? { name: fileName, mimeType: edited.mimeType, content: edited.bytes }
+            ? { name: sendName, mimeType: edited.mimeType, content: edited.bytes }
             : {
-                name: fileName,
+                name: sendName,
                 mimeType: edited.mimeType,
                 content: EMPTY_BYTES,
                 disk: edited.disk,
@@ -572,12 +658,13 @@ export const editPricesInSourceFile = defineTool<EditInput, EditOutput, PricesDe
         ...summary,
         status: 'sent' as const,
         delivered: true,
-        fileName,
+        fileName: sendName,
         message:
           `Файл отправлен без подписи. Изменено ячеек: ${edited.changed}, пропущено: ` +
           `${skipped.length}. В итоговом ответе скажи сам: сколько ячеек изменено и сколько ` +
           'пропущено, что исходный файл на диске не менялся, цены в базу не попали и внести их ' +
-          `нужно самому.${warnings.map((text) => ` ${text}`).join('')}`,
+          `нужно самому.${warnings.map((text) => ` ${text}`).join('')}` +
+          (edited.convertedFrom === undefined ? '' : ` ${CONVERTED_PPT_NOTE}`),
       };
     } finally {
       // Результат на диске - временный файл: убираем при любом исходе.
