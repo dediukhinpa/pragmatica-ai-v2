@@ -31,7 +31,9 @@
 Для `documents` режимы из `documents.json` продублированы переменными в
 `deploy/compose.project.yml` (`DOCUMENTS_EDIT_ENDPOINTS`, `DOCUMENTS_TEMPLATE_ENDPOINTS`,
 `DOCUMENTS_UNAMBIGUOUS_FRACTIONS`, по умолчанию `true`): прежний сервис держал их включёнными
-всегда. Лимиты `documents`/`indexer`, заданные в compose непустыми значениями, сильнее файла.
+всегда. Правка цен в pptx, PDF и старом .ppt (`DOCUMENTS_EDIT_PPTX`, `DOCUMENTS_EDIT_PDF`,
+`DOCUMENTS_PPT_CONVERT`) включена с патча G8x, встроенный шрифт PDF
+(`DOCUMENTS_EDIT_PDF_FALLBACK_FONT`) выключен. Лимиты `documents`/`indexer`, заданные в compose непустыми значениями, сильнее файла.
 
 ## Чего здесь нет
 

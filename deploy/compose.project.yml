@@ -136,6 +136,14 @@ services:
       DOCUMENTS_CONTRACT_CONCURRENCY: ${DOCUMENTS_CONTRACT_CONCURRENCY:-1}
       PSEUDONYMIZER_ADDRESS_MASK: ${PSEUDONYMIZER_ADDRESS_MASK:-on}
       DOCUMENTS_EDIT_ENDPOINTS: ${DOCUMENTS_EDIT_ENDPOINTS:-true}
+      # Правка цен на месте в pptx, PDF с текстовым слоем (наложение, при любом сомнении отказ)
+      # и старом .ppt (через конвертацию в pptx). Отключение: значение false в .env и
+      # `docker compose up -d documents`. Встроенный шрифт PDF вместо шрифта файла выключен:
+      # без нужных цифр в шрифте PDF файл отклоняется.
+      DOCUMENTS_EDIT_PPTX: ${DOCUMENTS_EDIT_PPTX:-true}
+      DOCUMENTS_EDIT_PDF: ${DOCUMENTS_EDIT_PDF:-true}
+      DOCUMENTS_EDIT_PDF_FALLBACK_FONT: ${DOCUMENTS_EDIT_PDF_FALLBACK_FONT:-false}
+      DOCUMENTS_PPT_CONVERT: ${DOCUMENTS_PPT_CONVERT:-true}
       DOCUMENTS_TEMPLATE_ENDPOINTS: ${DOCUMENTS_TEMPLATE_ENDPOINTS:-true}
       DOCUMENTS_UNAMBIGUOUS_FRACTIONS: ${DOCUMENTS_UNAMBIGUOUS_FRACTIONS:-true}
       DOCUMENTS_RENDER_CATEGORY: ${DOCUMENTS_RENDER_CATEGORY:-pragmatika-own-document}
