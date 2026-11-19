@@ -17,8 +17,10 @@ FROM ${BAI_DOCUMENTS_BASE}
 # без BuildKit его не знает.
 USER root
 # Тот же минимальный набор и та же закреплённая версия, что в платформенном documents.Dockerfile
-# при WITH_LIBREOFFICE=1: только Writer без интерфейса, без рекомендованных пакетов (Java, Base,
-# Calc, Impress, справка); шрифты с кириллицей (Liberation - метрики Times New Roman и Arial) нужны,
+# при WITH_LIBREOFFICE=1: Writer (договоры .doc и RTF) и Impress (старый .ppt в правке цен через
+# pptx; без него `DOCUMENTS_PPT_CONVERT` отвечает unsupported_format) без интерфейса и без
+# рекомендованных пакетов (Java, Base, Calc, справка); шрифты с кириллицей (Liberation - метрики
+# Times New Roman и Arial) нужны,
 # чтобы вёрстка после конвертации не разваливалась. Если зеркало Debian убрало эту версию, сборка
 # падает на этом шаге: проверьте `apt-cache policy libreoffice-writer-nogui` и обновите версию
 # осознанно (повторив проверку конвертации). Нужен доступ к deb.debian.org при сборке.
@@ -26,6 +28,7 @@ ARG LIBREOFFICE_VERSION=4:7.4.7-1+deb12u14
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         "libreoffice-writer-nogui=${LIBREOFFICE_VERSION}" \
+        "libreoffice-impress-nogui=${LIBREOFFICE_VERSION}" \
         fonts-dejavu-core fonts-liberation2 \
     && rm -rf /var/lib/apt/lists/*
 COPY --chown=root:root services/documents-docx/pragmatika_documents /app/pragmatika_documents
