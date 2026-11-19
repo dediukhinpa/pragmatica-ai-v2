@@ -16,6 +16,14 @@ business-ai 1.1.3, образ app `1.1.3-pragmatika.1`. Разбор перек�
 `1.1.3-pragmatika.2`. Применяет владелец по `OWNER-RUNBOOK.md` пакета (`patch.sh`, исходники
 `deploy/patch-8w/`). До G8w бой работает на ядре 1.1.3 и прежнем поведении.
 
+**Патч G8x (этап 8x)** ставится строго после G8w: обновляет платформу до 1.1.6 и меняет два
+контейнера: `documents` (`1.1.6-pragmatika.1`, в образе LibreOffice Impress и pypdf) и `app`
+(`1.1.6-pragmatika.1`). Агент прайсов правит цены в исходном pptx (таблицы и текстовые блоки), в
+PDF с текстовым слоем (наложением, при любом сомнении отказ с причинами, файл не выдаётся) и в
+старом .ppt (через pptx: сотруднику уходит pptx). Флаги documents `DOCUMENTS_EDIT_PPTX`,
+`DOCUMENTS_EDIT_PDF`, `DOCUMENTS_PPT_CONVERT` включены, `DOCUMENTS_EDIT_PDF_FALLBACK_FONT` выключен.
+Применяет владелец по `OWNER-RUNBOOK.md` пакета (`patch.sh`, исходники `deploy/patch-8x/`).
+
 Все операции на боевом хосте `pragmatika-ru` — красная зона: выполняет владелец. Перед любым
 изменением боя делать бэкап. Имена на бою неизменны: compose-проект `pragmatika`, тома
 `pragmatika_*`, контейнеры `pragmatika-<сервис>-1`, пути `/etc/pragmatika`, `/srv/pragmatika`,
