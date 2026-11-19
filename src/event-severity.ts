@@ -21,6 +21,13 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   own_signatory_refused: 'warning',
   own_signatory_not_found: 'warning',
   own_signatory_substituted: 'info',
+  // Этап 8y: подписант нашей стороны назван сотрудником для одного договора (запись юрлица не
+  // меняется); файл с неподставленными значениями не отправлен (fail closed, значений в поле нет);
+  // в тексте инструмента найдены слова «токен/метка» (только счётчик, текст не меняется).
+  own_signatory_override: 'info',
+  contract_number_edited: 'info',
+  outgoing_file_refused: 'warning',
+  reply_language_flagged: 'info',
   own_requisites_updated: 'info',
   own_requisites_read_failed: 'warning',
   // Запись реквизитов прошла, а закрыть заявку подтверждения не удалось (повтор её закроет).

@@ -19,6 +19,8 @@ import { ORDER_CALC_AGENT_ID } from '../agents/order-calc';
 import { createOrderCalcAgent } from '../agents/order-calc/declaration';
 import type { OrderCalcDeps } from '../agents/order-calc';
 import { createDocumentsAgent } from '../agents/documents/declaration';
+import { guardOutgoingFiles } from '../outgoing-guard';
+import { REPLY_LANGUAGE_PROMPT_RULE, guardReplyLanguage } from '../reply-language';
 import { DOCUMENTS_AGENT_ID, type DocumentsDeps } from '../agents/documents/deps';
 import { ownRequisitesFromRepository } from '../agents/documents/own-requisites';
 import { PRICES_AGENT_ID, type PricesDeps } from '../agents/prices/deps';
@@ -96,7 +98,11 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
   assertCrossChecks(project, { employeeMailboxEnabled: config.agents.employeeMailboxEnabled });
   const own = pragmatikaPortsOf(external.extra);
   const files = buildFiles(ctx);
-  const { clock, state, chat } = services;
+  const { clock, state } = services;
+  // Файлы и тексты, которые инструменты агентов отправляют сотруднику, проходят проверку: файл с
+  // неподставленными служебными знаками не уходит (fail closed), в ответах нет слов «токен»,
+  // «метка», «условное обозначение» (этап 8y).
+  const chat = guardedChat(services.chat, services.log);
   const managerThreadId = managerThreadOf(ctx);
   const secret = config.pseudonymizer.apiToken;
   if (secret === undefined) throw new Error('Не задан PSEUDONYMIZER_API_TOKEN');
@@ -273,7 +279,7 @@ function buildDocumentsDeps(
     knowledge: own.knowledge,
     renderer: services.renderer,
     suppliers: own.suppliers,
-    chat: services.chat,
+    chat: guardedChat(services.chat, services.log),
     ownCompanyNames: project.OWN_COMPANY_NAMES,
     ownCompanyRequisites: project.OWN_COMPANY_REQUISITES ?? [],
     ...(project.TEMPLATES_PREFIX === undefined
@@ -499,7 +505,7 @@ function wireSupplierCards(
   }
   const cardsDeps: SupplierCardsDeps = {
     suppliers: own.suppliers,
-    chat: services.chat,
+    chat: guardedChat(services.chat, services.log),
     clock: services.clock,
     state: services.state,
     pairNotes: services.pairNotes ?? own.pairNotes,
@@ -552,7 +558,7 @@ function wireMailProposals(
     clock: services.clock,
     classifier: new ModelSupplierMailClassifier(modelsOf(ctx), ctx.modelOf(PRICES_AGENT_ID)),
     mailboxes,
-    chat: services.chat,
+    chat: guardedChat(services.chat, services.log),
     addresseeAgentId: ORDER_CALC_AGENT_ID,
     // Тред для сотрудника, не писавшего боту, строится по ключу бота «Поиск поставщика».
     botId: botOf(ctx, ORDER_CALC_AGENT_ID),
@@ -700,7 +706,38 @@ function declarationsOf(
     }),
   ];
   // Инструменты и общие блоки промпта - как в прежней сборке (модель настроена на них).
-  return restoreLegacyTools(declarations, {
+  const restored = restoreLegacyTools(declarations, {
     limitWarnings: config.agents.feedbackLimitWarnings,
   });
+  // Правило языка ответов - во все промпты агентов проекта, не только документов (этап 8y).
+  return restored.map((declaration) => ({
+    ...declaration,
+    prompt: `${declaration.prompt}\n${REPLY_LANGUAGE_PROMPT_RULE}\n`,
+  }));
+}
+
+type RawChat = Context['services']['chat'];
+const guardedChats = new WeakMap<RawChat, RawChat>();
+
+/**
+ * Канал для инструментов агентов: проверка исходящих файлов и языка ответов (этап 8y). Обёртка
+ * одна на канал: агенты и их помощники получают один и тот же объект.
+ */
+function guardedChat(chat: RawChat, log: Context['services']['log']): RawChat {
+  const known = guardedChats.get(chat);
+  if (known !== undefined) return known;
+  const guarded = guardReplyLanguage(
+    guardOutgoingFiles(chat, (info) =>
+      log('outgoing_file_refused', {
+        reason: info.reason ?? 'unresolved',
+        kinds: info.kinds.join(','),
+      }),
+    ),
+    // Только журнал: правило запрета слов - в промпте, текст инструментов не переписываем
+    // (слово «метка» бывает в названии товара).
+    (count) => log('reply_language_flagged', { count }),
+    { observeOnly: true },
+  );
+  guardedChats.set(chat, guarded);
+  return guarded;
 }
