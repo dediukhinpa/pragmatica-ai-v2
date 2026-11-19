@@ -11,7 +11,6 @@ from __future__ import annotations
 import base64
 import logging
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict
 from typing import Any, BinaryIO
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -41,11 +40,15 @@ from pragmatika_documents.contract_kind import (
     classify_contract,
 )
 from pragmatika_documents.docx_amend import (
+    DEFAULT_NUMBER_SEPARATOR,
     DOCX_MIME,
+    PARTY_CUSTOMER,
     AmendError,
+    NumberEdit,
     OwnRequisites,
     amend_counterparty_contract,
     read_party_block,
+    validate_number_edit,
 )
 from pragmatika_documents.docx_signatory import SignatoryForms, replace_signatory
 
@@ -71,18 +74,34 @@ class OwnRequisitesModel(BaseModel):
     lines: list[str] = Field(default_factory=list)
 
 
+class NumberEditModel(BaseModel):
+    """Просьба поправить номер договора (`number_edit`): допись или замена.
+
+    Режим и текст проверяет код (`validate_number_edit`), а не схема: отказ приходит в виде
+    `422 {"detail": {"error": "bad_request"}}`, как и остальные отказы /docx/amend.
+    """
+
+    mode: str
+    text: str
+    separator: str = DEFAULT_NUMBER_SEPARATOR
+
+
 class AmendContractParams(BaseModel):
     """Параметры /docx/amend без файла: поле `params` multipart-входа и часть JSON-тела.
 
-    Номер договора не меняется никогда, поэтому поля «наш номер» нет. Старый вызов с
-    `our_number` не падает: лишние поля принимаются и игнорируются, а обработчик пишет в журнал
-    только их имена (`extra="allow"`, значения в журнал не попадают).
+    Номер договора по умолчанию не меняется: он правится только при `number_edit` (решение
+    владельца 19.11.2026). Поля «наш номер» нет; старый вызов с `our_number` не падает: лишние
+    поля принимаются и игнорируются, а обработчик пишет в журнал только их имена
+    (`extra="allow"`, значения в журнал не попадают). `party` - в чей блок вписываются
+    реквизиты (`customer` по умолчанию | `executor`); значение проверяет код.
     """
 
     model_config = ConfigDict(extra="allow")
 
     file_name: str = Field(min_length=1)
     own_requisites: OwnRequisitesModel | None = None
+    party: str = PARTY_CUSTOMER
+    number_edit: NumberEditModel | None = None
 
 
 class AmendContractRequest(AmendContractParams):
@@ -189,12 +208,13 @@ def register_docx_routes(
 
     @app.post(ROUTE_AMEND)
     async def amend_contract(request: Request) -> Response:
-        """Дополняет договор исполнителя нашими реквизитами в сторону заказчика.
+        """Дополняет договор реквизитами (`party`: заказчик или исполнитель), правит номер.
 
-        Номер договора не меняется никогда. Текст исполнителя не удаляется и не заменяется
-        (проверяется после правки). Принимает docx, а также .doc и RTF (конвертируются), ответ
-        всегда docx. Отказ: 422 `{"detail": {"error": "<код>"}}`; время или размер - 413; спул
-        не принял файлы - 503 `spool_unavailable`.
+        Номер договора не меняется, пока не передан `number_edit`. Текст исполнителя не
+        удаляется и не заменяется (проверяется после правки). Принимает docx, а также .doc и RTF
+        (конвертируются), ответ всегда docx. В ответе `not_found` и `notes` - что найти не
+        удалось. Отказ: 422 `{"detail": {"error": "<код>"}}`; время или размер - 413; спул не
+        принял файлы - 503 `spool_unavailable`. Схема: `CONTRACT-8y.md`.
         """
 
         def run(data: Source, body: AmendContractParams, _sink: BinaryIO | None) -> dict[str, Any]:
@@ -204,6 +224,13 @@ def register_docx_routes(
                     "дополнение договора: лишние поля запроса игнорируются: %s",
                     ",".join(sorted(body.model_extra)),
                 )
+            # Просьба о номере проверяется до конвертации: плохой текст отклоняется сразу.
+            wanted = body.number_edit
+            edit = (
+                None if wanted is None else NumberEdit(wanted.mode, wanted.text, wanted.separator)
+            )
+            if edit is not None:
+                validate_number_edit(edit)
             # docx правится python-docx целиком в памяти: файл читается разом (договор, не прайс)
             prepared = prepare_docx(read_all(data), cfg.limits)
             own = (
@@ -211,13 +238,15 @@ def register_docx_routes(
                 if body.own_requisites is None
                 else OwnRequisites(body.own_requisites.name, tuple(body.own_requisites.lines))
             )
-            result = amend_counterparty_contract(prepared.content, own, cfg.limits)
+            result = amend_counterparty_contract(
+                prepared.content, own, cfg.limits, party=body.party, number_edit=edit
+            )
             stem = body.file_name.rsplit(".", 1)[0] if "." in body.file_name else body.file_name
             return {
                 "file_name": safe_file_name(stem, "docx"),
                 "mime_type": DOCX_MIME,
                 "converted_from": prepared.converted_from,
-                **asdict(result.report),
+                **result.report.as_dict(),
                 RESULT_CONTENT_KEY: result.content,
             }
 
