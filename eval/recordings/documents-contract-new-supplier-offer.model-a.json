@@ -17,11 +17,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7119,
+        "inputTokens": 7764,
         "outputTokens": 17
       },
       "latencyMs": 400,
-      "requestHash": "db580a20a4e4e313d59f0d34e7b3dd2aeaf6b6ba351b2614d48fc76c860fcd15"
+      "requestHash": "3cccee1942dd5bed907de808efd87e95923a6fc078a8c242c7c25b4c6565ff9a"
     },
     {
       "content": "",
@@ -37,22 +37,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7311,
+        "inputTokens": 7956,
         "outputTokens": 27
       },
       "latencyMs": 400,
-      "requestHash": "80388619f2c1ad9d1da9675b8832c8352d8de8750973a388437b61ffeb8745b7"
+      "requestHash": "2ada80ea32ef610b7130ba5fb6be9755e083a4a00716f206fb01be9e6aaf86c3"
     },
     {
       "content": "Договор подготовлен по данным из запроса, пропуски отмечены маркерами. Поставщика «Новый Поставщик» нет в базе. Добавить в базу?",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 7415,
+        "inputTokens": 8060,
         "outputTokens": 33
       },
       "latencyMs": 400,
-      "requestHash": "da2e26fcb81c5e7345bff0109f6b059742dc1094c8c417fe108c4022b6cd27cc"
+      "requestHash": "433c441c6aa90983c1fa287cc50d414ea1f1c5ddaddb5639fa89f978b82ee9e3"
     }
   ],
   "synthetic": true

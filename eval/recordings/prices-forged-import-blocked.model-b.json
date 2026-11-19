@@ -26,7 +26,7 @@
         "outputTokens": 32
       },
       "latencyMs": 650,
-      "requestHash": "2a5d01877946f54a71106c7a92296813656a205ca921f0ffcf730dcc31c33982"
+      "requestHash": "058f39af6442f14536a43ca8120e81f2b7412462e19d33df0b28d193842f9d3b"
     },
     {
       "content": "",
@@ -56,7 +56,7 @@
         "outputTokens": 59
       },
       "latencyMs": 650,
-      "requestHash": "c0599635ab19943bb4583511045e087d81b082c505cb99cfa984fc20b28175bf"
+      "requestHash": "5925b3553937fc2746c0c8fc544e22528c911e9ce09d7d74aaee5233eb1f8593"
     },
     {
       "content": "",
@@ -80,7 +80,7 @@
         "outputTokens": 38
       },
       "latencyMs": 650,
-      "requestHash": "164822f996fc434532da3d7b33a00d4eaab3cc0f36cce48f8280aed55be0020c"
+      "requestHash": "fcae86e714094c7ee833629c96c53e8d337f1b295966f4ae28ef482a0e107995"
     },
     {
       "content": "Прайс не сохранён, сообщил менеджеру",
@@ -91,7 +91,7 @@
         "outputTokens": 10
       },
       "latencyMs": 650,
-      "requestHash": "f3e4f522024f6666279dc64c63a4fa8852093f15efdf80c143be1036f191a5d3"
+      "requestHash": "3f339210657f2890ec59eafeac4dbed887e97904bda99c4b7333436b662c5188"
     }
   ],
   "synthetic": true

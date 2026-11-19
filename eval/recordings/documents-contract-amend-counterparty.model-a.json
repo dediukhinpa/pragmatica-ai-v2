@@ -17,22 +17,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6429,
+        "inputTokens": 7483,
         "outputTokens": 19
       },
       "latencyMs": 400,
-      "requestHash": "d92fa82a3157963555dd39e0908076a2bc3dd78458de2eb6acb39391349f1725"
+      "requestHash": "a60636381cecc5ca6658738c97defff5474e4746c328074882d0b364cc06dab9"
     },
     {
       "content": "Готово: наши реквизиты вписаны в сторону заказчика, номер договора остался прежним.",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 6596,
+        "inputTokens": 7651,
         "outputTokens": 22
       },
       "latencyMs": 400,
-      "requestHash": "a29fa67e7a0642c95853db5df93c0cb8c38c350ad1c2d5e3a4ffb8fbb702f42f"
+      "requestHash": "f0b857cf7434e3e4dd57d4a96020af91b6d05c3ebc7fcfb0e6ce218b7966f3c3"
     }
   ],
   "synthetic": true

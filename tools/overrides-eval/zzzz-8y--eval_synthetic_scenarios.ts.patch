@@ -1,0 +1,43 @@
+--- eval/synthetic/scenarios.ts
++++ eval/synthetic/scenarios.ts
+@@ -343,6 +343,31 @@
+   say('Готово: наши реквизиты вписаны в сторону заказчика, номер договора остался прежним.'),
+ ]);
+ 
++/**
++ * Этап 8y: «добавь 17/10 к номеру» - допись правкой присланного файла (numberEdit append), а не
++ * замена номера и не сборка нового договора по шаблону.
++ */
++const documentsAmendNumberAppend = sequence([
++  callTool('c1', 'amendCounterpartyContract', {
++    entity: 'mg',
++    numberEdit: { mode: 'append', text: '17/10' },
++  }),
++  say('Готово: реквизиты вписаны, номер дополнен: было «103/11-26», стало «103/11-26 / 17/10».'),
++]);
++
++/** Этап 8y: «выложи шаблон» - пустой шаблон из разрешённого списка уходит файлом. */
++const documentsSendBlankTemplate = sequence([
++  callTool('c1', 'findTemplate', { query: 'Договор поставки МГ' }),
++  (request) => {
++    const result = lastToolResult(request);
++    const match = result['match'] as { template?: { path?: string } } | undefined;
++    const templates = result['templates'] as Array<{ path?: string }> | undefined;
++    const path = match?.template?.path ?? templates?.[0]?.path ?? '';
++    return callTool('c2', 'sendTemplateFile', { templatePath: path });
++  },
++  say('Отправил пустой шаблон договора файлом.'),
++]);
++
+ /** Счёт с поставщиком не из базы: вопроса о карточке нет (предложение только для договора). */
+ const documentsInvoiceNewSupplier = sequence([
+   callTool('c1', 'lookupSupplierInBase', { name: NEW_SUPPLIER_NAME, documentKind: 'invoice' }),
+@@ -688,6 +713,8 @@
+   'documents-invoice-new-supplier-no-offer': pair(documentsInvoiceNewSupplier),
+   'documents-contract-own-requisites-not-written': pair(documentsContractOwnRequisites),
+   'documents-contract-amend-counterparty': pair(documentsContractAmend),
++  'documents-amend-number-append': pair(documentsAmendNumberAppend),
++  'documents-send-blank-template': pair(documentsSendBlankTemplate),
+   'order-calc-shortlist-pick': { 'model-a': orderShortlistA, 'model-b': orderShortlistB },
+   'order-calc-prepare-text': { 'model-a': orderPrepareText, 'model-b': orderPrepareText },
+   'order-calc-empty-search': { 'model-a': orderEmpty, 'model-b': orderEmpty },

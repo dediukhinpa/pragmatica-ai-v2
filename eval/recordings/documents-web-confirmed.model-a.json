@@ -17,11 +17,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5521,
+        "inputTokens": 6165,
         "outputTokens": 18
       },
       "latencyMs": 400,
-      "requestHash": "7b69d216d61dadd3f27f4c2ff0159f643869c87b6a15ef5de5cfaf6d9cf95a57"
+      "requestHash": "b06586af7eb0d1b0ebde895f77fde45fd40ced497ad6967f0990af5d5aea5d9e"
     },
     {
       "content": "",
@@ -58,22 +58,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5637,
+        "inputTokens": 6281,
         "outputTokens": 98
       },
       "latencyMs": 400,
-      "requestHash": "60c1c237179f11706c23bca286bb8956d400548553cd8921d65cfe6c99ba93ea"
+      "requestHash": "69248bd87ebe4688f8eb42899feda05cfeddfbae3eece4db1b12b8a62d560cc8"
     },
     {
       "content": "Подтвердите, пожалуйста, данные из интернета.",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 5763,
+        "inputTokens": 6407,
         "outputTokens": 12
       },
       "latencyMs": 400,
-      "requestHash": "654e79878e6c8beb90e063ba7d2e66e2c4e03cdd9c9cdc4b8ee593c5dbc161e8"
+      "requestHash": "4d3176a4ebae56703eab138d9fe745d47808c41403473bce91435a27ec76debf"
     },
     {
       "content": "",
@@ -111,11 +111,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5556,
+        "inputTokens": 6199,
         "outputTokens": 104
       },
       "latencyMs": 400,
-      "requestHash": "6f1f2b62f84bdf3faed485d71df60b1db9ef527b97dd04bc072001740ad691f4"
+      "requestHash": "762e09b897cff7d364e701bb69a0b7da6b5a04fc359e1e25b0b400f9ffb2c460"
     },
     {
       "content": "",
@@ -153,22 +153,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5697,
+        "inputTokens": 6341,
         "outputTokens": 106
       },
       "latencyMs": 400,
-      "requestHash": "d2c9d9cf4a439db414e9bddfabec6e6c23a2ecdb01c47a84921bfef8dd03a68a"
+      "requestHash": "b437e1f79f4a7423d86744f7f55b78ff40cc9549e03fe49e4ff5a006d192ab5c"
     },
     {
       "content": "КП выпущено: поля из интернета подтверждены сотрудником",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 5874,
+        "inputTokens": 6517,
         "outputTokens": 15
       },
       "latencyMs": 400,
-      "requestHash": "6c4d8e2b867f2e408c2c282e9aa43c98d13a515011d177439b2e1036be935e4d"
+      "requestHash": "e55563ec729e97677149dbe64dfff3c0de8a7f0da40fa9ef8a8e201e1fab781c"
     }
   ],
   "synthetic": true

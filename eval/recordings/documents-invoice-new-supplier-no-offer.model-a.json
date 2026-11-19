@@ -18,22 +18,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7119,
+        "inputTokens": 7764,
         "outputTokens": 27
       },
       "latencyMs": 400,
-      "requestHash": "4dcc0267f21473be62da981a9abe5819def096fe91ee599e485661b52163294d"
+      "requestHash": "593332bb723c7526a1e434195383b4ea4fa30f30cb529ffe551b58b64abe3b6b"
     },
     {
       "content": "Счёт подготовлен по данным из запроса.",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 7219,
+        "inputTokens": 7864,
         "outputTokens": 10
       },
       "latencyMs": 400,
-      "requestHash": "70ea88cebe7245b1dbffda1071a7e40ec8633d3ea713dade9872c5b7aa011cc7"
+      "requestHash": "58d5e6aa887ed626382e86d5f8bae73e9c77a03957997cf4b76765607cb5be8d"
     }
   ],
   "synthetic": true

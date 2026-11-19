@@ -1,0 +1,47 @@
+{
+  "id": "documents-send-blank-template",
+  "agent": "documents",
+  "description": "Этап 8y (п. 4): «выложи шаблон» - агент находит шаблон из разрешённого списка и отправляет пустой файл в чат, без допроса и без сборки документа.",
+  "request": "Выложи шаблон договора поставки Мастер Гифтс файлом. Ответственная — Ольга Белова, +7 (916) 222-33-44.",
+  "state": {
+    "files": [
+      {
+        "path": "2026_МГ_Шаблон_Договора_на_поставку_контрактной_продукции.docx",
+        "text": "Заказчик:\nООО «Ромашка-Тест»\n\nИсполнитель:\n{{seller}}"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 4,
+    "requiredTools": [
+      "findTemplate",
+      "sendTemplateFile"
+    ],
+    "forbiddenTools": [
+      "fillTemplate",
+      "saveDocument",
+      "prepareSupplierDocument"
+    ],
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 1
+      },
+      {
+        "probe": "chatFileContains",
+        "arg": "{{seller}}",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Белова",
+      "Ольга"
+    ],
+    "phones": [
+      "+7 (916) 222-33-44"
+    ]
+  }
+}

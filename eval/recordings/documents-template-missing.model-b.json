@@ -40,22 +40,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5507,
+        "inputTokens": 6150,
         "outputTokens": 108
       },
       "latencyMs": 650,
-      "requestHash": "b00cfc4d27aec97411847ba2af5a9d989a0dd55094b1f47a67bc4555b2668d34"
+      "requestHash": "2af4aeda022ba7de26554b0b0cf25223c2e23b645ecb21a675d0f9ff793755df"
     },
     {
       "content": "Акт сверки выпущен",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 5849,
+        "inputTokens": 6492,
         "outputTokens": 5
       },
       "latencyMs": 650,
-      "requestHash": "a70d65da734e9e3c4080d20848498c1e2410e93fa617b37ba8d78a0b336eeca9"
+      "requestHash": "f40cd091c5f2940de03f1bdbbbbb184f578b6f021fb4312bac6ce8cbdd5dcae0"
     }
   ],
   "synthetic": true

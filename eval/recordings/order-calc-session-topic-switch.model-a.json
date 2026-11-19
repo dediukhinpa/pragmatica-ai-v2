@@ -21,7 +21,7 @@
         "outputTokens": 22
       },
       "latencyMs": 400,
-      "requestHash": "1d559d6a2df9e43820d271b6872329efa279aef9f657f096d78e799617666bb2"
+      "requestHash": "a40d8d48e84a9e9c437b4a4d35ea69f1e1e38c42b902fb92339e33471988bf7e"
     },
     {
       "content": "Заявка req-2: поиск по базе выполнен, рассылку не запускаю, жду вашего уточнения",
@@ -32,7 +32,7 @@
         "outputTokens": 21
       },
       "latencyMs": 400,
-      "requestHash": "0ba00d5533483f32f0cadfcd08f5cba84aa31bfb844004ec9041c645f9a31a0a"
+      "requestHash": "174d878d5d6a6970d184520fb12137768d979c128f4c5ec60b840ba0c8093206"
     }
   ],
   "synthetic": true

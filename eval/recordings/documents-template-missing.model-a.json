@@ -17,22 +17,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5507,
+        "inputTokens": 6150,
         "outputTokens": 18
       },
       "latencyMs": 400,
-      "requestHash": "b00cfc4d27aec97411847ba2af5a9d989a0dd55094b1f47a67bc4555b2668d34"
+      "requestHash": "2af4aeda022ba7de26554b0b0cf25223c2e23b645ecb21a675d0f9ff793755df"
     },
     {
       "content": "Шаблона «акт сверки» нет. Какой шаблон взять или положить его на диск?",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 5577,
+        "inputTokens": 6221,
         "outputTokens": 18
       },
       "latencyMs": 400,
-      "requestHash": "4aab5b261627c862cb80c87774c69df5d5e80c810375b980c8b4117f323d53a4"
+      "requestHash": "e4a100ffe1615a182f48ffdfb16868f0bf2ae2ac016e3178edf3f94b99bea04b"
     }
   ],
   "synthetic": true

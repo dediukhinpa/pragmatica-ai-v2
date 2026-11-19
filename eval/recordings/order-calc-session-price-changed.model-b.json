@@ -21,7 +21,7 @@
         "outputTokens": 22
       },
       "latencyMs": 650,
-      "requestHash": "9b6b9f2aacd6817fc10eaacadaf193121185a44e3440dee4c63e19085171f996"
+      "requestHash": "1a60185d681ed11fcafe071dbc287581dc2caee26c148f3a1c46430520028f94"
     },
     {
       "content": "Перепроверил по базе: цена Болтик теперь 52 руб. за метр (с 25.10), в сводке была 48",
@@ -32,7 +32,7 @@
         "outputTokens": 22
       },
       "latencyMs": 650,
-      "requestHash": "836bc6a6e7cad8e99a092111e2d176b9ddd829dc230c922c918c9e84822a3feb"
+      "requestHash": "477be650bf1945ef74c5498f3ee0b8683f347bd944b13b4652990cd411b3ee59"
     }
   ],
   "synthetic": true

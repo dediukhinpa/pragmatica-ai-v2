@@ -17,11 +17,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5542,
+        "inputTokens": 6186,
         "outputTokens": 17
       },
       "latencyMs": 400,
-      "requestHash": "53ca7f42dc46e759c11a0de5f4735eeb01a2fb0cc88cce00d5ae9257c1087fe1"
+      "requestHash": "d6bddbf095dc2f5ac2b5a49751ca01fee7cee4c9c50aba1f4ad8d2525f009dd1"
     },
     {
       "content": "",
@@ -73,22 +73,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5734,
+        "inputTokens": 6378,
         "outputTokens": 201
       },
       "latencyMs": 400,
-      "requestHash": "853d43aa6849b747f67468f6b30aa34e373f3a4d5fdcbc58f9af7b4b7e881b47"
+      "requestHash": "ad2d0c8e908c82095eb5f07f2c5c4d83987e96756f9392fa811d2230fc450f48"
     },
     {
       "content": "Договор передан на проверку; подписант вписан с ваших слов, сверьте его с документами",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 6863,
+        "inputTokens": 7507,
         "outputTokens": 22
       },
       "latencyMs": 400,
-      "requestHash": "b7f9c91ab7469139a4ae77ba6fd1fedc9b5f43841d4a3f58e3624ddde4e50052"
+      "requestHash": "a5808e95ab25856b33c394f0845862c6991e81c31e9d093299f8367fe2abdef8"
     }
   ],
   "synthetic": true

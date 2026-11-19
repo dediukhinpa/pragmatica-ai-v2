@@ -17,11 +17,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5521,
+        "inputTokens": 6165,
         "outputTokens": 18
       },
       "latencyMs": 650,
-      "requestHash": "7b69d216d61dadd3f27f4c2ff0159f643869c87b6a15ef5de5cfaf6d9cf95a57"
+      "requestHash": "b06586af7eb0d1b0ebde895f77fde45fd40ced497ad6967f0990af5d5aea5d9e"
     },
     {
       "content": "",
@@ -59,22 +59,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5637,
+        "inputTokens": 6281,
         "outputTokens": 106
       },
       "latencyMs": 650,
-      "requestHash": "60c1c237179f11706c23bca286bb8956d400548553cd8921d65cfe6c99ba93ea"
+      "requestHash": "69248bd87ebe4688f8eb42899feda05cfeddfbae3eece4db1b12b8a62d560cc8"
     },
     {
       "content": "КП выпущено, но взято из интернета и не подтверждено: покупатель. Подтверждаете эти данные?",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 5858,
+        "inputTokens": 6502,
         "outputTokens": 24
       },
       "latencyMs": 650,
-      "requestHash": "cc51c7a461684fb14cb332322ff039ccd5254e4685f7d7a2efd2ae663e219223"
+      "requestHash": "20ab1fe03e34f871c5cecac717ff50be01117ed68c939a7241d756eee63870b8"
     }
   ],
   "synthetic": true

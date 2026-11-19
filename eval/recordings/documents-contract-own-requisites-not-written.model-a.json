@@ -18,11 +18,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7137,
+        "inputTokens": 7782,
         "outputTokens": 26
       },
       "latencyMs": 400,
-      "requestHash": "16fc057df6c2b2a25c47e9dd068ef51dd84983dfffdf902aa180c5905b0b4250"
+      "requestHash": "8a74dbcc616ea3a5266505351a8407ad76e99713d78412607d0ef761c2b5ce1c"
     },
     {
       "content": "",
@@ -40,11 +40,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7260,
+        "inputTokens": 7905,
         "outputTokens": 38
       },
       "latencyMs": 400,
-      "requestHash": "3702ce853dcdf2d11b70ff7160874a47ee492708a41f46a4d427ee3bcd1d7603"
+      "requestHash": "2fa6f61cbb224780dcfee3ab5fb824a98d9678375331f889633a482f4f92c48d"
     },
     {
       "content": "",
@@ -63,22 +63,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7538,
+        "inputTokens": 8183,
         "outputTokens": 48
       },
       "latencyMs": 400,
-      "requestHash": "4a6a7c2a785bab31569be61113d33e311d56de3caa1dd9d34449c439842702f6"
+      "requestHash": "4d5be30c4950f79927ce0e656efbcaa9e6b097d775bf313b29f039f238d22747"
     },
     {
       "content": "Договор подготовлен, карточка поставщика дополнена: сайт.",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 7710,
+        "inputTokens": 8355,
         "outputTokens": 15
       },
       "latencyMs": 400,
-      "requestHash": "d429e5674236b92f5bb64c19b84fa6149c9f61fc22a55b1dfd3ba62f8fe0568e"
+      "requestHash": "e4347b97e484a8a144373551045b09d84cebe5f14b1e36c21d0c2d336ed1cc29"
     }
   ],
   "synthetic": true

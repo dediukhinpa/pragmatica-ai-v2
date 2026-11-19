@@ -26,7 +26,7 @@
         "outputTokens": 32
       },
       "latencyMs": 400,
-      "requestHash": "2a5d01877946f54a71106c7a92296813656a205ca921f0ffcf730dcc31c33982"
+      "requestHash": "058f39af6442f14536a43ca8120e81f2b7412462e19d33df0b28d193842f9d3b"
     },
     {
       "content": "",
@@ -51,7 +51,7 @@
         "outputTokens": 39
       },
       "latencyMs": 400,
-      "requestHash": "c0599635ab19943bb4583511045e087d81b082c505cb99cfa984fc20b28175bf"
+      "requestHash": "5925b3553937fc2746c0c8fc544e22528c911e9ce09d7d74aaee5233eb1f8593"
     },
     {
       "content": "",
@@ -75,7 +75,7 @@
         "outputTokens": 38
       },
       "latencyMs": 400,
-      "requestHash": "078c0165d5cd8b308ec44f68509a51e38fb140b6aea0cd560701f534006a75c5"
+      "requestHash": "23824e6c8511b766ed707b0cb0461d3bd1ec62bd7793fa5e8336ce806742c6c1"
     },
     {
       "content": "Прайс не сохранён: файл не совпал с переданным хэшем",
@@ -86,7 +86,7 @@
         "outputTokens": 14
       },
       "latencyMs": 400,
-      "requestHash": "f3e4f522024f6666279dc64c63a4fa8852093f15efdf80c143be1036f191a5d3"
+      "requestHash": "3f339210657f2890ec59eafeac4dbed887e97904bda99c4b7333436b662c5188"
     }
   ],
   "synthetic": true

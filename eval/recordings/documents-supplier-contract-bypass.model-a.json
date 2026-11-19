@@ -17,11 +17,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5542,
+        "inputTokens": 6186,
         "outputTokens": 17
       },
       "latencyMs": 400,
-      "requestHash": "72ef7abb091808ca67b506b0ad4a3946dd65743606f3366ff21b792541cf9ee0"
+      "requestHash": "ceb012b94644ea2916c8a0260a46dc4992dc69d949c630a1c410edf97142afbf"
     },
     {
       "content": "",
@@ -62,22 +62,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5734,
+        "inputTokens": 6378,
         "outputTokens": 116
       },
       "latencyMs": 400,
-      "requestHash": "853d43aa6849b747f67468f6b30aa34e373f3a4d5fdcbc58f9af7b4b7e881b47"
+      "requestHash": "ad2d0c8e908c82095eb5f07f2c5c4d83987e96756f9392fa811d2230fc450f48"
     },
     {
       "content": "Договор выпущен с предупреждениями: у банка нет источника, документ с поставщиком нужно передать на проверку.",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 6013,
+        "inputTokens": 6657,
         "outputTokens": 28
       },
       "latencyMs": 400,
-      "requestHash": "d08d981e317d15aab10a4b8c69cbbd3910b584f67e274cbc00608cda4744c04f"
+      "requestHash": "02fa7eac4b07f88e9d479b7636076c2e14ab779167d57144eed0290a522e706c"
     }
   ],
   "synthetic": true

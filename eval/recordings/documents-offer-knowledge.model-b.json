@@ -17,11 +17,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5518,
+        "inputTokens": 6161,
         "outputTokens": 18
       },
       "latencyMs": 650,
-      "requestHash": "3636d42f201e340644ede779a1216b5ccdbfa577554410ad26cc1894b126e50b"
+      "requestHash": "c811fdacbec9b3f33e80ec5807f380ff0294bf70e64e0c6f54d346fd233eb7a5"
     },
     {
       "content": "",
@@ -59,22 +59,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5634,
+        "inputTokens": 6277,
         "outputTokens": 108
       },
       "latencyMs": 650,
-      "requestHash": "60c1c237179f11706c23bca286bb8956d400548553cd8921d65cfe6c99ba93ea"
+      "requestHash": "69248bd87ebe4688f8eb42899feda05cfeddfbae3eece4db1b12b8a62d560cc8"
     },
     {
       "content": "КП выпущено: данные из базы знаний",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 5812,
+        "inputTokens": 6456,
         "outputTokens": 9
       },
       "latencyMs": 650,
-      "requestHash": "9ba8d95434826488ef069f604014fe7cb64275d5a3035d3648bf4950c586fca1"
+      "requestHash": "ee9cef01c5e3a7199e82d9c4b8049988e6c2d5e1a6374c1d4d93805445199426"
     }
   ],
   "synthetic": true

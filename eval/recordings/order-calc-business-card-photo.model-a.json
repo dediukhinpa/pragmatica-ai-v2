@@ -19,7 +19,7 @@
         "outputTokens": 15
       },
       "latencyMs": 400,
-      "requestHash": "ba0693f0770fbc2c40877232204e9cf04c9c66c47ca09060994c1e10756cddec"
+      "requestHash": "4cfe118170cb42f3c41d46a21a401f03dfe0ab5c71eb4cbf9326261c5deadff5"
     },
     {
       "content": "",
@@ -38,7 +38,7 @@
         "outputTokens": 19
       },
       "latencyMs": 400,
-      "requestHash": "cf798f9ef525b77a7458418c75907573cb167f1bf71c53053d09c1e8e60d53b7"
+      "requestHash": "3ef22734c0b3409b9264a178c05f0fb6c8beb5d1e059808e978f4e00b95a0043"
     },
     {
       "content": "",
@@ -58,7 +58,7 @@
         "outputTokens": 62
       },
       "latencyMs": 400,
-      "requestHash": "015baf24f19802544ea788dc535054009ed7f87804d698cfbededc9e673024fa"
+      "requestHash": "d4efe1cb4fe0416a9b4124af45afa699b0a5525a446488c0df6e87a0a2c0cacb"
     },
     {
       "content": "Завёл карточку поставщика по визитке. Проверьте её в общей базе.",
@@ -69,7 +69,7 @@
         "outputTokens": 17
       },
       "latencyMs": 400,
-      "requestHash": "bf17e0148abf886fbd9dfa11e314dcf72768eb7cede0d503cbba91295dcff1dd"
+      "requestHash": "186e75a7f35f1723ed2229b4ad7feda2bc847fb4ce0211f4eda196906834900d"
     }
   ],
   "synthetic": true
