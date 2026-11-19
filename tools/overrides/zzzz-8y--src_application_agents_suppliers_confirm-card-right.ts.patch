@@ -1,0 +1,44 @@
+--- src/application/agents/suppliers/confirm-card-right.ts
++++ src/application/agents/suppliers/confirm-card-right.ts
+@@ -1,4 +1,5 @@
+ import { ACTION_CONFIRM_SUPPLIER_CARD } from '../../../domain/access.owned';
++import { ACTION_MANAGE_SUPPLIER_CARDS } from '../../access-actions';
+ import { DomainError } from '@business-ai/core';
+ import type { AccessPolicy } from '@business-ai/core';
+ 
+@@ -12,9 +13,13 @@
+ /** Причина решения политики, означающая сбой справочника, а не отказ сотруднику. */
+ const DIRECTORY_UNAVAILABLE = 'directory_unavailable';
+ 
+-/** Текст для не-руководителя: карточку в общей базе заводит руководитель отдела. */
++/**
++ * Текст для сотрудника без права: карточку в общей базе заводят руководитель отдела и менеджеры
++ * закупок, которым выдан доступ (этап 8y).
++ */
+ export const CONFIRM_CARD_DENIED_TEXT =
+-  'Завести карточку в общей базе может руководитель отдела: передайте данные ему.';
++  'Завести карточку в общей базе может руководитель отдела или менеджер закупок с доступом: ' +
++  'передайте данные им.';
+ /** Текст про временный сбой проверки права: это не отказ, повтор после восстановления пройдёт. */
+ export const CONFIRM_CARD_UNAVAILABLE_TEXT =
+   'Не удалось проверить, что сотрудник руководитель отдела: справочник временно недоступен. ' +
+@@ -39,7 +44,18 @@
+   request: { userId: string; botId: string },
+ ): Promise<ConfirmCardVerdict> {
+   if (access === undefined) return 'denied';
+-  const full = { ...request, action: ACTION_CONFIRM_SUPPLIER_CARD };
++  const head = await verdictFor(access, { ...request, action: ACTION_CONFIRM_SUPPLIER_CARD });
++  if (head !== 'denied') return head;
++  // Менеджеры закупок (отдел и личный список из правила политики): отдельное действие, закрытое
++  // по умолчанию, пока в политике нет явного allow (этап 8y). Руководители проходят выше.
++  return verdictFor(access, { ...request, action: ACTION_MANAGE_SUPPLIER_CARDS });
++}
++
++/** Решение политики по одному действию; любой сбой - `unavailable`, доступ не открывается. */
++async function verdictFor(
++  access: AccessPolicy,
++  full: { userId: string; botId: string; action: string },
++): Promise<ConfirmCardVerdict> {
+   try {
+     if (access.decide === undefined) return (await access.isAllowed(full)) ? 'allowed' : 'denied';
+     const decision = await access.decide(full);

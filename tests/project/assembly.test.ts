@@ -30,6 +30,8 @@ const BASELINE_MINIMAL_TOOLS: Record<string, readonly string[]> = {
     'searchContractRegistry',
     'searchConversationHistory',
     'searchInternet',
+    // Этап 8y: «выложи шаблон» - пустой шаблон файлом (допустимое отличие от эталона).
+    'sendTemplateFile',
     'validateDocument',
   ],
   'order-calc': [

@@ -47,7 +47,7 @@ export const fillTemplate = defineTool<FillTemplateInput, FillTemplateOutput, Do
     // Этап 230: напечатанные в шаблоне наши реквизиты должны совпадать с записью БД.
     await assertTemplateOwnSideMatches(deps, printed, context.signal);
     // Подписант нашей стороны - из записи БД (в шаблоне на шаре напечатан прежний).
-    const template = await applyOwnSignatory(deps, printed, context.signal);
+    const template = await applyOwnSignatory(deps, printed, context.signal, input.document);
     // Незаполненные плейсхолдеры шаблона = UnfilledPlaceholdersError с перечнем missing.
     // Данных шаблона договора достаточно, иначе сотрудника спросят, а не оборвут сборку.
     // Номер привязан к операции (поставщик, заявка, шаблон, год): сборка и выпуск получат тот же.

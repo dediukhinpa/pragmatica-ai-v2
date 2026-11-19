@@ -1,0 +1,102 @@
+--- src/adapters/memory/contract-amender.ts
++++ src/adapters/memory/contract-amender.ts
+@@ -87,6 +87,37 @@
+   return block;
+ }
+ 
++/** Номер договора в строке заглушки: «№ 103/11-26» (первые строки документа). */
++const NUMBER_PATTERN = /№\s*(.+?)(?=\s+от\s|$)/u;
++/** Сколько первых строк просматривается при поиске номера, как в сервисе. */
++const NUMBER_SEARCH_LINES = 12;
++
++/** Правка номера в тексте заглушки: допись или замена; те же итоги, что у сервиса. */
++function editNumber(
++  lines: string[],
++  edit: NonNullable<AmendContractRequest['numberEdit']>,
++): {
++  status: 'appended' | 'replaced' | 'unchanged' | 'not_found';
++  before: string | null;
++  after: string | null;
++} {
++  const index = lines
++    .slice(0, NUMBER_SEARCH_LINES)
++    .findIndex((line) => NUMBER_PATTERN.test(line));
++  const line = lines[index] ?? '';
++  const before = NUMBER_PATTERN.exec(line)?.[1];
++  if (index < 0 || before === undefined || /^_+$/u.test(before)) {
++    return { status: 'not_found', before: null, after: null };
++  }
++  const separator = edit.separator ?? ' / ';
++  if (edit.mode === 'append' && before.endsWith(edit.text)) {
++    return { status: 'unchanged', before, after: before };
++  }
++  const after = edit.mode === 'append' ? `${before}${separator}${edit.text}` : edit.text;
++  lines[index] = line.replace(before, after);
++  return { status: edit.mode === 'append' ? 'appended' : 'replaced', before, after };
++}
++
+ /**
+  * Заглушка дополнения договора для тестов: «договор» - обычный текст. Под строкой «Заказчик:»
+  * (если после неё нет текста) добавляются наши строки; номер договора не меняется никогда.
+@@ -100,14 +131,30 @@
+       throw new ContractAmendRefusedError('unsupported_format');
+     }
+     const lines = linesOf(request.bytes);
+-    const index = lines.findIndex((line) => line.trim() === CUSTOMER_HEADING);
+-    if (index < 0) throw new ContractAmendRefusedError('customer_block_not_found');
+-    if ((lines[index + 1] ?? '').trim() !== '') {
+-      throw new ContractAmendRefusedError('customer_block_filled');
++    const party = request.party ?? 'customer';
++    const heading = party === 'executor' ? EXECUTOR_HEADING : CUSTOMER_HEADING;
++    const notFound: string[] = [];
++    let added = 0;
++    if (request.own !== undefined) {
++      const index = lines.findIndex((line) => line.trim() === heading);
++      if (index < 0 && party === 'customer') {
++        throw new ContractAmendRefusedError('customer_block_not_found');
++      }
++      if (index < 0) {
++        notFound.push('party_block');
++      } else if ((lines[index + 1] ?? '').trim() !== '') {
++        // Заказчика не затираем (отказ), исполнителя только пропускаем: пустых мест нет.
++        if (party === 'customer') throw new ContractAmendRefusedError('customer_block_filled');
++        notFound.push('placeholders');
++      } else {
++        const { name, lines: ownLines } = request.own;
++        const own = [name, ...ownLines.filter((line) => line !== name)];
++        lines.splice(index + 1, 0, ...own);
++        added = own.length;
++      }
+     }
+-    const { name, lines: ownLines } = request.own;
+-    const own = [name, ...ownLines.filter((line) => line !== name)];
+-    lines.splice(index + 1, 0, ...own);
++    const number = request.numberEdit === undefined ? undefined : editNumber(lines, request.numberEdit);
++    if (number?.status === 'not_found') notFound.push('number');
+     return {
+       fileName:
+         convertedFrom === null
+@@ -117,11 +164,21 @@
+       bytes: new TextEncoder().encode(lines.join('\n')),
+       convertedFrom,
+       preambleFilled: false,
+-      customerBlockFilled: true,
++      customerBlockFilled: party === 'customer' && added > 0,
+       placeholdersFilled: 0,
+-      linesAdded: own.length,
++      linesAdded: added,
+       unfilledPlaceholders: 0,
+       notes: [],
++      party,
++      partyBlockFilled: added > 0,
++      notFound,
++      ...(number === undefined
++        ? {}
++        : {
++            numberStatus: number.status,
++            numberBefore: number.before,
++            numberAfter: number.after,
++          }),
+     };
+   }
+ 

@@ -49,8 +49,8 @@ const PARTY_BLOCK_FILE_NAME = 'contract.docx';
 /** Из какого формата сервис привёл файл к docx (`null` - файл уже был docx). */
 const convertedFrom = z.enum(['doc', 'rtf']).nullable();
 
-// Номерных полей в ответе нет: номер договора поставщика не меняется. Лишние поля старого
-// сервиса при выкатке по частям zod отбрасывает сам.
+// Поля этапа 8y (сторона, not_found, итог правки номера) необязательны: старый сервис при выкатке
+// по частям их не присылает. Лишние поля zod отбрасывает сам.
 const amendResponse = z.object({
   file_name: z.string().min(1),
   mime_type: z.string().min(1),
@@ -63,6 +63,14 @@ const amendResponse = z.object({
   lines_added: z.number().int().nonnegative(),
   unfilled_placeholders: z.number().int().nonnegative(),
   notes: z.array(z.string()),
+  party: z.enum(['customer', 'executor']).optional(),
+  party_block_filled: z.boolean().optional(),
+  not_found: z.array(z.string()).optional(),
+  number_status: z
+    .enum(['unchanged', 'appended', 'replaced', 'not_found', 'ambiguous'])
+    .optional(),
+  number_before: z.string().nullable().optional(),
+  number_after: z.string().nullable().optional(),
 });
 
 const partyBlockResponse = z.object({ name: z.string(), lines: z.array(z.string()) });
@@ -184,7 +192,21 @@ export class HttpContractAmender implements ContractAmender {
       bytes: request.bytes,
       params: {
         file_name: request.fileName,
-        own_requisites: { name: request.own.name, lines: [...request.own.lines] },
+        ...(request.own === undefined
+          ? {}
+          : { own_requisites: { name: request.own.name, lines: [...request.own.lines] } }),
+        ...(request.party === undefined ? {} : { party: request.party }),
+        ...(request.numberEdit === undefined
+          ? {}
+          : {
+              number_edit: {
+                mode: request.numberEdit.mode,
+                text: request.numberEdit.text,
+                ...(request.numberEdit.separator === undefined
+                  ? {}
+                  : { separator: request.numberEdit.separator }),
+              },
+            }),
       },
     });
     const parsed = parseResponse(SERVICE, amendResponse, data);
@@ -199,6 +221,14 @@ export class HttpContractAmender implements ContractAmender {
       linesAdded: parsed.lines_added,
       unfilledPlaceholders: parsed.unfilled_placeholders,
       notes: parsed.notes,
+      ...(parsed.party === undefined ? {} : { party: parsed.party }),
+      ...(parsed.party_block_filled === undefined
+        ? {}
+        : { partyBlockFilled: parsed.party_block_filled }),
+      ...(parsed.not_found === undefined ? {} : { notFound: parsed.not_found }),
+      ...(parsed.number_status === undefined ? {} : { numberStatus: parsed.number_status }),
+      ...(parsed.number_before === undefined ? {} : { numberBefore: parsed.number_before }),
+      ...(parsed.number_after === undefined ? {} : { numberAfter: parsed.number_after }),
     };
   }
 

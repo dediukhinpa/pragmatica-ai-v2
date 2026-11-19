@@ -96,7 +96,7 @@ describe('карточка поставщика: подтверждение те
     world.deps.access = new MemoryAccessPolicy();
     const error = await showAlpha().catch((caught: unknown) => caught);
     expect(error).toMatchObject({ code: 'access_denied' });
-    expect(String((error as Error).message)).toContain('только руководители отделов');
+    expect(String((error as Error).message)).toContain('менеджеры закупок с доступом');
     const none = await confirmSupplierRequest.execute({ decision: 'save' }, world.host, ctxA());
     expect(none.status).toBe('nothing_pending');
     expect(await cards()).toBe(0);

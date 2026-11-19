@@ -1,0 +1,11 @@
+--- src/application/agents/documents/save-document.ts
++++ src/application/agents/documents/save-document.ts
+@@ -149,7 +149,7 @@
+     // Этап 230: напечатанные в шаблоне наши реквизиты должны совпадать с записью БД.
+     await assertTemplateOwnSideMatches(deps, printed, context.signal);
+     // Подписант нашей стороны - из записи БД (в шаблоне на шаре напечатан прежний).
+-    const template = await applyOwnSignatory(deps, printed, context.signal);
++    const template = await applyOwnSignatory(deps, printed, context.signal, input.document);
+     // Данных шаблона договора достаточно, иначе сотрудника спросят, а не оборвут сборку.
+     // Номер договора и текущий год задаёт код: значение модели в number перекрывается.
+     const resolved = await resolveRenderContext(input.document, deps, template.path, 'issue', {

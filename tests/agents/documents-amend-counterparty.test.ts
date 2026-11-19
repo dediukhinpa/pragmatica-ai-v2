@@ -138,7 +138,12 @@ describe('amendCounterpartyContract: дополнение присланного
       ourNumber: '17/10',
       addOwnRequisites: false,
     });
-    expect(Object.keys(parsed as object).sort()).toEqual(['entity', 'ourRole']);
+    expect(Object.keys(parsed as object).sort()).toEqual([
+      'entity',
+      'numberOnly',
+      'ourRole',
+      'party',
+    ]);
   });
 
   test('сотрудник просит «добавить наш номер»: номер в файл не попадает', async () => {
@@ -554,8 +559,11 @@ describe('декларация и промпт', () => {
 
   test('промпт: номер не меняется, вид документа решает код, при вопросе спросить', () => {
     expect(COUNTERPARTY_AMEND_PROMPT).toContain('amendCounterpartyContract');
-    expect(COUNTERPARTY_AMEND_PROMPT).toContain('нашу форму не собирай');
-    expect(COUNTERPARTY_AMEND_PROMPT).toContain('Номер договора поставщика не меняется');
+    expect(COUNTERPARTY_AMEND_PROMPT).toContain('НОВЫЙ договор по');
+    // Этап 8y: номер по явной просьбе - допись или замена; без просьбы не трогаем.
+    expect(COUNTERPARTY_AMEND_PROMPT).toContain('mode=append');
+    expect(COUNTERPARTY_AMEND_PROMPT).toContain('это НЕ');
+    expect(COUNTERPARTY_AMEND_PROMPT).toContain('Без просьбы не трогай');
     expect(COUNTERPARTY_AMEND_PROMPT).not.toContain('ourNumber');
     expect(COUNTERPARTY_AMEND_PROMPT).toContain('решает код, а не ты');
     expect(COUNTERPARTY_AMEND_PROMPT).toContain('kind_question');

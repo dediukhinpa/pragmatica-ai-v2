@@ -12,16 +12,38 @@ export interface OwnRequisites {
  */
 export type ConvertedFrom = 'doc' | 'rtf';
 
+/** Чья сторона в присланном договоре заполняется реквизитами (этап 8y). */
+export type AmendParty = 'customer' | 'executor';
+
 /**
- * Запрос дополнения присланного договора исполнителя нашими реквизитами. Номера договора в
- * запросе нет и не будет: номер поставщика не меняется никогда (решение владельца 08.11.2026).
+ * Просьба поправить номер договора (этап 8y, решение владельца 19.11.2026): допись к номеру
+ * («103/11-26» + «17/10») либо замена. Без явной просьбы номер не меняется.
+ */
+export interface NumberEdit {
+  mode: 'append' | 'replace';
+  text: string;
+  /** Только для `append`; сервис по умолчанию ставит « / ». */
+  separator?: string | undefined;
+}
+
+/** Что стало с номером договора после запрошенной правки. */
+export type NumberStatus = 'unchanged' | 'appended' | 'replaced' | 'not_found' | 'ambiguous';
+
+/**
+ * Запрос дополнения присланного договора исполнителя реквизитами и/или правки номера. Номер без
+ * явной просьбы (`numberEdit`) не меняется (решение владельца 08.11.2026; 19.11.2026: по просьбе
+ * допись и замена допустимы).
  */
 export interface AmendContractRequest {
   fileName: string;
   /** Байты docx, .doc или RTF: .doc и RTF сервис сначала конвертирует в docx. */
   bytes: Uint8Array;
-  /** Наши реквизиты для стороны заказчика. */
-  own: OwnRequisites;
+  /** Реквизиты для стороны `party`; нет - только правка номера. */
+  own?: OwnRequisites | undefined;
+  /** В чей блок вписать реквизиты; по умолчанию заказчика. */
+  party?: AmendParty | undefined;
+  /** Просьба поправить номер договора. */
+  numberEdit?: NumberEdit | undefined;
   /** Отмена хода: запрос к сервису обрывается сразу. */
   signal?: AbortSignal | undefined;
 }
@@ -40,6 +62,16 @@ export interface AmendReport {
   /** Заполнители в блоке заказчика, для которых у нас нет значения. */
   unfilledPlaceholders: number;
   notes: readonly string[];
+  /** Сторона, в которую вписывали (этап 8y); нет - заказчик. */
+  party?: AmendParty | undefined;
+  /** В блок стороны `party` что-то вписано (у заказчика совпадает с customerBlockFilled). */
+  partyBlockFilled?: boolean | undefined;
+  /** Что не найдено в документе (коды сервиса: preamble, party_block, number, ...). */
+  notFound?: readonly string[] | undefined;
+  /** Итог правки номера; нет - правки не просили. */
+  numberStatus?: NumberStatus | undefined;
+  numberBefore?: string | null | undefined;
+  numberAfter?: string | null | undefined;
 }
 
 /** Договор исполнителя, дополненный нашими данными (всегда docx). */

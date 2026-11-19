@@ -375,7 +375,7 @@ export const handoffForReview = defineTool<HandoffInput, HandoffOutput, Document
     // Этап 230: напечатанные в шаблоне наши реквизиты должны совпадать с записью БД.
     await assertTemplateOwnSideMatches(deps, printed, context.signal);
     // Подписант нашей стороны - из записи БД (в шаблоне на шаре напечатан прежний).
-    const template = await applyOwnSignatory(deps, printed, context.signal);
+    const template = await applyOwnSignatory(deps, printed, context.signal, doc);
     // Данных шаблона договора достаточно, иначе сотрудника спросят, а не оборвут сборку.
     // Номер договора и текущий год задаёт код: значение модели в number перекрывается.
     const resolved = await resolveRenderContext(doc, deps, template.path, 'issue', {

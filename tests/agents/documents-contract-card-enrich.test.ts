@@ -183,17 +183,19 @@ describe('documents: декларация дополнения карточки'
 });
 
 describe('documents: запись состояния для проверки источника и договора', () => {
-  test('чтение файлов чата запоминает текст только при дополнении карточки', () => {
-    const find = (agent: { tools: ReadonlyArray<{ name: string }> }) =>
-      agent.tools.find((tool) => tool.name === 'readChatAttachments');
-    const recorded = createDocumentsAgent({
+  test('чтение файлов чата идёт частями и само запоминает текст (этап 8y)', () => {
+    const names = (agent: { tools: ReadonlyArray<{ name: string }> }) =>
+      agent.tools.map((tool) => tool.name);
+    const withCards = createDocumentsAgent({
       model: 'm',
       supplierCards: {},
       chatAttachments: true,
     });
     const plain = createDocumentsAgent({ model: 'm', chatAttachments: true });
-    expect(find(recorded)).toBe(readChatAttachmentsRecorded);
-    expect(find(plain)).not.toBe(readChatAttachmentsRecorded);
+    for (const agent of [withCards, plain]) {
+      expect(names(agent)).toContain('readChatAttachmentsPaged');
+      expect(names(agent)).not.toContain('readChatAttachments');
+    }
   });
 
   test('записи чистятся по сроку вместе с остальным состоянием разговора', () => {

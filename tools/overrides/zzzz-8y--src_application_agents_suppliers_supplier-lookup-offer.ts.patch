@@ -1,0 +1,13 @@
+--- src/application/agents/suppliers/supplier-lookup-offer.ts
++++ src/application/agents/suppliers/supplier-lookup-offer.ts
+@@ -148,8 +148,8 @@
+ type Output = z.infer<typeof outputSchema>;
+ 
+ const NO_PERMISSION_TEXT =
+-  'Добавить в базу может только руководитель отдела; карточка не создана, ' +
+-  'работа продолжается.';
++  'Добавить в базу может руководитель отдела или менеджер закупок с доступом; карточка не ' +
++  'создана, работа продолжается.';
+ const UNAVAILABLE_TEXT =
+   'Предупреждение: база поставщиков недоступна, карточка не создана; работа продолжается.';
+ 

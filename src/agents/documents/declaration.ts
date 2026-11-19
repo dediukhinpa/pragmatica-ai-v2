@@ -3,15 +3,13 @@ import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
 import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
 import type { AgentDeclaration } from '@business-ai/core';
 import { withRequestRef } from '../order-calc/request-title';
-import {
-  readChatAttachments,
-  readChatAttachmentsRecorded,
-} from '../order-calc/read-chat-attachments';
 import { DOCUMENTS_AGENT_ID } from './deps';
 import { checkTemplateFieldsTool } from './check-template-fields';
 import { searchContractRegistry } from './contract-registry';
 import { fillTemplate } from './fill-template';
 import { findTemplate } from './find-template';
+import { sendTemplateFile } from '../../documents-template-sender';
+import { PAGED_READER_PROMPT, readChatAttachmentsPaged } from '../../documents-paged-reader';
 import { getSelectedQuote } from './get-selected-quote';
 import { getSupplierRequisites } from './get-supplier-requisites';
 import {
@@ -129,7 +127,7 @@ export function createDocumentsAgent(options: DocumentsAgentOptions): AgentDecla
     id: DOCUMENTS_AGENT_ID,
     prompt:
       buildDocumentsPrompt(kinds) +
-      (options.chatAttachments === true ? CHAT_ATTACHMENTS_PROMPT : '') +
+      (options.chatAttachments === true ? CHAT_ATTACHMENTS_PROMPT + PAGED_READER_PROMPT : '') +
       // Общий абзац про enrichSupplierCard агенту не нужен: его инструмент ограничен договором
       // и описан в своём разделе (этап 219).
       (supplierCards === undefined ? '' : SUPPLIER_CARDS_PROMPT_WITHOUT_ENRICH) +
@@ -146,6 +144,8 @@ export function createDocumentsAgent(options: DocumentsAgentOptions): AgentDecla
     greeting: withButtons ? withSupplierCardsGreeting(greeting) : greeting,
     tools: [
       findTemplate,
+      // «Выложи шаблон»: пустой шаблон из разрешённого списка файлом (этап 8y).
+      sendTemplateFile,
       getSupplierRequisites,
       // Поиск по базе нужен и без полного набора карточек (этап 182); без deps он unavailable.
       // Предложение завести карточку - только для договора (этап 219): своя обёртка поиска.
@@ -167,9 +167,10 @@ export function createDocumentsAgent(options: DocumentsAgentOptions): AgentDecla
       recordWebFieldsDecision,
       // С дополнением карточки текст прочитанных файлов запоминается: sourceText принимается
       // только из него (этап 219).
-      ...(options.chatAttachments === true
-        ? [withContractEnrich ? readChatAttachmentsRecorded : readChatAttachments]
-        : []),
+      // Файлы чата читаются частями до конца (этап 8y): прежний инструмент обрезал текст на
+      // 8000 знаках, и проверка длинного договора обрывалась на середине. Запоминание текста для
+      // дополнения карточки инструмент выполняет сам.
+      ...(options.chatAttachments === true ? [readChatAttachmentsPaged] : []),
       ...(options.dataScript === true ? [runDataScript] : []),
       ...(supplierCards === undefined ? [] : supplierCardsToolsWithoutEnrich()),
       ...(withContractEnrich ? [enrichSupplierCardFromContract] : []),

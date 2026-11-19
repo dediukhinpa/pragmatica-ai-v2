@@ -1,0 +1,13 @@
+--- src/application/agents/documents/template-fields.ts
++++ src/application/agents/documents/template-fields.ts
+@@ -31,6 +31,10 @@
+  * КП либо вычисляет сам, поэтому через `templateFields` они не принимаются.
+  */
+ const EMPLOYEE_FIELD_QUESTIONS: Readonly<Record<string, string>> = {
++  // Подписант НАШЕЙ стороны только в этом договоре (этап 8y): запись юрлица не меняется, в шаблон
++  // эти ключи не попадают, их читает `applyOwnSignatory`.
++  own_signatory_name: 'Кто подписывает договор от нашей стороны: ФИО полностью?',
++  own_signatory_position: 'Какая должность у подписанта нашей стороны?',
+   seller_representative:
+     'Кто подписывает договор от поставщика: должность и ФИО в родительном падеже ' +
+     '(например, «генерального директора Иванова Ивана Ивановича»)?',

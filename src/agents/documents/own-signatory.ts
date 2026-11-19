@@ -2,6 +2,7 @@ import { CancelledError, DomainError } from '@business-ai/core';
 import { OWN_ENTITY_CODE_BY_ALIAS, OWN_ENTITY_TITLES } from '../../kit/domain/own-legal-entity';
 import { OwnSignatoryRefusedError, type OwnSignatoryRefusal } from '../../kit/domain/errors.owned';
 import type { OwnSignatoryForms } from '../../kit/ports/contract-amender';
+import type { DealDocument } from '../../kit/domain/models';
 import type { DocumentsDeps } from './deps';
 import type { OwnEntity } from '../../kit/ports/own-requisites';
 import type { AllowedTemplate } from './template-access';
@@ -134,31 +135,86 @@ export async function ownSignatoryForms(
   };
 }
 
+/** Ключи `templateFields` с подписантом нашей стороны только для этого договора (этап 8y). */
+export const OWN_SIGNATORY_NAME_KEY = 'own_signatory_name';
+export const OWN_SIGNATORY_POSITION_KEY = 'own_signatory_position';
+
+/** Подписант нашей стороны, названный сотрудником для одного договора. */
+export interface OwnSignatoryOverride {
+  name: string;
+  /** Должность; нет - берётся из записи юрлица. */
+  position?: string | undefined;
+}
+
 /**
- * Шаблон договора с подписантом нашей стороны из записи БД. Не из реестра шаблонов или источник
- * БД не подключён (флаг выключен) - шаблон возвращается как есть. Вызывать после
- * `assertTemplateOwnSideMatches` (запись юрлица уже проверена).
+ * Подписант нашей стороны «только в этом договоре»: команда «замени директора <наше юрлицо> на
+ * <ФИО>» меняет сторону Заказчика/нашу сторону в собираемом документе, запись `own_legal_entities`
+ * не трогает (постоянная смена - отдельный шаг с подтверждением, `proposeOwnRequisitesUpdate`).
+ */
+export function ownSignatoryOverrideOf(
+  document: Pick<DealDocument, 'templateFields'> | undefined,
+): OwnSignatoryOverride | undefined {
+  const fields = document?.templateFields;
+  const name = fields?.[OWN_SIGNATORY_NAME_KEY]?.trim() ?? '';
+  if (name === '') return undefined;
+  const position = fields?.[OWN_SIGNATORY_POSITION_KEY]?.trim() ?? '';
+  return { name, ...(position === '' ? {} : { position }) };
+}
+
+/**
+ * Шаблон договора с подписантом нашей стороны из записи БД (или названным сотрудником для этого
+ * договора). Не из реестра шаблонов или источник БД не подключён (флаг выключен) - шаблон
+ * возвращается как есть, а названный сотрудником подписант без источника БД отказом: молча
+ * оставить прежнего нельзя. Вызывать после `assertTemplateOwnSideMatches` (запись уже проверена).
  */
 export async function applyOwnSignatory(
   deps: DocumentsDeps,
   template: AllowedTemplate,
   signal?: AbortSignal,
+  document?: Pick<DealDocument, 'templateFields'>,
 ): Promise<AllowedTemplate> {
+  const override = ownSignatoryOverrideOf(document);
   const repository = deps.ownEntities;
-  if (deps.ownRequisites === undefined || repository === undefined) return template;
+  if (deps.ownRequisites === undefined || repository === undefined) {
+    const known = contractTemplateByPath(template.path, deps.templatesPrefix ?? '');
+    if (override !== undefined && known !== undefined) {
+      deps.log?.('own_signatory_refused', { reason: 'override_without_source' });
+      throw new DomainError(
+        'conflict',
+        'Подписант нашей стороны не заменён: источник наших реквизитов выключен. Документ не ' +
+          'собран, скажите сотруднику, что смену подписанта нужно сделать вручную.',
+      );
+    }
+    return template;
+  }
   const registered = contractTemplateByPath(template.path, deps.templatesPrefix ?? '');
   if (registered === undefined) return template;
   const entity: OwnEntity = registered.entity;
   const code = OWN_ENTITY_CODE_BY_ALIAS[entity];
   const title = OWN_ENTITY_TITLES[code];
   const record = await repository.get(code);
-  if (record === null) return template;
+  if (record === null) {
+    if (override !== undefined) {
+      deps.log?.('own_signatory_refused', { entity: code, reason: 'record_missing' });
+      throw failure(title, 'нет записи юрлица в базе');
+    }
+    return template;
+  }
   const amender = deps.contractAmender;
   if (amender === undefined) {
     deps.log?.('own_signatory_refused', { entity: code, reason: 'amender_not_configured' });
     throw failure(title, 'сервис документов не подключён');
   }
-  const built = await ownSignatoryForms(deps, record, () => signal?.aborted === true);
+  // Названный сотрудником подписант заменяет запись только в этом документе.
+  const effective =
+    override === undefined
+      ? record
+      : {
+          signatoryName: override.name,
+          signatoryPosition: override.position ?? record.signatoryPosition,
+        };
+  if (override !== undefined) deps.log?.('own_signatory_override', { entity: code });
+  const built = await ownSignatoryForms(deps, effective, () => signal?.aborted === true);
   if ('reason' in built) {
     deps.log?.('own_signatory_refused', { entity: code, reason: built.reason });
     throw failure(title, 'не удалось уверенно разобрать и просклонять ФИО подписанта');
