@@ -26,6 +26,7 @@ const OWNED_ROOT_FILES = [
   'mail-sender-lookup.ts',
   'main.ts',
   'ports.ts',
+  'price-edit-refusal.ts',
   'project.ts',
   'runtime.ts',
   'schedules.ts',

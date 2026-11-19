@@ -25,11 +25,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6486,
+        "inputTokens": 6620,
         "outputTokens": 38
       },
       "latencyMs": 650,
-      "requestHash": "9d41b5ea009f0989c27e29f770b73d309446259fbacc3c9f1010cae750f6d738"
+      "requestHash": "e49bd443eab3fab2791cea1f769cf30276a0b3ff0b864f53fd8a069d2dcbf9da"
     },
     {
       "content": "",
@@ -53,11 +53,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6707,
+        "inputTokens": 6841,
         "outputTokens": 57
       },
       "latencyMs": 650,
-      "requestHash": "8bf9f2247551be4fd6d0ec4b857299d00bdd6e71d4f9d43d8b2e26f4afa75bff"
+      "requestHash": "046f8746fc3149287c2a6103aa334ca8264b31d323a88add85e2486a7d285c03"
     },
     {
       "content": "",
@@ -76,22 +76,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6800,
+        "inputTokens": 6934,
         "outputTokens": 36
       },
       "latencyMs": 650,
-      "requestHash": "a28dfa7a66c36e139655a8dab58b07ad6e6f1a681de90bb72bf4f3a7e2afed1e"
+      "requestHash": "d6f6d70a130d63ffa3275e5c0ed8e064e44306d75e31f245775f73ceb35b71e6"
     },
     {
       "content": "Прайс обновлён, менеджеру отправлена сводка",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 6865,
+        "inputTokens": 6999,
         "outputTokens": 12
       },
       "latencyMs": 650,
-      "requestHash": "25749c4c82bbe6c477c0075346b4bf32f38bb4a875e1a479921a3d5269eef2c5"
+      "requestHash": "f3e4f522024f6666279dc64c63a4fa8852093f15efdf80c143be1036f191a5d3"
     }
   ],
   "synthetic": true

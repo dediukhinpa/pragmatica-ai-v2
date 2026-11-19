@@ -22,11 +22,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6486,
+        "inputTokens": 6620,
         "outputTokens": 32
       },
       "latencyMs": 400,
-      "requestHash": "9d41b5ea009f0989c27e29f770b73d309446259fbacc3c9f1010cae750f6d738"
+      "requestHash": "e49bd443eab3fab2791cea1f769cf30276a0b3ff0b864f53fd8a069d2dcbf9da"
     },
     {
       "content": "",
@@ -47,11 +47,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6635,
+        "inputTokens": 6769,
         "outputTokens": 51
       },
       "latencyMs": 400,
-      "requestHash": "c0b6f535997d4c58b9e0a9419009f39e9f62a2cddb9603720ce9da663337f4b8"
+      "requestHash": "c5f4ffc00f418aed3a4f8f06b16089d7aace7db83c11821de357ce799d55b895"
     },
     {
       "content": "",
@@ -70,22 +70,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6722,
+        "inputTokens": 6856,
         "outputTokens": 35
       },
       "latencyMs": 400,
-      "requestHash": "1c0944b5086c9875d4810abe75c9683f3d6e2c764eae5c5a798b4d06eacf0768"
+      "requestHash": "ff1c88b122a5c0ba908840c90896093da5cabec6435bccb68d8c0ab8a1c1931f"
     },
     {
       "content": "Прайс обновлён, скачок цены отмечен на проверку",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 6786,
+        "inputTokens": 6921,
         "outputTokens": 13
       },
       "latencyMs": 400,
-      "requestHash": "25749c4c82bbe6c477c0075346b4bf32f38bb4a875e1a479921a3d5269eef2c5"
+      "requestHash": "f3e4f522024f6666279dc64c63a4fa8852093f15efdf80c143be1036f191a5d3"
     }
   ],
   "synthetic": true
