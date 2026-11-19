@@ -1,0 +1,63 @@
+# Надстройка compose v2 для СИНТЕТИЧЕСКОГО стенда проверки патча G8x (tools/patch-8x-synth.sh).
+# На бою не используется. Два сервиса, которые катит патч (documents и app), запускаются из
+# образов lock, но без зависимостей боя: у documents и app заглушки на bun, которые отвечают на
+# /health, /ready и POST /edit-cells (как настоящие: /health 200, /ready 200 с четырьмя «ботами»,
+# /edit-cells 422 на пустое тело; на прочее 200). Образы заглушек в lock стенда - образы с bun
+# (синтетический прогон берёт образы app прежнего и нового lock). Порты публикуются только на
+# 127.0.0.1 в диапазоне стенда 21250-21299: так прогон измеряет простой documents и app со
+# стороны хоста. Флаги правки documents (DOCUMENTS_EDIT_PPTX и др.) в окружение попадают из
+# compose.project.yml дерева стенда, как на бою.
+# Переменные: STAND_APP_PORT, STAND_DOCS_PORT (порты хоста), STAND_LIBO_DIR (каталог с заглушкой
+# LibreOffice: файл program/libsdlo.so; монтируется в documents как /usr/lib/libreoffice, чтобы
+# проверка Impress в patch.sh шла настоящей командой), STAND_APP_DOCUMENTS_URL (адрес documents в
+# окружении app).
+x-stub-server: &stub_server
+  - bun
+  - -e
+  - |
+    const port = Number(process.env.STAND_PORT);
+    Bun.serve({ hostname: "0.0.0.0", port, fetch(req) {
+      const path = new URL(req.url).pathname;
+      const json = { headers: { "content-type": "application/json" } };
+      if (path === "/ready") return new Response(JSON.stringify({ bots: { ready: 4 } }), json);
+      if (path === "/health") return new Response("{}", json);
+      if (path === "/edit-cells" && req.method === "POST") {
+        return new Response(JSON.stringify({ detail: "нет файла" }), { ...json, status: 422 });
+      }
+      return new Response("{}", json);
+    } });
+    process.on("SIGTERM", () => process.exit(0));
+    setInterval(() => {}, 1 << 30);
+services:
+  documents:
+    entrypoint: *stub_server
+    command: !override []
+    labels:
+      bai.stage: "8x"
+    environment:
+      - STAND_PORT=8310
+    healthcheck: !override
+      disable: true
+    depends_on: !override {}
+    volumes: !override
+      - ${STAND_LIBO_DIR:?STAND_LIBO_DIR - каталог заглушки LibreOffice}:/usr/lib/libreoffice:ro
+    # Сеть backend платформы internal: порты контейнеров в ней наружу не публикуются, поэтому
+    # заглушки сидят ещё и в обычной сети стенда stand-pub (иначе проба с хоста не дойдёт).
+    networks: !override [backend, stand-pub]
+    ports:
+      - "127.0.0.1:${STAND_DOCS_PORT:-21251}:8310"
+  app:
+    entrypoint: *stub_server
+    labels:
+      bai.stage: "8x"
+    environment:
+      - STAND_PORT=8088
+      - DOCUMENTS_URL=${STAND_APP_DOCUMENTS_URL:-http://documents:8310}
+    depends_on: !override {}
+    networks: !override [backend, stand-pub]
+    volumes: !override []
+    ports:
+      - "127.0.0.1:${STAND_APP_PORT:-21250}:8088"
+
+networks:
+  stand-pub: {}
