@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { FixedClock, MemoryAuditRepository, MemoryWorkflowStateStore } from '@business-ai/adapters';
 import type { AccessPolicy } from '@business-ai/core';
 import { CHAT_ACCESS_CHECK_UNAVAILABLE_TEXT } from '@business-ai/core/compose';
-import { ACTION_CONFIRM_SUPPLIER_CARD, ACTION_ROUTE_MAIL } from '../../src/access-actions';
+import {
+  ACTION_CONFIRM_SUPPLIER_CARD,
+  ACTION_MANAGE_SUPPLIER_CARDS,
+  ACTION_ROUTE_MAIL,
+} from '../../src/access-actions';
 import { ORDER_CALC_AGENT_ID } from '../../src/agents/order-calc';
 import { supplierCardButtonId } from '../../src/agents/suppliers/card-request';
 import {
@@ -48,6 +52,10 @@ function cardRight(outcome: 'directory_failure' | 'not_head'): AccessPolicy {
   return {
     isAllowed: async () => true,
     decide: async (request) => {
+      // Менеджеры закупок (этап 8y): без правила политики действие закрыто, как в боевой политике.
+      if (request.action === ACTION_MANAGE_SUPPLIER_CARDS) {
+        return { allowed: false, reason: 'action_rule_required', message: '' };
+      }
       if (request.action !== ACTION_CONFIRM_SUPPLIER_CARD) {
         return { allowed: true, reason: 'allowed', message: '' };
       }

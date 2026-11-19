@@ -21,6 +21,7 @@ import {
 import {
   ACTION_CONFIRM_SELECTION,
   ACTION_CONFIRM_SUPPLIER_CARD,
+  ACTION_MANAGE_SUPPLIER_CARDS,
   ACTION_ROUTE_MAIL,
 } from './access-actions';
 import { recordWebConfirmation, parseWebConfirmButton } from './agents/documents/web-confirmation';
@@ -90,7 +91,8 @@ export const CHAT_QUOTE_REPLACE_THREAD_TEXT =
 const CHAT_QUOTE_REPLACE_IDENTITY_TEXT =
   'Не удалось определить, кто нажал кнопку: замена не записана.';
 export const CHAT_SUPPLIER_CARD_DENIED_TEXT =
-  'Подтверждать запись карточек поставщиков могут только руководители отделов.';
+  'Подтверждать запись карточек поставщиков могут руководители отделов и менеджеры закупок ' +
+  'с доступом.';
 export const CHAT_SUPPLIER_CARD_UNKNOWN_TEXT = 'Запрос не найден или устарел.';
 const CHAT_SUPPLIER_CARD_IDENTITY_TEXT =
   'Не удалось определить, кто нажал кнопку: в базу ничего не записано.';
@@ -450,7 +452,12 @@ const supplierCardButton = chatButtonHandler<SupplierCardPress>({
     // Личная заметка пишется только в связку нажавшего и в общую базу не попадает: право на
     // подтверждение карточек для неё не требуется.
     if (ref.kind !== 'pair_note') {
-      const verdict = await context.check(ACTION_CONFIRM_SUPPLIER_CARD, ref.agentId);
+      let verdict = await context.check(ACTION_CONFIRM_SUPPLIER_CARD, ref.agentId);
+      // Менеджеры закупок с доступом (этап 8y): второе действие, закрытое без явного правила.
+      if (!verdict.allowed && verdict.reason !== 'directory_unavailable') {
+        const manager = await context.check(ACTION_MANAGE_SUPPLIER_CARDS, ref.agentId);
+        if (manager.allowed) verdict = manager;
+      }
       if (!verdict.allowed) {
         // Справочник руководителей недоступен: временный сбой, а не «вы не руководитель».
         const unavailable = verdict.reason === 'directory_unavailable';

@@ -92,7 +92,10 @@ const REQUIRED_ENV = {
   OWN_COMPANY_NAMES: 'Тестовая компания',
 };
 
-/** Действия доступа прежнего реестра (11): платформенные и проектные вместе. */
+/**
+ * Действия доступа прежнего реестра (11): платформенные и проектные вместе. К ним этап 8y
+ * добавляет `suppliers.manage_cards` (менеджеры закупок), см. `EXTRA_ACCESS_ACTIONS`.
+ */
 const BASELINE_ACCESS_ACTIONS = [
   'chat.button',
   'chat.file',
@@ -107,10 +110,13 @@ const BASELINE_ACCESS_ACTIONS = [
   'suppliers.export',
 ];
 
+/** Допустимые отличия от эталона (этап 8y, строка в allowed-diff). */
+const EXTRA_ACCESS_ACTIONS = ['suppliers.manage_cards'];
+
 describe('эталон прежней сборки', () => {
-  test('реестр действий доступа: платформенные плюс проектные равны прежнему списку из 11', () => {
+  test('реестр действий доступа: прежние 11 плюс действие менеджеров закупок (этап 8y)', () => {
     const known = [...knownAccessActions(pragmatikaProject.accessActions)].sort();
-    expect(known).toEqual([...BASELINE_ACCESS_ACTIONS].sort());
+    expect(known).toEqual([...BASELINE_ACCESS_ACTIONS, ...EXTRA_ACCESS_ACTIONS].sort());
   });
 
   test('ограничения действий: выгрузка и подтверждение карточек - руководителям', () => {
@@ -119,7 +125,10 @@ describe('эталон прежней сборки', () => {
       'suppliers.confirm_card',
       'suppliers.export',
     ]);
-    expect(ruleRequiredActions).toEqual(['documents.update_own_requisites']);
+    expect(ruleRequiredActions).toEqual([
+      'documents.update_own_requisites',
+      'suppliers.manage_cards',
+    ]);
   });
 
   test('переменные моделей агентов', () => {

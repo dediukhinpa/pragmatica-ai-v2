@@ -21,6 +21,13 @@ export const ACTION_CONFIRM_JUMP = 'prices.confirm_jump';
 /** Подтверждение публикации на сайт. Снято, имя принимается: старые правила не должны падать. */
 export const ACTION_CONFIRM_PUBLISH = 'site.confirm_publish';
 
+/**
+ * Запись карточек поставщиков менеджерами закупок (этап 8y): отдел и личный список доступа
+ * задаёт правило политики (`actions["suppliers.manage_cards"].allow`). Действие закрыто, пока
+ * правила нет (fail closed); руководители отделов по-прежнему проходят по `suppliers.confirm_card`.
+ */
+export const ACTION_MANAGE_SUPPLIER_CARDS = 'suppliers.manage_cards';
+
 export {
   ACTION_CONFIRM_SUPPLIER_CARD,
   ACTION_EXPORT_SUPPLIERS,
@@ -36,14 +43,16 @@ export const PROJECT_ACCESS_ACTIONS: readonly string[] = [
   ACTION_CONFIRM_PUBLISH,
   ACTION_CONFIRM_SUPPLIER_CARD,
   ACTION_EXPORT_SUPPLIERS,
+  ACTION_MANAGE_SUPPLIER_CARDS,
 ];
 
 /**
  * Ограничения действий. Запись карточек и выгрузка базы поставщиков - только руководителям
- * отделов (этап 234); правка наших реквизитов требует явного правила с `allow`, наследования
- * допуска бота здесь нет (fail closed).
+ * отделов (этап 234); правка наших реквизитов и запись карточек менеджерами закупок
+ * (`suppliers.manage_cards`, этап 8y) требуют явного правила с `allow`, наследования допуска
+ * бота здесь нет (fail closed).
  */
 export const PROJECT_ACCESS_RESTRICTIONS: AccessRestrictions = {
   headOnlyActions: [ACTION_CONFIRM_SUPPLIER_CARD, ACTION_EXPORT_SUPPLIERS],
-  ruleRequiredActions: [ACTION_UPDATE_OWN_REQUISITES],
+  ruleRequiredActions: [ACTION_UPDATE_OWN_REQUISITES, ACTION_MANAGE_SUPPLIER_CARDS],
 };
