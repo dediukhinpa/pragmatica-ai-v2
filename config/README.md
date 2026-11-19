@@ -55,12 +55,14 @@
 `access-policy.example.json` содержит все действия доступа, которые знает ядро
 (`chat.message`, `chat.file`, `chat.button`, `documents.update_own_requisites`,
 `mail.send_draft`, `orders.confirm_selection`, `orders.route_mail`, `prices.confirm_jump`,
-`site.confirm_publish`, `suppliers.confirm_card`, `suppliers.export`). Идентификаторы в нём
+`site.confirm_publish`, `suppliers.confirm_card`, `suppliers.manage_cards`, `suppliers.export`). Идентификаторы в нём
 условные (`employee-id-1`, отделы `12`/`15`/`40`, группы `7`/`9`). Боты — по идентификаторам
 агентов: `documents`, `prices`, `order-calc`, `site-export`. Файл без бота — «запрещено всем»;
 битый файл — ядро не стартует. Права на `suppliers.confirm_card` и `suppliers.export` ядро
 дополнительно проверяет по руководителям отделов портала (см. `ACCESS_EXTRA_HEAD_USER_IDS` в
-`deploy/.env.example`).
+`deploy/.env.example`). `suppliers.manage_cards` (этап 8y) к руководителям не привязано:
+действие закрыто, пока в политике нет явного `allow` (отдел 22 и личный список менеджеров
+закупок).
 
 ## Как развернуть на сервере
 

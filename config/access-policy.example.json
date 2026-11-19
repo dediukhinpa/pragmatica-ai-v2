@@ -81,6 +81,12 @@
             "users": ["employee-id-1"]
           }
         },
+        "suppliers.manage_cards": {
+          "allow": {
+            "departments": ["22"],
+            "users": ["employee-id-3"]
+          }
+        },
         "suppliers.export": {
           "allow": {
             "workgroups": ["9"]
