@@ -44,21 +44,41 @@ export async function confirmCardVerdict(
   request: { userId: string; botId: string },
 ): Promise<ConfirmCardVerdict> {
   if (access === undefined) return 'denied';
-  const head = await verdictFor(access, { ...request, action: ACTION_CONFIRM_SUPPLIER_CARD });
+  const head = await headVerdict(access, request);
   if (head !== 'denied') return head;
   // Менеджеры закупок (отдел и личный список из правила политики): отдельное действие, закрытое
   // по умолчанию, пока в политике нет явного allow (этап 8y). Руководители проходят выше.
-  return verdictFor(access, { ...request, action: ACTION_MANAGE_SUPPLIER_CARDS });
+  return managerVerdict(access, request);
 }
 
-/** Решение политики по одному действию; любой сбой - `unavailable`, доступ не открывается. */
-async function verdictFor(
+/** Решение по действию руководителя; любой сбой - `unavailable`, доступ не открывается. */
+async function headVerdict(
   access: AccessPolicy,
-  full: { userId: string; botId: string; action: string },
+  request: { userId: string; botId: string },
 ): Promise<ConfirmCardVerdict> {
+  const full = { ...request, action: ACTION_CONFIRM_SUPPLIER_CARD };
   try {
     if (access.decide === undefined) return (await access.isAllowed(full)) ? 'allowed' : 'denied';
     const decision = await access.decide(full);
+    if (decision.allowed) return 'allowed';
+    return decision.reason === DIRECTORY_UNAVAILABLE ? 'unavailable' : 'denied';
+  } catch {
+    return 'unavailable';
+  }
+}
+
+/**
+ * Решение по действию менеджеров закупок. Отдельная функция, а не общий параметр действия:
+ * статический разбор реестра действий находит проверку только по литералу в той же функции.
+ */
+async function managerVerdict(
+  access: AccessPolicy,
+  request: { userId: string; botId: string },
+): Promise<ConfirmCardVerdict> {
+  const managerRequest = { ...request, action: ACTION_MANAGE_SUPPLIER_CARDS };
+  try {
+    if (access.decide === undefined) return (await access.isAllowed(managerRequest)) ? 'allowed' : 'denied';
+    const decision = await access.decide(managerRequest);
     if (decision.allowed) return 'allowed';
     return decision.reason === DIRECTORY_UNAVAILABLE ? 'unavailable' : 'denied';
   } catch {

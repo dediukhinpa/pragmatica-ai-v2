@@ -91,8 +91,8 @@ export const CHAT_QUOTE_REPLACE_THREAD_TEXT =
 const CHAT_QUOTE_REPLACE_IDENTITY_TEXT =
   'Не удалось определить, кто нажал кнопку: замена не записана.';
 export const CHAT_SUPPLIER_CARD_DENIED_TEXT =
-  'Подтверждать запись карточек поставщиков могут руководители отделов и менеджеры закупок ' +
-  'с доступом.';
+  'Подтверждать запись карточек поставщиков могут только руководители отделов и ' +
+  'менеджеры закупок с доступом.';
 export const CHAT_SUPPLIER_CARD_UNKNOWN_TEXT = 'Запрос не найден или устарел.';
 const CHAT_SUPPLIER_CARD_IDENTITY_TEXT =
   'Не удалось определить, кто нажал кнопку: в базу ничего не записано.';

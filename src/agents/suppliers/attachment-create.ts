@@ -95,8 +95,8 @@ const EXISTS_TEXT =
   'prepareSupplierCardEdit.';
 const CREATED_TEXT = 'Карточка поставщика создана по вложению, реквизиты заполнены.';
 const ACCESS_DENIED_TEXT =
-  'Записывать карточки поставщиков в общую базу могут руководители отделов и менеджеры ' +
-  'закупок с доступом.';
+  'Записывать карточки поставщиков в общую базу могут только руководители отделов и ' +
+  'менеджеры закупок с доступом.';
 
 function answer(status: Output['status'], message: string, extra?: Partial<Output>): Output {
   return { status, message, issues: [], matches: [], rejected: [], warnings: [], ...extra };
