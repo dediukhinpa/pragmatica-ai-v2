@@ -456,6 +456,14 @@ services:
       # правка ячеек (/edit-cells), шаблон xlsx (/xlsx/*), дроби с хвостовым нулём (1.1250).
       # Значение 1/0, true/false, on/off; опечатка останавливает запуск сервиса.
       DOCUMENTS_EDIT_ENDPOINTS: ${DOCUMENTS_EDIT_ENDPOINTS:-}
+      # Форматы правки сверх xlsx/docx/csv (нужен и DOCUMENTS_EDIT_ENDPOINTS; выключены):
+      # pptx (таблицы и текстовые блоки слайдов), PDF с текстовым слоем (наложение новой цены,
+      # при любом сомнении отказ), встроенный шрифт PDF вместо шрифта файла, старый .ppt через
+      # конвертацию в pptx (нужен образ с WITH_LIBREOFFICE_IMPRESS=1 и DOCUMENTS_EDIT_PPTX).
+      DOCUMENTS_EDIT_PPTX: ${DOCUMENTS_EDIT_PPTX:-}
+      DOCUMENTS_EDIT_PDF: ${DOCUMENTS_EDIT_PDF:-}
+      DOCUMENTS_EDIT_PDF_FALLBACK_FONT: ${DOCUMENTS_EDIT_PDF_FALLBACK_FONT:-}
+      DOCUMENTS_PPT_CONVERT: ${DOCUMENTS_PPT_CONVERT:-}
       DOCUMENTS_TEMPLATE_ENDPOINTS: ${DOCUMENTS_TEMPLATE_ENDPOINTS:-}
       DOCUMENTS_UNAMBIGUOUS_FRACTIONS: ${DOCUMENTS_UNAMBIGUOUS_FRACTIONS:-}
       # Ручка текста с фото /images/recognize-text (Tesseract): включена, потому что режим фото
