@@ -1,0 +1,76 @@
+# Надстройка compose v2 для СИНТЕТИЧЕСКОГО стенда проверки патча G8y (tools/patch-8y-synth.sh).
+# На бою не используется. Два сервиса, которые катит патч (documents и app), запускаются из
+# образов lock, но без зависимостей боя: у documents и app заглушки на bun, которые отвечают на
+# /health, /ready и POST /docx/amend (как новый образ documents: /health 200, /ready 200 с четырьмя
+# «ботами»; /docx/amend отвечает 422 bad_request, если party или number_edit.mode не из набора
+# заглушки, и 422 empty_file на пустой файл при верных полях; набор значений ТОЛЬКО для заглушки,
+# настоящие значения знает образ documents; на прочее 200). Образы заглушек в lock стенда - образы
+# с bun (синтетический прогон берёт образы app прежнего и нового lock). Порты публикуются только
+# на 127.0.0.1 в диапазоне стенда (по умолчанию 21350-21399, база задаётся P8Y_PORT_BASE): так
+# прогон измеряет простой documents и app со стороны хоста. Четыре флага G8x documents
+# (DOCUMENTS_EDIT_PPTX и др.) и переменные поиска G8w app в окружение попадают из
+# compose.project.yml дерева стенда («G8x применён»), как на бою.
+# Переменные: STAND_APP_PORT, STAND_DOCS_PORT (порты хоста), STAND_APP_DOCUMENTS_URL (адрес
+# documents в окружении app).
+x-stub-server: &stub_server
+  - bun
+  - -e
+  - |
+    const port = Number(process.env.STAND_PORT);
+    const PARTIES = ["buyer", "seller"];
+    const NUMBER_MODES = ["append", "replace"];
+    const json = { headers: { "content-type": "application/json" } };
+    const reply = (status, error) => new Response(JSON.stringify({ detail: { error } }),
+      { ...json, status });
+    Bun.serve({ hostname: "0.0.0.0", port, async fetch(req) {
+      const path = new URL(req.url).pathname;
+      if (path === "/ready") return new Response(JSON.stringify({ bots: { ready: 4 } }), json);
+      if (path === "/health") return new Response("{}", json);
+      if (path === "/docx/amend" && req.method === "POST") {
+        let body = {};
+        try { body = await req.json(); } catch (e) { return reply(422, "bad_request"); }
+        if (body.party !== undefined && !PARTIES.includes(body.party)) {
+          return reply(422, "bad_request");
+        }
+        const mode = body.number_edit?.mode;
+        if (body.number_edit !== undefined && !NUMBER_MODES.includes(mode)) {
+          return reply(422, "bad_request");
+        }
+        return reply(422, "empty_file");
+      }
+      return new Response("{}", json);
+    } });
+    process.on("SIGTERM", () => process.exit(0));
+    setInterval(() => {}, 1 << 30);
+services:
+  documents:
+    entrypoint: *stub_server
+    command: !override []
+    labels:
+      bai.stage: "8y2"
+    environment:
+      - STAND_PORT=8310
+    healthcheck: !override
+      disable: true
+    depends_on: !override {}
+    volumes: !override []
+    # Сеть backend платформы internal: порты контейнеров в ней наружу не публикуются, поэтому
+    # заглушки сидят ещё и в обычной сети стенда stand-pub (иначе проба с хоста не дойдёт).
+    networks: !override [backend, stand-pub]
+    ports:
+      - "127.0.0.1:${STAND_DOCS_PORT:-21351}:8310"
+  app:
+    entrypoint: *stub_server
+    labels:
+      bai.stage: "8y2"
+    environment:
+      - STAND_PORT=8088
+      - DOCUMENTS_URL=${STAND_APP_DOCUMENTS_URL:-http://documents:8310}
+    depends_on: !override {}
+    networks: !override [backend, stand-pub]
+    volumes: !override []
+    ports:
+      - "127.0.0.1:${STAND_APP_PORT:-21350}:8088"
+
+networks:
+  stand-pub: {}
