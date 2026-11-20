@@ -46,7 +46,7 @@ umask 077
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 REPORTS="${REPORTS:-$HOME/reports/business-ai-modular}"
-STAGE="$REPORTS/stage-8y"
+STAGE="${STAGE_DIR:-$REPORTS/stage-8y2}"
 SYNTH="${SYNTH:-$STAGE/tmp/synth}"
 OUT="${OUT:-$STAGE/synth}"
 LOCK="${LOCK:-$STAGE/images.lock}"
