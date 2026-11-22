@@ -2,8 +2,8 @@
 
 - Коммит старого репозитория: `5ea7f2d308beb476fb8b6fe05e095587c9ee4f40`
 - Пакеты платформы: `1.1.6`
-- Патчей проекта применено: 16
-- Сгенерировано файлов: 195
+- Патчей проекта применено: 23
+- Сгенерировано файлов: 207
 
 | Каталог | Файлов |
 |---|---|
@@ -11,10 +11,10 @@
 | `e2e/lib` | 11 |
 | `e2e/load` | 1 |
 | `e2e/tests` | 23 |
-| `eval/cases` | 44 |
+| `eval/cases` | 48 |
 | `eval/constants.ts` | 1 |
 | `eval/environments` | 7 |
-| `eval/recordings` | 88 |
+| `eval/recordings` | 96 |
 | `eval/reports` | 3 |
 | `eval/scripts` | 2 |
 | `eval/state.ts` | 1 |

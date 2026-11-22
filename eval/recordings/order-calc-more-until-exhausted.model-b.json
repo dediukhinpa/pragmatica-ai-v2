@@ -1,0 +1,156 @@
+{
+  "version": 1,
+  "caseId": "order-calc-more-until-exhausted",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "search-0",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-32"
+          }
+        },
+        {
+          "id": "search-1",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-32"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4198,
+        "outputTokens": 40
+      },
+      "latencyMs": 650,
+      "requestHash": "e8cf171f6c0f4afef5045b2bd3a093b6be12fd2992d67d40a16c101f832e74d6"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-32"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4312,
+        "outputTokens": 20
+      },
+      "latencyMs": 650,
+      "requestHash": "8d453a8a3aa74a72e3243cf89a6fec5de8b5564d74b0f0b71b324fd86b207d50"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-32",
+            "version": "hrvxyvppvrgkxzzv"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4758,
+        "outputTokens": 27
+      },
+      "latencyMs": 650,
+      "requestHash": "568dc1765047baeed1f073fa4bec04924ad5c3f484823c58c2e2bc5b3e02d5be"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-more-1",
+          "name": "showMoreSuppliers",
+          "arguments": {
+            "requestId": "req-32",
+            "count": 10
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4870,
+        "outputTokens": 23
+      },
+      "latencyMs": 650,
+      "requestHash": "77d6fd6d6dddfb042fa225ea2e3a37e9d9309bf3364c709392d916623446ef11"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-more-2",
+          "name": "showMoreSuppliers",
+          "arguments": {
+            "requestId": "req-32",
+            "count": 10
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5276,
+        "outputTokens": 23
+      },
+      "latencyMs": 650,
+      "requestHash": "77d6fd6d6dddfb042fa225ea2e3a37e9d9309bf3364c709392d916623446ef11"
+    },
+    {
+      "content": "Новых подходящих поставщиков нет: все найденные уже показаны.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5399,
+        "outputTokens": 16
+      },
+      "latencyMs": 650,
+      "requestHash": "7f287862d4369dc7af1b2db64e7909b019a3ee18d25f9609e6334b8804952d7a"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-more-3",
+          "name": "showMoreSuppliers",
+          "arguments": {
+            "requestId": "req-32",
+            "count": 10
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5314,
+        "outputTokens": 23
+      },
+      "latencyMs": 650,
+      "requestHash": "77d6fd6d6dddfb042fa225ea2e3a37e9d9309bf3364c709392d916623446ef11"
+    },
+    {
+      "content": "Новых подходящих поставщиков по-прежнему нет, повторов не будет.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5437,
+        "outputTokens": 17
+      },
+      "latencyMs": 650,
+      "requestHash": "7f287862d4369dc7af1b2db64e7909b019a3ee18d25f9609e6334b8804952d7a"
+    }
+  ],
+  "synthetic": true
+}

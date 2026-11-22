@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "caseId": "order-calc-more-after-seven-plus-three",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "search-0",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-31"
+          }
+        },
+        {
+          "id": "search-1",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-31"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4198,
+        "outputTokens": 40
+      },
+      "latencyMs": 650,
+      "requestHash": "42eb4352b78c4ef8c95ee3da6652677e5ec525c4ea79b772dda3db8e377d1b8b"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-31"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4312,
+        "outputTokens": 20
+      },
+      "latencyMs": 650,
+      "requestHash": "8d453a8a3aa74a72e3243cf89a6fec5de8b5564d74b0f0b71b324fd86b207d50"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-31",
+            "version": "qkvnzsggqqhtytgx"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4743,
+        "outputTokens": 27
+      },
+      "latencyMs": 650,
+      "requestHash": "e7fb1544bd855d36dad1c7296a47776dffef9f8bad925d474777de8edd34abb3"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-more-1",
+          "name": "showMoreSuppliers",
+          "arguments": {
+            "requestId": "req-31",
+            "count": 10
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4865,
+        "outputTokens": 23
+      },
+      "latencyMs": 650,
+      "requestHash": "77d6fd6d6dddfb042fa225ea2e3a37e9d9309bf3364c709392d916623446ef11"
+    }
+  ],
+  "synthetic": true
+}

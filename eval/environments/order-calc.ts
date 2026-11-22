@@ -8,6 +8,7 @@ import {
   MemoryPairNoteStore,
   MemoryScheduler,
   MemoryTableExporter,
+  MemoryWebPageReader,
   MemoryWorkflowStateStore,
   SequentialIdGenerator,
 } from '@business-ai/adapters';
@@ -236,6 +237,7 @@ export async function buildOrderCalcEnvironment(
     webFacts === undefined
       ? undefined
       : new MemoryWebCandidateEnricher((page) => webFacts[page.url] ?? {});
+  const hasWebPages = Object.keys(testCase.state.webPages).length > 0;
   const deps: OrderCalcDeps = {
     requests,
     suppliers,
@@ -253,6 +255,19 @@ export async function buildOrderCalcEnvironment(
     ...(mailboxes === undefined ? {} : { mailboxes }),
     ...(planner === undefined ? {} : { webQueryPlanner: planner }),
     ...(enricher === undefined ? {} : { webEnricher: enricher }),
+    // Читатель сайтов (этап 8z): только у кейсов с заданными страницами, остальные - как прежде.
+    ...(hasWebPages
+      ? {
+          webPageReader: new MemoryWebPageReader(
+            Object.fromEntries(
+              Object.entries(testCase.state.webPages).map(([host, text]) => [
+                host,
+                [{ url: `https://${host}/`, text }],
+              ]),
+            ),
+          ),
+        }
+      : {}),
   };
   const access = new MemoryAccessPolicy();
   // Карточки поставщиков (этап 224): те же заглушки, что у агента документов; запись карточек
@@ -388,6 +403,9 @@ export async function buildOrderCalcEnvironment(
       // фото визитки - когда фото читаются как текст (режим tokens, этап 224).
       ...(photos.length > 0 ? { intake: true } : {}),
       ...(cards ? { supplierCards: photos.length > 0 ? { businessCardPhoto: true } : {} } : {}),
+      // Этап 8z: инструменты «ещё 10» и пополнения базы - только у кейсов с этими флагами.
+      ...(testCase.state.shortlistPaging ? { shortlistPaging: true } : {}),
+      ...(testCase.state.supplierDiscovery ? { supplierDiscovery: true } : {}),
     }),
     toolDeps: deps,
     // Инициатор хода берётся из канала, а не из ответа модели; без него передачи и текст
