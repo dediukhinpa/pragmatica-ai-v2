@@ -31,18 +31,22 @@
 #             НЕТ новых переменных G8z)
 #   preflight patch.sh --preflight-only: код 0, ничего не изменилось
 #   refuse    lock боя версии 1.1.6-pragmatika.1 (имитация «патч G8y не применён»): код 3 с
-#             текстом «сначала примените патч G8y»; в .env боя флаг SHORTLIST_PAGING_ENABLED=true
-#             (патч флаги не включает): код 3 с текстом про enable-flags.sh; ничего не изменилось
+#             текстом «сначала примените патч G8y»; ничего не изменилось. Отказа по флагу в .env
+#             нет: явный false в .env - выключатель (сценарий offswitch)
 #   apply     patch.sh: код 0; app на новом образе, documents НЕ перезапускался (тот же образ и
 #             StartedAt, опрос с хоста не заметил простоя documents), images.lock и
-#             compose.project.yml боя равны пакету, остальные файлы дерева побайтно прежние, у
-#             app обе новые переменные = false, четыре флага G8x и переменные поиска на месте,
-#             проба POST /docx/amend отвечает 422 bad_request, простой app (опрос хоста)
-#   enable    enable-flags.sh из пакета: --paging true и --discovery true (в .env стенда сначала
-#             ставится SUPPLIER_CARDS_ENABLED=true): код 0, у app обе переменные true, пересоздан
-#             только app; затем enable-flags.sh --rollback: .env побайтно прежний, у app обе false
+#             compose.project.yml боя равны пакету, остальные файлы дерева (в том числе .env)
+#             побайтно прежние, у app обе новые переменные = true (в .env стенда их нет, значение
+#             по умолчанию compose), четыре флага G8x и переменные поиска на месте, проба POST
+#             /docx/amend отвечает 422 bad_request, простой app (опрос хоста)
+#   enable    выключатель enable-flags.sh из пакета: --paging false и --discovery false: код 0, у
+#             app обе переменные false, пересоздан только app; затем enable-flags.sh --rollback:
+#             .env побайтно прежний, у app снова обе true (в бэкапе ключей нет - default)
 #   rollback  patch.sh --rollback по успешному запуску: дерево побайтно как до патча, app на
 #             прежнем образе, documents не тронут
+#   offswitch в .env боя явно SHORTLIST_PAGING_ENABLED=false и SUPPLIER_DISCOVERY_ENABLED=false:
+#             patch.sh без отказа (код 0), .env не изменён, у app обе переменные остаются false,
+#             в журнале «выключен выключателем»; затем patch.sh --rollback и возврат .env
 #   broken    во время выдержки patch.sh перезапускается documents (как чужой сбой): проверка
 #             выдержки красная, автооткат (код 1), дерево побайтно как до патча
 #   cleanup   убрать стенд (контейнеры, сети проекта)
@@ -78,7 +82,7 @@ STANDIN="$ROOT/deploy/patch-8z/standin/patch-8z-stand.compose.yml"
 STAND_LOCK_OLD="$OUT/stand-old.lock"
 STAND_LOCK_NEW="$OUT/stand-new.lock"
 STAND_SIGNATURES="$OUT/stand-signatures.txt"
-STEPS_DEFAULT="prepare preflight refuse apply enable rollback broken cleanup"
+STEPS_DEFAULT="prepare preflight refuse apply enable rollback offswitch broken cleanup"
 STEPS="$STEPS_DEFAULT"
 # Диапазон портов стенда на 127.0.0.1 (база из P8Z_PORT_BASE) и два порта, которые занимает прогон.
 PORT_COUNT=50
@@ -99,10 +103,10 @@ HTTP_TIMEOUT_S=3
 WATCH_TIMEOUT_S=300
 YANDEX_CONCURRENCY_KEY="YANDEX_SEARCH_MAX_CONCURRENCY"
 YANDEX_INTERVAL_KEY="YANDEX_SEARCH_MIN_INTERVAL_MS"
-# Новые переменные app от G8z и их значение «выключено»; карточки нужны для SUPPLIER_DISCOVERY.
+# Новые переменные app от G8z: по умолчанию включены (true), false в .env - выключатель; карточки
+# нужны для работы пополнения базы (без них только предупреждение).
 FLAG_PAGING="SHORTLIST_PAGING_ENABLED"
 FLAG_DISCOVERY="SUPPLIER_DISCOVERY_ENABLED"
-FLAG_CARDS="SUPPLIER_CARDS_ENABLED"
 FLAG_OFF="false"
 FLAG_ON="true"
 # Четыре флага G8x documents: documents патчем не трогается, флаги остаются.
@@ -363,6 +367,11 @@ step_prepare() {
       || { result "prepare: образ на хосте" FAIL "нет ${ref##*/} (docker load / pull)"; return 1; }
   done
   result "prepare: образы app и заглушки documents на хосте" ok "прежний и новый app, заглушка"
+  # Синтетический .env стенда - как на бою до G8z: новых флагов в нём нет (значение по умолчанию
+  # compose); строки из прежней заготовки убираются (сценарий offswitch задаёт их явно).
+  sed -i -E "/^($FLAG_PAGING|$FLAG_DISCOVERY)=/d" "$DEPLOY/.env"
+  result "prepare: в .env стенда нет новых флагов (как на бою до G8z)" ok \
+    "значения по умолчанию compose"
   dcs down -v --remove-orphans >/dev/null 2>&1 || true
   cp "$STAND_LOCK_OLD" "$DEPLOY/images.lock"
   date -u +%FT%TZ >"$DEPLOY/.cutover-deployed"
@@ -458,9 +467,16 @@ step_preflight() {
     && result "preflight: патч G8y распознан как применённый" ok "запись в журнале" \
     || result "preflight: патч G8y распознан как применённый" FAIL "нет записи в журнале"
   grep -q 'флаги app в конфигурации: ok' "$OUT/preflight.log" \
-    && result "preflight: обе новые переменные app = false в новой конфигурации" ok \
+    && grep -q "$FLAG_PAGING включён" "$OUT/preflight.log" \
+    && grep -q "$FLAG_DISCOVERY включён" "$OUT/preflight.log" \
+    && result "preflight: обе новые переменные app = true в новой конфигурации" ok \
       "запись в журнале" \
-    || result "preflight: обе новые переменные app = false в новой конфигурации" FAIL \
+    || result "preflight: обе новые переменные app = true в новой конфигурации" FAIL \
+      "нет записи в журнале"
+  grep -q 'карточки поставщиков (до патча)' "$OUT/preflight.log" \
+    && result "preflight: проверка карточек поставщиков (предупреждение, не отказ)" ok \
+      "запись в журнале" \
+    || result "preflight: проверка карточек поставщиков (предупреждение, не отказ)" FAIL \
       "нет записи в журнале"
   grep -q 'прочая конфигурация: ok' "$OUT/preflight.log" \
     && result "preflight: прочая конфигурация сходится со снимком боя" ok "запись в журнале" \
@@ -482,16 +498,6 @@ step_refuse() {
     && result "refuse: причина" ok "названа: сначала примените патч G8y" \
     || result "refuse: причина" FAIL "причина не названа"
   unchanged_since_prepare refuse
-  # 2. В .env боя включён флаг: патч флаги не включает - отказ ДО замены.
-  printf '%s=%s\n' "$FLAG_PAGING" "$FLAG_ON" >>"$DEPLOY/.env"
-  patch_run refuse_flag --preflight-only
-  cp -p "$OUT/env.keep" "$DEPLOY/.env"
-  [[ "$RC" == 3 ]] && result "refuse: код (флаг включён в .env)" ok "3 (отказ по предусловиям)" \
-    || result "refuse: код (флаг включён в .env)" FAIL "$RC (refuse_flag.log)"
-  grep -q 'enable-flags.sh' "$OUT/refuse_flag.log" \
-    && result "refuse: причина (флаг в .env)" ok "названа: включение - enable-flags.sh" \
-    || result "refuse: причина (флаг в .env)" FAIL "причина не названа"
-  unchanged_since_prepare refuse_flag
 }
 
 # Опрос заглушек с хоста, пока существует флаг: «мс-время имя код» в $OUT/poll.txt.
@@ -556,12 +562,17 @@ step_apply() {
   local name got bad=""
   for name in "$FLAG_PAGING" "$FLAG_DISCOVERY"; do
     got="$(env_of "$APP" "$name")"
-    [[ "$got" == "$FLAG_OFF" ]] || bad+=" $name=${got:-<нет>}"
+    [[ "$got" == "$FLAG_ON" ]] || bad+=" $name=${got:-<нет>}"
   done
   [[ -z "$bad" ]] \
-    && result "apply: у app обе новые переменные = false (патч флаги не включает)" ok \
+    && result "apply: у app обе новые переменные = true (по умолчанию compose)" ok \
       "$FLAG_PAGING, $FLAG_DISCOVERY" \
-    || result "apply: у app обе новые переменные = false (патч флаги не включает)" FAIL "$bad"
+    || result "apply: у app обе новые переменные = true (по умолчанию compose)" FAIL "$bad"
+  grep -q 'карточки поставщиков (после замены)' "$OUT/apply.log" \
+    && result "apply: проверка карточек поставщиков выполнена (warn не отказ)" ok \
+      "запись в журнале" \
+    || result "apply: проверка карточек поставщиков выполнена (warn не отказ)" FAIL \
+      "нет записи в журнале"
   check_docs_flags apply "после патча"
   [[ -n "$(env_of "$APP" "$YANDEX_CONCURRENCY_KEY")" \
     && -n "$(env_of "$APP" "$YANDEX_INTERVAL_KEY")" ]] \
@@ -591,30 +602,25 @@ step_apply() {
   RUN_APPLIED="$(readlink -f "$OUT/home/patch-8z-latest")"
 }
 
-# Необязательный шаг runbook: включение флагов и откат .env (после apply, до rollback патча).
+# Необязательный шаг runbook: выключатель флагов и откат .env (после apply, до rollback патча).
 step_enable() {
   local name got bad=""
-  # Карточки поставщиков нужны для SUPPLIER_DISCOVERY_ENABLED=true (синтетический .env стенда).
-  if grep -q "^$FLAG_CARDS=" "$DEPLOY/.env"; then
-    sed -i "s|^$FLAG_CARDS=.*|$FLAG_CARDS=$FLAG_ON|" "$DEPLOY/.env"
-  else
-    printf '%s=%s\n' "$FLAG_CARDS" "$FLAG_ON" >>"$DEPLOY/.env"
-  fi
   cp -p "$DEPLOY/.env" "$OUT/env.before-enable"
-  flags_run enable_dry --paging "$FLAG_ON" --discovery "$FLAG_ON" --dry-run
+  flags_run enable_dry --paging "$FLAG_OFF" --discovery "$FLAG_OFF" --dry-run
   [[ "$RC" == 0 ]] && cmp -s "$DEPLOY/.env" "$OUT/env.before-enable" \
     && result "enable: --dry-run" ok "код 0, .env не тронут" \
     || result "enable: --dry-run" FAIL "$RC (enable_dry.log)"
-  flags_run enable --paging "$FLAG_ON" --discovery "$FLAG_ON"
+  flags_run enable --paging "$FLAG_OFF" --discovery "$FLAG_OFF"
   [[ "$RC" == 0 ]] && result "enable: код" ok "0 (enable.log)" \
     || result "enable: код" FAIL "$RC (enable.log)"
   for name in "$FLAG_PAGING" "$FLAG_DISCOVERY"; do
     got="$(env_of "$APP" "$name")"
-    [[ "$got" == "$FLAG_ON" ]] || bad+=" $name=${got:-<нет>}"
+    [[ "$got" == "$FLAG_OFF" ]] || bad+=" $name=${got:-<нет>}"
   done
   [[ -z "$bad" ]] \
-    && result "enable: у app обе переменные = true" ok "$FLAG_PAGING, $FLAG_DISCOVERY" \
-    || result "enable: у app обе переменные = true" FAIL "$bad"
+    && result "enable: у app обе переменные = false (выключены)" ok \
+      "$FLAG_PAGING, $FLAG_DISCOVERY" \
+    || result "enable: у app обе переменные = false (выключены)" FAIL "$bad"
   docs_untouched enable
   [[ "$(http_code "$PORT_APP" /ready)" == 200 ]] \
     && result "enable: app отвечает с хоста" ok "200" \
@@ -629,13 +635,13 @@ step_enable() {
   bad=""
   for name in "$FLAG_PAGING" "$FLAG_DISCOVERY"; do
     got="$(env_of "$APP" "$name")"
-    [[ "$got" == "$FLAG_OFF" ]] || bad+=" $name=${got:-<нет>}"
+    [[ "$got" == "$FLAG_ON" ]] || bad+=" $name=${got:-<нет>}"
   done
   [[ -z "$bad" ]] \
-    && result "enable: после отката у app обе переменные = false" ok "как до включения" \
-    || result "enable: после отката у app обе переменные = false" FAIL "$bad"
+    && result "enable: после отката у app обе переменные = true" ok "как до выключения" \
+    || result "enable: после отката у app обе переменные = true" FAIL "$bad"
   docs_untouched "enable (после отката)"
-  # Синтетический .env возвращается к состоянию prepare (в том числе карточки).
+  # Синтетический .env возвращается к состоянию prepare.
   cp -p "$OUT/env.keep" "$DEPLOY/.env"
 }
 
@@ -653,6 +659,42 @@ step_rollback() {
   [[ "$(http_code "$PORT_APP" /ready)" == 200 && "$(http_code "$PORT_DOCS" /health)" == 200 ]] \
     && result "rollback: documents и app отвечают с хоста" ok "200 и 200" \
     || result "rollback: documents и app отвечают с хоста" FAIL "нет 200"
+}
+
+# Явный выключатель в .env боя: патч не отказывает, .env не меняет, функции остаются выключенными.
+step_offswitch() {
+  local name got bad=""
+  printf '%s=%s\n%s=%s\n' "$FLAG_PAGING" "$FLAG_OFF" "$FLAG_DISCOVERY" "$FLAG_OFF" \
+    >>"$DEPLOY/.env"
+  cp -p "$DEPLOY/.env" "$OUT/env.offswitch"
+  patch_run offswitch
+  [[ "$RC" == 0 ]] && result "offswitch: код (патч не отказывает при явном false)" ok \
+    "0 (offswitch.log)" \
+    || result "offswitch: код (патч не отказывает при явном false)" FAIL "$RC (offswitch.log)"
+  [[ "$(container_image "$APP")" == "$(lock_ref "$STAND_LOCK_NEW" BAI_IMAGE_APP)" ]] \
+    && result "offswitch: app на новом образе" ok "как при обычном патче" \
+    || result "offswitch: app на новом образе" FAIL "$(container_image "$APP")"
+  cmp -s "$DEPLOY/.env" "$OUT/env.offswitch" \
+    && result "offswitch: .env боя патч не менял" ok "побайтно прежний" \
+    || result "offswitch: .env боя патч не менял" FAIL "различается"
+  for name in "$FLAG_PAGING" "$FLAG_DISCOVERY"; do
+    got="$(env_of "$APP" "$name")"
+    [[ "$got" == "$FLAG_OFF" ]] || bad+=" $name=${got:-<нет>}"
+  done
+  [[ -z "$bad" ]] \
+    && result "offswitch: у app обе переменные остаются false" ok "$FLAG_PAGING, $FLAG_DISCOVERY" \
+    || result "offswitch: у app обе переменные остаются false" FAIL "$bad"
+  grep -q "$FLAG_PAGING выключен выключателем" "$OUT/offswitch.log" \
+    && grep -q "$FLAG_DISCOVERY выключен выключателем" "$OUT/offswitch.log" \
+    && result "offswitch: журнал называет функции выключенными выключателем" ok "запись в журнале" \
+    || result "offswitch: журнал называет функции выключенными выключателем" FAIL "нет записи"
+  docs_untouched offswitch
+  patch_run offswitch_rollback --rollback --run-dir \
+    "$(readlink -f "$OUT/home/patch-8z-latest")"
+  cp -p "$OUT/env.keep" "$DEPLOY/.env"
+  [[ "$RC" == 0 ]] && result "offswitch: откат патча, код" ok "0 (offswitch_rollback.log)" \
+    || result "offswitch: откат патча, код" FAIL "$RC (offswitch_rollback.log)"
+  unchanged_since_prepare offswitch
 }
 
 step_broken() {
@@ -709,6 +751,7 @@ run_step() { # run_step <шаг>: контекст и вызов шага
     apply) restore_context; step_apply ;;
     enable) restore_context; step_enable ;;
     rollback) restore_context; step_rollback ;;
+    offswitch) restore_context; step_offswitch ;;
     broken) restore_context; step_broken ;;
     cleanup) step_cleanup ;;
     *) echo "неизвестный шаг $1" >&2; exit 2 ;;

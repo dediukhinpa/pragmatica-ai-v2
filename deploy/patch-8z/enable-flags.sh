@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Включение (и выключение) флагов G8z у app: необязательный шаг после патча G8z (КРАСНАЯ ЗОНА:
-# запускает только владелец на боевом хосте). Сам патч G8z флаги не включает: у app обе переменные
-# стоят в false. Этот скрипт ставит значения в боевом .env и пересоздаёт ТОЛЬКО app.
+# Выключатель флагов G8z у app: необязательный шаг после патча G8z (КРАСНАЯ ЗОНА: запускает
+# только владелец на боевом хосте). После патча обе функции ВКЛЮЧЕНЫ по умолчанию (в
+# compose.project.yml `:-true`); патч .env не меняет. Этот скрипт ставит значения в боевом .env
+# (`false` - выключить функцию без отката образа, `true` - вернуть) и пересоздаёт ТОЛЬКО app.
 #   SHORTLIST_PAGING_ENABLED    «ещё 10» поставщиков без повторов
-#   SUPPLIER_DISCOVERY_ENABLED  пополнение базы поставщиков (требует SUPPLIER_CARDS_ENABLED=true:
-#                               без него app не стартует)
+#   SUPPLIER_DISCOVERY_ENABLED  пополнение базы поставщиков (работает, только когда
+#                               SUPPLIER_CARDS_ENABLED=true: без карточек инструментов нет)
 #
 # Использование:
 #   bash enable-flags.sh [--paging true|false] [--discovery true|false] [--dry-run]
@@ -16,8 +17,8 @@
 #   0. Проверки (бой не меняется, при нарушении код 3): патч G8z применён (BAI_VERSION lock боя
 #      1.1.6-pragmatika.3, app запущен на образе из lock, в его окружении обе переменные), app
 #      здоров (/ready 200, ботов не меньше ожидаемого), .env на месте; для
-#      SUPPLIER_DISCOVERY_ENABLED=true в действующей конфигурации (compose config) должно быть
-#      SUPPLIER_CARDS_ENABLED=true.
+#      --discovery true в действующей конфигурации (compose config) должно быть
+#      SUPPLIER_CARDS_ENABLED=true (иначе возвращать пополнение базы бессмысленно).
 #   1. Бэкап .env (права и владелец сохраняются, 600): ~/backups/pragmatika-flags8z-<время>/.env.
 #   2. Правка .env: только строки названных флагов (остальное побайтно прежнее); проверка по
 #      `compose config` (значения у app, прочая конфигурация app не изменилась) ДО перезапуска.
@@ -28,7 +29,9 @@
 # В журнал и вывод идут только имена двух флагов и их значения; остальной .env (секреты) не
 # читается и не печатается.
 #
-# Откат вручную позже: `bash enable-flags.sh --rollback` (последний бэкап) или с --backup ФАЙЛ.
+# Откат вручную позже: `bash enable-flags.sh --rollback` (последний бэкап) или с --backup ФАЙЛ:
+# .env возвращается побайтно, app пересоздаётся; ожидаемое значение флага после отката - из
+# бэкапа, если ключа в нём нет - true (значение по умолчанию compose).
 # Коды выхода: 0 - готово; 1 - сбой, откат выполнен; 2 - неверный вызов; 3 - отказ по
 # предусловиям, бой не тронут; 4 - сбой, откат тоже не удался (ручное вмешательство).
 set -euo pipefail
@@ -434,13 +437,14 @@ do_rollback() {
   [[ -n "$backup" ]] || backup="$CUTOVER_HOME/$BACKUP_PREFIX-latest/$ENV_FILE_NAME"
   [[ -f "$backup" ]] || die "$EXIT_USAGE" "нет бэкапа $backup (--backup ФАЙЛ)"
   [[ -f "$LIVE_ENV" ]] || die "$EXIT_USAGE" "нет $LIVE_ENV"
-  # Ожидаемые значения флагов - те, что записаны в бэкапе (если ключа нет, умолчание false).
+  # Ожидаемые значения флагов - те, что записаны в бэкапе (если ключа нет или он пуст - true:
+  # значение по умолчанию compose).
   local -a want=()
   local flag value
   for flag in "$FLAG_PAGING" "$FLAG_DISCOVERY"; do
     value="$(env_value "$backup" "$flag")"
     value="${value,,}"
-    want+=("$flag=${value:-$FLAG_OFF}")
+    want+=("$flag=${value:-$FLAG_ON}")
   done
   rollback_env "$backup" "${want[@]}" || exit "$EXIT_STUCK"
   state_set RESULT "ROLLBACK_OK"

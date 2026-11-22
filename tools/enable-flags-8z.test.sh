@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Тест deploy/patch-8z/enable-flags.sh (необязательный шаг после патча G8z: включение флагов
-# SHORTLIST_PAGING_ENABLED и SUPPLIER_DISCOVERY_ENABLED в боевом .env и пересоздание только app)
+# Тест deploy/patch-8z/enable-flags.sh (необязательный шаг после патча G8z: выключатель флагов
+# SHORTLIST_PAGING_ENABLED и SUPPLIER_DISCOVERY_ENABLED в боевом .env - `false` выключает функцию,
+# `true` возвращает - и пересоздание только app; после патча обе функции включены по умолчанию)
 # без настоящего Docker: вместо docker - заглушка с памятью о контейнерах и окружении app, которое
-# она собирает из .env дерева. Проверяются отказы (код 3, .env не тронут), --dry-run, успех
-# (бэкап .env, правка только названных ключей, права, пересоздание только app, значения в
-# окружении app), автооткат при сбое (код 1, .env побайтно прежний), невозможный откат (код 4),
-# ручной --rollback, секреты (не попадают в вывод и архив), неверный вызов и стиль.
+# она собирает из .env дерева (нет ключа - true). Проверяются отказы (код 3, .env не тронут),
+# --dry-run, успех (бэкап .env, правка только названных ключей, права, пересоздание только app,
+# значения в окружении app), возврат включённого состояния, автооткат при сбое (код 1, .env
+# побайтно прежний), невозможный откат (код 4), ручной --rollback (бэкап без ключа - у app снова
+# true), секреты (не попадают в вывод и архив), неверный вызов и стиль.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -39,13 +41,13 @@ cat >"$BIN/docker" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$DOCKER_LOG"
 envfile="$(printf '%s\n' "$@" | grep -m1 '/\.env$' || true)"
-dotenv_value() { # dotenv_value <ИМЯ> <умолчание>: значение из .env дерева
+dotenv_value() { # dotenv_value <ИМЯ> <умолчание>: значение из .env дерева (флаги G8z: true)
   local v
   v="$(sed -n "s/^$1=//p" "$envfile" 2>/dev/null | tail -1)"
   echo "${v:-$2}"
 }
-ON_RE='^(SHORTLIST_PAGING_ENABLED|SUPPLIER_DISCOVERY_ENABLED)=true'
-flags_on() { grep -qE "$ON_RE" "$STUB/env/p-app-1"; }
+OFF_RE='^(SHORTLIST_PAGING_ENABLED|SUPPLIER_DISCOVERY_ENABLED)=false'
+flags_off() { grep -qE "$OFF_RE" "$STUB/env/p-app-1"; }
 case "$1" in
   compose)
     case " $* " in
@@ -53,12 +55,12 @@ case "$1" in
         printf '{"services":{"app":{"environment":{"SUPPLIER_CARDS_ENABLED":"%s",' \
           "$(dotenv_value SUPPLIER_CARDS_ENABLED false)"
         printf '"SHORTLIST_PAGING_ENABLED":"%s","SUPPLIER_DISCOVERY_ENABLED":"%s"}}}}\n' \
-          "$(dotenv_value SHORTLIST_PAGING_ENABLED false)" \
-          "$(dotenv_value SUPPLIER_DISCOVERY_ENABLED false)" ;;
+          "$(dotenv_value SHORTLIST_PAGING_ENABLED true)" \
+          "$(dotenv_value SUPPLIER_DISCOVERY_ENABLED true)" ;;
       *" up "*)
         touch "$STUB/started-any"
         [[ "${*: -1}" == app ]] || { touch "$STUB/other-up"; exit 0; }
-        if [[ "${STUB_UP_FAIL_ON_TRUE:-0}" == 1 ]] && grep -qE "$ON_RE" "$envfile"; then
+        if [[ "${STUB_UP_FAIL_ON_FALSE:-0}" == 1 ]] && grep -qE "$OFF_RE" "$envfile"; then
           echo "compose: ошибка up" >&2
           exit 1
         fi
@@ -68,11 +70,11 @@ case "$1" in
         {
           echo "PATH=/usr/bin"
           echo "OPENAI_API_KEY=$SECRET"
-          echo "SHORTLIST_PAGING_ENABLED=$(dotenv_value SHORTLIST_PAGING_ENABLED false)"
+          echo "SHORTLIST_PAGING_ENABLED=$(dotenv_value SHORTLIST_PAGING_ENABLED true)"
           if [[ "${STUB_APP_IGNORES_DISCOVERY:-0}" == 1 ]]; then
-            echo "SUPPLIER_DISCOVERY_ENABLED=false"
+            echo "SUPPLIER_DISCOVERY_ENABLED=true"
           else
-            echo "SUPPLIER_DISCOVERY_ENABLED=$(dotenv_value SUPPLIER_DISCOVERY_ENABLED false)"
+            echo "SUPPLIER_DISCOVERY_ENABLED=$(dotenv_value SUPPLIER_DISCOVERY_ENABLED true)"
           fi
         } >"$STUB/env/p-app-1"
         if [[ "${STUB_DOCS_RESTART:-0}" == 1 ]]; then
@@ -103,7 +105,7 @@ case "$1" in
       if [[ "${STUB_STUCK:-0}" == 1 && -e "$STUB/started-any" ]]; then
         echo "app недоступен"; exit 1
       fi
-      if [[ "${STUB_READY_500_ON_TRUE:-0}" == 1 ]] && flags_on; then
+      if [[ "${STUB_READY_500_ON_FALSE:-0}" == 1 ]] && flags_off; then
         echo '500 {"bots":{"ready":0}}'; exit 1
       fi
       echo "200 {\"bots\":{\"ready\":4}}"
@@ -122,7 +124,7 @@ write_env() { # write_env <с карточками: 0|1> [без перевод�
     printf 'POSTGRES_USER=pragmatika\n# комментарий про SHORTLIST_PAGING_ENABLED остаётся\n'
     printf 'OPENAI_API_KEY=%s\n' "$SECRET"
     (($1)) && printf 'SUPPLIER_CARDS_ENABLED=true\n' || printf 'SUPPLIER_CARDS_ENABLED=false\n'
-    printf 'SHORTLIST_PAGING_ENABLED=false\n'
+    printf 'SHORTLIST_PAGING_ENABLED=true\n'
     if [[ "${2:-0}" == 1 ]]; then printf 'LAST=1'; else printf 'LAST=1\n'; fi
   } >"$LIVE/.env"
   chmod 600 "$LIVE/.env"
@@ -141,8 +143,8 @@ reset_stand() { # reset_stand [с карточками: 0|1] [без перев�
   {
     echo "PATH=/usr/bin"
     echo "OPENAI_API_KEY=$SECRET"
-    echo "SHORTLIST_PAGING_ENABLED=false"
-    echo "SUPPLIER_DISCOVERY_ENABLED=false"
+    echo "SHORTLIST_PAGING_ENABLED=true"
+    echo "SUPPLIER_DISCOVERY_ENABLED=true"
   } >"$STUB/env/p-app-1"
   echo "PATH=/usr/bin" >"$STUB/env/p-documents-1"
 }
@@ -224,18 +226,18 @@ assert "--dry-run: .env и дерево не тронуты, up не было, �
   "no_mutation dry && [[ \"\$(tree_snapshot)\" == \"\$T0\" ]] \
    && ! compgen -G '$TMP/home-dry/backups/*'"
 
-# 3. Успех: оба флага.
+# 3. Успех: выключить обе функции (выключатель).
 reset_stand 1
 T0="$(tree_snapshot)"
 cp -p "$LIVE/.env" "$TMP/env-before"
 L0="$(cd "$LIVE" && sha256sum compose.yml images.lock .cutover-deployed)"
-run both --paging true --discovery true
+run both --paging false --discovery false
 assert "успех: код 0" "[[ $RC -eq 0 ]]"
-assert "успех: в .env SHORTLIST_PAGING_ENABLED=true (заменена существующая строка)" \
-  "env_is 'SHORTLIST_PAGING_ENABLED=true' \
+assert "успех: в .env SHORTLIST_PAGING_ENABLED=false (заменена существующая строка)" \
+  "env_is 'SHORTLIST_PAGING_ENABLED=false' \
    && [[ \$(grep -c '^SHORTLIST_PAGING_ENABLED=' '$LIVE/.env') -eq 1 ]]"
-assert "успех: в .env SUPPLIER_DISCOVERY_ENABLED=true (строка дописана)" \
-  "env_is 'SUPPLIER_DISCOVERY_ENABLED=true'"
+assert "успех: в .env SUPPLIER_DISCOVERY_ENABLED=false (строка дописана)" \
+  "env_is 'SUPPLIER_DISCOVERY_ENABLED=false'"
 assert "успех: остальные строки .env побайтно прежние (секреты, комментарий, карточки)" \
   "[[ \"\$(grep -v -E '^(SHORTLIST_PAGING_ENABLED|SUPPLIER_DISCOVERY_ENABLED)=' '$LIVE/.env')\" \
      == \"\$(grep -v -E '^(SHORTLIST_PAGING_ENABLED|SUPPLIER_DISCOVERY_ENABLED)=' \
@@ -250,9 +252,9 @@ assert "успех: app пересоздан один раз, только он 
 assert "успех: БЕЗ down, --remove-orphans, --force-recreate, documents не тронут" \
   "! grep -E ' (down|--remove-orphans|--force-recreate)( |\$)' '$TMP/docker-both.log' \
    && [[ \$(cat '$STUB/started/p-documents-1') == 2026-11-18T08:00:00Z ]]"
-assert "успех: в окружении app оба флага true" \
-  "grep -qx 'SHORTLIST_PAGING_ENABLED=true' '$STUB/env/p-app-1' \
-   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=true' '$STUB/env/p-app-1'"
+assert "успех: в окружении app оба флага false" \
+  "grep -qx 'SHORTLIST_PAGING_ENABLED=false' '$STUB/env/p-app-1' \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=false' '$STUB/env/p-app-1'"
 assert "успех: другие файлы дерева (compose.yml, lock, метка выкатки) не тронуты" \
   "[[ \"\$(cd '$LIVE' && sha256sum compose.yml images.lock .cutover-deployed)\" == \"\$L0\" ]]"
 mkdir -p "$TMP/arch"
@@ -262,23 +264,35 @@ assert "успех: секреты не попали в вывод, катало
 assert "успех: в каталоге запуска нет копий .env (секреты лежат только в бэкапе)" \
   "! find '$TMP/home-both/.pragmatika-cutover' -name 'env*' | grep -q ."
 assert "успех: журнал называет флаги и значения" \
-  "out_has both 'SHORTLIST_PAGING_ENABLED=true' && out_has both 'SUPPLIER_DISCOVERY_ENABLED=true'"
+  "out_has both 'SHORTLIST_PAGING_ENABLED=false' && out_has both 'SUPPLIER_DISCOVERY_ENABLED=false'"
 assert "успех: ни одного docker exec" "! grep -q '^exec ' '$TMP/docker-both.log'"
 
-# Выключение одного флага, второй остаётся (T_HOME общий не нужен).
-T1="$(tree_snapshot)"
-run offpaging --paging false
-assert "выключение paging: код 0, discovery остался true" \
-  "[[ $RC -eq 0 ]] && env_is 'SHORTLIST_PAGING_ENABLED=false' \
+# Вернуть обе функции (после выключения): значения true, .env правится только на двух ключах.
+cp -p "$LIVE/.env" "$TMP/env-off"
+T_HOME=both run backon --paging true --discovery true
+assert "возврат: код 0, в .env обе строки true" \
+  "[[ $RC -eq 0 ]] && env_is 'SHORTLIST_PAGING_ENABLED=true' \
    && env_is 'SUPPLIER_DISCOVERY_ENABLED=true'"
+assert "возврат: в окружении app обе true, пересоздан только app" \
+  "grep -qx 'SHORTLIST_PAGING_ENABLED=true' '$STUB/env/p-app-1' \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=true' '$STUB/env/p-app-1' \
+   && [[ ! -e '$STUB/other-up' ]]"
+
+# Выключение одного флага, второй остаётся (T_HOME общий не нужен).
+reset_stand 1
+run offpaging --paging false
+assert "выключение paging: код 0, discovery остался включённым (ключа в .env нет)" \
+  "[[ $RC -eq 0 ]] && env_is 'SHORTLIST_PAGING_ENABLED=false' \
+   && ! grep -q '^SUPPLIER_DISCOVERY_ENABLED' '$LIVE/.env' \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=true' '$STUB/env/p-app-1'"
 
 # Только paging, .env без перевода строки в конце и без ключа paging.
 reset_stand 0 1
 sed -i '/^SHORTLIST_PAGING_ENABLED=/d' "$LIVE/.env"
-run onlypaging --paging true
+run onlypaging --paging false
 assert "paging при .env без перевода строки в конце и без ключа: код 0, строка дописана" \
   "[[ $RC -eq 0 ]] \
-   && [[ \"\$(tail -n 2 '$LIVE/.env')\" == \$'LAST=1\nSHORTLIST_PAGING_ENABLED=true' ]]"
+   && [[ \"\$(tail -n 2 '$LIVE/.env')\" == \$'LAST=1\nSHORTLIST_PAGING_ENABLED=false' ]]"
 assert "paging: discovery не тронут (ключа в .env нет)" \
   "! grep -q '^SUPPLIER_DISCOVERY_ENABLED' '$LIVE/.env'"
 
@@ -288,55 +302,66 @@ rollback_case() { # rollback_case <имя> <описание>
   assert "$2: .env побайтно прежний (откат из бэкапа)" "[[ \"\$(tree_snapshot)\" == \"\$T0\" ]]"
   assert "$2: автооткат запущен и выполнен" \
     "out_has $1 'автоматический откат' && out_has $1 'ОТКАТ ВЫПОЛНЕН'"
-  assert "$2: app на прежних значениях (оба false)" \
-    "grep -qx 'SHORTLIST_PAGING_ENABLED=false' '$STUB/env/p-app-1' \
-     && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=false' '$STUB/env/p-app-1'"
+  assert "$2: app на прежних значениях (оба true)" \
+    "grep -qx 'SHORTLIST_PAGING_ENABLED=true' '$STUB/env/p-app-1' \
+     && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=true' '$STUB/env/p-app-1'"
   assert "$2: пересоздавался только app (замена и откат)" \
     "[[ \$(app_up_count $1) -eq 2 && ! -e '$STUB/other-up' ]]"
 }
 reset_stand 1
 T0="$(tree_snapshot)"
-STUB_UP_FAIL_ON_TRUE=1 run upfail --paging true --discovery true
-rollback_case upfail "compose up app не удался с новыми флагами"
+STUB_UP_FAIL_ON_FALSE=1 run upfail --paging false --discovery false
+rollback_case upfail "compose up app не удался с выключенными флагами"
 reset_stand 1
 T0="$(tree_snapshot)"
-STUB_READY_500_ON_TRUE=1 run ready500 --discovery true
-rollback_case ready500 "/ready 500 после включения"
+STUB_READY_500_ON_FALSE=1 run ready500 --discovery false
+rollback_case ready500 "/ready 500 после выключения"
 reset_stand 1
 T0="$(tree_snapshot)"
-STUB_APP_IGNORES_DISCOVERY=1 run ignores --discovery true
+STUB_APP_IGNORES_DISCOVERY=1 run ignores --discovery false
 rollback_case ignores "в окружении app значение флага не совпало"
 reset_stand 1
 T0="$(tree_snapshot)"
-STUB_DOCS_RESTART=1 run docsrestart --paging true
+STUB_DOCS_RESTART=1 run docsrestart --paging false
 assert "documents перезапущен: код 1 и откат" "[[ $RC -eq $EXIT_FAILED ]]"
 assert "documents перезапущен: .env прежний" "[[ \"\$(tree_snapshot)\" == \"\$T0\" ]]"
 reset_stand 1
 T0="$(tree_snapshot)"
-STUB_UP_FAIL_ON_TRUE=1 STUB_STUCK=1 run stuck --paging true
+STUB_UP_FAIL_ON_FALSE=1 STUB_STUCK=1 run stuck --paging false
 assert "откат не удался: код 4" "[[ $RC -eq $EXIT_STUCK ]]"
 assert "откат не удался: .env всё равно возвращён из бэкапа" \
   "[[ \"\$(tree_snapshot)\" == \"\$T0\" ]]"
 assert "откат не удался: сообщение о ручном вмешательстве" "out_has stuck 'ОТКАТ НЕ УДАЛСЯ'"
 
-# 5. Ручной откат: --rollback по последнему бэкапу и по --backup.
+# 5. Ручной откат: --rollback по последнему бэкапу и по --backup. В бэкапе нет ключа
+# SUPPLIER_DISCOVERY_ENABLED: после отката значение у app - по умолчанию true.
 reset_stand 1
 T0="$(tree_snapshot)"
-run man_apply --paging true --discovery true
+run man_apply --paging false --discovery false
 assert "ручной откат: исходный запуск успешен" "[[ $RC -eq 0 ]]"
 T_HOME=man_apply run man_rollback --rollback
 assert "ручной откат: код 0" "[[ $RC -eq 0 ]]"
 assert "ручной откат: .env побайтно прежний" "[[ \"\$(tree_snapshot)\" == \"\$T0\" ]]"
-assert "ручной откат: app на прежних значениях, пересоздан только app" \
-  "grep -qx 'SHORTLIST_PAGING_ENABLED=false' '$STUB/env/p-app-1' \
-   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=false' '$STUB/env/p-app-1' \
+assert "ручной откат: app снова true (в бэкапе нет ключа - default), пересоздан только app" \
+  "grep -qx 'SHORTLIST_PAGING_ENABLED=true' '$STUB/env/p-app-1' \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=true' '$STUB/env/p-app-1' \
    && [[ ! -e '$STUB/other-up' ]]"
 bk="$(compgen -G "$TMP/home-man_apply/backups/pragmatika-flags8z-*/.env" | head -1)"
 reset_stand 1
-run man_apply2 --discovery true
+run man_apply2 --discovery false
 T_HOME=man_apply2 run man_rollback2 --rollback --backup "$bk"
 assert "откат по --backup ФАЙЛ: код 0 и .env из этого файла" \
   "[[ $RC -eq 0 ]] && cmp -s '$bk' '$LIVE/.env'"
+# Бэкап с явным false: после отката у app false (значение из бэкапа).
+reset_stand 1
+printf 'SUPPLIER_DISCOVERY_ENABLED=false\n' >>"$LIVE/.env"
+T0="$(tree_snapshot)"
+run offkeep --paging false
+T_HOME=offkeep run offkeep_rb --rollback
+assert "ручной откат: бэкап с явным false возвращает false у app" \
+  "[[ $RC -eq 0 ]] && [[ \"\$(tree_snapshot)\" == \"\$T0\" ]] \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=false' '$STUB/env/p-app-1' \
+   && grep -qx 'SHORTLIST_PAGING_ENABLED=true' '$STUB/env/p-app-1'"
 reset_stand 1
 run norb --rollback
 assert "--rollback без бэкапа - код 2" "[[ $RC -eq $EXIT_USAGE ]]"

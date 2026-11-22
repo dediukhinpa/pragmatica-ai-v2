@@ -4,8 +4,9 @@
 # подтверждения подписей (обязательно, если дано; необязательно, если не дано), проверка версии
 # lock 1.1.6-pragmatika.3 и образов app и documents по digest, сравнение с lock боя после G8y
 # (--prev-lock: только BAI_VERSION и BAI_IMAGE_APP), проверка двух новых переменных app с
-# умолчанием false в compose.project.yml, проверка (без копирования в пакет) переменных Яндекса и
-# флагов documents в обоих файлах compose и версии платформы 1.1.6, архив, права и строгое
+# умолчанием true (включено; false - выключатель) в compose.project.yml, проверка (без
+# копирования в пакет) переменных Яндекса и флагов documents в обоих файлах compose и версии
+# платформы 1.1.6, архив, права и строгое
 # соответствие списка файлов patch.sh. Docker не нужен.
 set -euo pipefail
 
@@ -38,10 +39,10 @@ for f in compose.project.yml platform/compose.base.yml; do
   printf 'DOCUMENTS_PPT_CONVERT: true\nDOCUMENTS_EDIT_PDF_FALLBACK_FONT: false\n' \
     >>"$REPO/deploy/$f"
 done
-# Две новые переменные app (G8z) с умолчанием false: только в compose.project.yml.
-printf '  SHORTLIST_PAGING_ENABLED: ${SHORTLIST_PAGING_ENABLED:-false}\n' \
+# Две новые переменные app (G8z) с умолчанием true: только в compose.project.yml.
+printf '  SHORTLIST_PAGING_ENABLED: ${SHORTLIST_PAGING_ENABLED:-true}\n' \
   >>"$REPO/deploy/compose.project.yml"
-printf '  SUPPLIER_DISCOVERY_ENABLED: ${SUPPLIER_DISCOVERY_ENABLED:-false}\n' \
+printf '  SUPPLIER_DISCOVERY_ENABLED: ${SUPPLIER_DISCOVERY_ENABLED:-true}\n' \
   >>"$REPO/deploy/compose.project.yml"
 echo "PLATFORM_PACKAGES_VERSION=1.1.6" >"$REPO/deploy/platform/PLATFORM-VERSION"
 # Файлы дерева, которых в пакете G8z быть не должно (кроме compose.project.yml).
@@ -92,8 +93,8 @@ assert "из файлов deploy/ в пакете ровно compose.project.yml
 assert "compose.project.yml в пакете - копия из HEAD с обеими новыми переменными" \
   "git -C '$REPO' show HEAD:deploy/compose.project.yml \
    | cmp -s - '$OUT/deploy/compose.project.yml' \
-   && grep -q 'SHORTLIST_PAGING_ENABLED:-false' '$OUT/deploy/compose.project.yml' \
-   && grep -q 'SUPPLIER_DISCOVERY_ENABLED:-false' '$OUT/deploy/compose.project.yml'"
+   && grep -q 'SHORTLIST_PAGING_ENABLED:-true' '$OUT/deploy/compose.project.yml' \
+   && grep -q 'SUPPLIER_DISCOVERY_ENABLED:-true' '$OUT/deploy/compose.project.yml'"
 for f in smoke_contract.py tools/check-image-routes.sh compose.yml compat.env \
   deploy/platform/PLATFORM-VERSION deploy/platform/compose.base.yml deploy/compose.yml \
   deploy/images.lock; do
@@ -154,7 +155,7 @@ for target in platform/compose.base.yml compose.project.yml; do
     rm -rf "${TMP:?}/pkg-novar"
   done
 done
-# Новых переменных app нет в compose.project.yml, или умолчание не false - отказ; причина называет
+# Новых переменных app нет в compose.project.yml, или умолчание не true - отказ; причина называет
 # переменную. Новые переменные нужны только в compose.project.yml (его кладём в пакет).
 for var in SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED; do
   sed -i "/$var:/d" "$REPO/deploy/compose.project.yml"
@@ -166,11 +167,12 @@ for var in SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED; do
   assert "отказ называет новую переменную $var" "grep -q '$var' '$TMP/out-nonew.log'"
   git -C "$REPO" reset -q --hard HEAD~1
   rm -rf "${TMP:?}/pkg-nonew"
-  sed -i "s|$var:-false|$var:-true|" "$REPO/deploy/compose.project.yml"
-  commit "умолчание $var true"
+  sed -i "s|$var:-true|$var:-false|" "$REPO/deploy/compose.project.yml"
+  commit "умолчание $var false"
   rc=0
   run --out "$TMP/pkg-nonew" >"$TMP/out-nonew.log" 2>&1 || rc=$?
-  assert "умолчание $var не false - отказ" "[[ $rc -eq 1 ]]"
+  assert "умолчание $var не true (false) - отказ" "[[ $rc -eq 1 ]]"
+  assert "отказ называет требуемое умолчание true" "grep -q ':-true' '$TMP/out-nonew.log'"
   assert "отказ про умолчание называет $var" "grep -q '$var' '$TMP/out-nonew.log'"
   git -C "$REPO" reset -q --hard HEAD~1
   rm -rf "${TMP:?}/pkg-nonew"

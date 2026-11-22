@@ -2,9 +2,11 @@
 # Патч G8z: ОДИН образ проекта app 1.1.6-pragmatika.3 и файл compose.project.yml (КРАСНАЯ ЗОНА:
 # запускает только владелец на боевом хосте). Платформа остаётся 1.1.6, documents НЕ меняется и
 # остаётся на 1.1.6-pragmatika.2. Новое в app: «ещё 10» поставщиков без повторов и пополнение
-# базы поставщиков; обе функции за флагами SHORTLIST_PAGING_ENABLED и SUPPLIER_DISCOVERY_ENABLED
-# (в compose.project.yml по умолчанию false). Сам патч флаги НЕ включает: включение - отдельный
-# необязательный шаг runbook (enable-flags.sh). Ставится СТРОГО ПОСЛЕ патча G8y: lock боя
+# базы поставщиков; обе функции за флагами SHORTLIST_PAGING_ENABLED и SUPPLIER_DISCOVERY_ENABLED,
+# которые в compose.project.yml по умолчанию ВКЛЮЧЕНЫ (`:-true`); false в .env боя - выключатель.
+# Патч .env не меняет: если флаг в .env явно false, функция остаётся выключенной (патч пишет это в
+# журнал и результат). Выключить или вернуть функцию после патча - необязательный шаг runbook
+# (enable-flags.sh). Ставится СТРОГО ПОСЛЕ патча G8y: lock боя
 # 1.1.6-pragmatika.2, платформа 1.1.6, app и documents работают на образах из lock боя.
 #
 # Использование:
@@ -29,21 +31,26 @@
 #      (/ready 200, ботов не меньше ожидаемого), свободны диск и память, образ app на хосте
 #      (docker load или pull по digest), прежний (откатный) образ app на хосте есть. Примерка:
 #      compose с новыми файлами и боевым .env собирается, у app обе новые переменные
-#      (SHORTLIST_PAGING_ENABLED, SUPPLIER_DISCOVERY_ENABLED) имеют значение false, а вся прочая
-#      конфигурация (app без образа и этих двух переменных, documents и остальные сервисы целиком)
-#      совпадает со снимком боя до патча. Любое нарушение - код 3, бой не тронут. С
-#      --preflight-only на этом всё.
+#      (SHORTLIST_PAGING_ENABLED, SUPPLIER_DISCOVERY_ENABLED) имеют эффективное значение (из .env
+#      боя, иначе true по умолчанию compose; в compose.project.yml пакета строка `:-true`
+#      обязательна), а вся прочая конфигурация (app без образа и этих двух переменных, documents
+#      и остальные сервисы целиком) совпадает со снимком боя до патча при одном и том же корне
+#      путей. Любое нарушение - код 3, бой не тронут. Флаг, явно выключенный в .env боя, отказом
+#      не является (функция остаётся выключенной); SUPPLIER_CARDS_ENABLED у запущенного app не
+#      true - только предупреждение. С --preflight-only на этом всё.
 #   1. Бэкап файлов дерева (весь каталог deploy, права сохраняются, .env 600) и снимок
 #      контейнеров и образов: ~/backups/pragmatika-patch8z-<время>.
 #   2. Замена compose.project.yml и images.lock, затем `up -d --no-deps app` (без down, без
 #      --remove-orphans, без --force-recreate; documents не пересоздаётся; простой app около
 #      30 с).
 #   3. Проверки: образ app = lock (по digest); /ready app 200 и ботов не меньше ожидаемого; в
-#      окружении app обе новые переменные на месте (значение false: патч флаги не включает) и
-#      переменные поиска G8w не потерялись; documents не перезапускался, на образе из lock, четыре
-#      флага G8x на месте, проба POST /docx/amend отвечает как образ G8y (в журнал идут только
-#      статус и код ошибки); маршруты стека не 404/405 (tools/check-routes.sh); выдержка (по
-#      умолчанию 2 минуты: documents и app не перезапускаются).
+#      окружении app обе новые переменные на месте и равны эффективным значениям (из .env боя,
+#      иначе true) и переменные поиска G8w не потерялись; SUPPLIER_CARDS_ENABLED у app не true -
+#      предупреждение (пополнение базы без карточек не работает); documents не перезапускался, на
+#      образе из lock, четыре флага G8x на месте, проба POST /docx/amend отвечает как образ G8y
+#      (в журнал идут только статус и код ошибки); маршруты стека не 404/405
+#      (tools/check-routes.sh); выдержка (по умолчанию 2 минуты: documents и app не
+#      перезапускаются).
 #   Любой сбой после начала изменений -> автоматический откат: compose.project.yml и images.lock
 #   возвращаются из бэкапа, `up -d --no-deps app` на образ G8y, проверяется /ready.
 # Результат: ~/patch8z-<время>.tgz (журнал, проверки; без секретов и данных) - вернуть
@@ -99,13 +106,22 @@ PLATFORM_VERSION_FILE="platform/PLATFORM-VERSION"
 PLATFORM_VERSION_KEY="PLATFORM_PACKAGES_VERSION"
 PLATFORM_NOW="1.1.6"
 G8Y_HINT="сначала примените патч G8y (платформа ${PLATFORM_NOW}, lock ${LOCK_VERSION_FROM})"
-# Новые переменные app от этого патча (в compose.project.yml по умолчанию false). Патч их не
-# включает: значение false проверяется до и после замены. Включение - enable-flags.sh.
+# Новые переменные app от этого патча: в compose.project.yml по умолчанию true (включено), false в
+# .env боя - выключатель. Эффективное значение = значение из .env (затем secrets.env), иначе
+# true; до и после замены app сверяется именно оно. Выключить и вернуть - enable-flags.sh.
 NEW_APP_FLAGS=(SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED)
+FLAG_DEFAULT_VALUE="true"
 FLAG_OFF_VALUE="false"
-# Значение из окружения запуска сильнее .env и compose: сброс, чтобы флаги нельзя было включить в
-# обход runbook (переменная, экспортированная в оболочке владельца).
+# Пополнение базы работает, только когда у app включены карточки поставщиков (иначе инструментов
+# нет, а запуск не падает): не true - предупреждение, не отказ.
+CARDS_KEY="SUPPLIER_CARDS_ENABLED"
+CARDS_ON_VALUE="true"
+# Значение из окружения запуска сильнее .env и compose: сброс, чтобы эффективное значение
+# определялось только файлами дерева (переменная, экспортированная в оболочке владельца, иначе
+# подменила бы и выключатель, и значение по умолчанию).
 unset "${NEW_APP_FLAGS[@]}"
+# Ожидаемые значения новых переменных (ИМЯ=значение), заполняются в stage_tree.
+EXPECT_FLAGS=()
 # Переменные app от патча G8w: признак, что G8w применён (значения не меняются, при замене app
 # не должны потеряться).
 G8W_APP_KEYS=(YANDEX_SEARCH_MAX_CONCURRENCY YANDEX_SEARCH_MIN_INTERVAL_MS)
@@ -629,12 +645,25 @@ compose_json() {
   ) || true
 }
 
-# config_delta <JSON боя до патча> <JSON после патча> <deploy боя> <deploy примерки> <значение
-# «выключено»> <ИМЯ...>: сравнение конфигураций. Допустимое различие только образ app и две новые
-# переменные app (у них должно быть значение «выключено»). Пути примерки в её JSON заменяются на
-# боевые: compose раскрывает относительные пути томов от каталога файла. Печатает строки
-# «ФЛАГ <причина>» и «РАЗЛИЧИЕ <путь>» (только названия ключей, значения не печатаются);
-# пусто - всё сходится. Код 2 - у конфигурации нет ожидаемой структуры.
+# effective_flag_value <ИМЯ>: значение флага, которое увидит app: из .env боя, затем secrets.env
+# (позже - сильнее, как порядок --env-file), пусто или нет ключа - значение по умолчанию compose.
+effective_flag_value() {
+  local file value="" got
+  for file in "$LIVE_DEPLOY/$ENV_FILE_NAME" "$LIVE_DEPLOY/secrets.env"; do
+    got="$(env_value "$file" "$1")"
+    [[ -z "$got" ]] || value="$got"
+  done
+  printf '%s' "${value:-$FLAG_DEFAULT_VALUE}"
+}
+
+# config_delta <JSON боя до патча> <JSON после патча> <корень боя> <корень примерки>
+# <ИМЯ=значение...>: сравнение конфигураций. Допустимое различие только образ app и две новые
+# переменные app (у них должно быть заданное значение). Корень примерки в её JSON заменяется на
+# боевой: compose раскрывает относительные пути (контекст сборки `../..`, тома `../../db`,
+# файлы окружения) от каталога файлов, а корень примерки отличается от боевого. Заменяется именно
+# корень дерева, а не его подкаталог deploy: пути выше deploy тоже зависят от корня. Печатает
+# строки «ФЛАГ <причина> <имя>» и «РАЗЛИЧИЕ <путь>» (только названия ключей, значения не
+# печатаются); пусто - всё сходится. Код 2 - у конфигурации нет ожидаемой структуры.
 config_delta() {
   python3 -I -c '
 import json, sys
@@ -655,17 +684,17 @@ def paths(left: object, right: object, prefix: str) -> list[str]:
 try:
     live = json.load(open(sys.argv[1], encoding="utf-8"))
     new = json.loads(open(sys.argv[2], encoding="utf-8").read().replace(sys.argv[4], sys.argv[3]))
-    off, names = sys.argv[5], sys.argv[6:]
+    expect = dict(pair.split("=", 1) for pair in sys.argv[5:])
     app_live, app_new = live["services"]["app"], new["services"]["app"]
     env_live = app_live.get("environment") or {}
     env_new = app_new.get("environment") or {}
 except (ValueError, KeyError, TypeError, AttributeError, OSError):
     sys.exit(2)
-for name in names:
+for name, want in expect.items():
     if name not in env_new:
         print("ФЛАГ нет-переменной " + name)
-    elif str(env_new[name]).strip().lower() != off:
-        print("ФЛАГ значение-не-" + off + " " + name)
+    elif str(env_new[name]).strip() != want:
+        print("ФЛАГ значение-не-эффективное " + name)
     env_new.pop(name, None)
     env_live.pop(name, None)
 app_live.pop("image", None)
@@ -676,13 +705,15 @@ for where in paths(live, new, ""):
 }
 
 # Дерево примерки: копия боевого deploy + файлы пакета и lock, секреты ссылками на боевые файлы.
-# Сравнивается `compose config` боя (снимок ДО патча) и примерки: обе новые переменные app false,
-# а вся остальная конфигурация (app без образа и этих переменных, documents и прочие сервисы,
-# сети, тома) совпадает.
+# Сравнивается `compose config` боя (снимок ДО патча) и примерки: обе новые переменные app равны
+# эффективным значениям (из .env боя, иначе true по умолчанию compose), а вся остальная
+# конфигурация (app без образа и этих переменных, documents и прочие сервисы, сети, тома)
+# совпадает; пути сравниваются при одном корне (корень примерки заменяется на боевой).
 stage_tree() {
   phase "примерка новых файлов (бой не меняется)"
   STAGE_DIR="$WORK/stage"
-  local deploy="$STAGE_DIR/deploy" rel secret live_cfg new_cfg delta rc=0 line bad=""
+  local deploy="$STAGE_DIR/deploy" rel secret live_cfg new_cfg delta rc=0 line bad="" flag want
+  local report=""
   mkdir -p "$deploy"
   (cd "$LIVE_DEPLOY" && tar -c --exclude='./.env' --exclude='./secrets.env' \
     --exclude="./$MASK_TOKEN_FILE_NAME" .) | tar -x -C "$deploy"
@@ -694,6 +725,22 @@ stage_tree() {
     cp -p "$PKG_DEPLOY/$rel" "$deploy/$rel"
   done
   cp "$LOCK_SRC" "$deploy/images.lock"
+  for flag in "${NEW_APP_FLAGS[@]}"; do
+    grep -qE "^[[:space:]]+$flag: \\\$\{$flag:-$FLAG_DEFAULT_VALUE\}[[:space:]]*\$" \
+      "$deploy/$COMPOSE_PROJECT_FILE" \
+      || refuse "в $COMPOSE_PROJECT_FILE пакета нет строки $flag: \${$flag:-$FLAG_DEFAULT_VALUE}" \
+        "(по умолчанию функция должна быть включена)"
+  done
+  EXPECT_FLAGS=()
+  for flag in "${NEW_APP_FLAGS[@]}"; do
+    want="$(effective_flag_value "$flag")"
+    EXPECT_FLAGS+=("$flag=$want")
+    if [[ "${want,,}" == "$FLAG_OFF_VALUE" ]]; then
+      report+="; $flag выключен выключателем в .env боя (патч .env не меняет)"
+    else
+      report+="; $flag включён (по умолчанию compose или значение .env)"
+    fi
+  done
   live_cfg="$(compose_json "$LIVE_NEW_DIR")"
   [[ -n "$live_cfg" ]] || refuse "docker compose config боевого дерева не собрался: снимка нет"
   CUTOVER_NEW_DIR="$STAGE_DIR"
@@ -704,15 +751,17 @@ stage_tree() {
   new_cfg="$(compose_json "$STAGE_DIR")"
   [[ -n "$new_cfg" ]] || refuse "docker compose config новых файлов не отдал JSON"
   delta="$(config_delta <(printf '%s' "$live_cfg") <(printf '%s' "$new_cfg") \
-    "$LIVE_DEPLOY" "$deploy" "$FLAG_OFF_VALUE" "${NEW_APP_FLAGS[@]}")" || rc=$?
+    "$LIVE_NEW_DIR" "$STAGE_DIR" "${EXPECT_FLAGS[@]}")" || rc=$?
   ((rc == 0)) || refuse "в конфигурации compose нет сервиса app (структура не разобрана)"
   while IFS= read -r line; do
     [[ -z "$line" ]] || bad+="; $line"
   done <<<"$delta"
   [[ -z "$bad" ]] || refuse "новая конфигурация compose не сходится со снимком боя до патча" \
-    "(допустимо: образ app и две новые переменные app = $FLAG_OFF_VALUE; патч флаги не включает:" \
-    "значение из .env боя уберите, включение - enable-flags.sh): ${bad#; }"
-  check "флаги app в конфигурации" ok "${NEW_APP_FLAGS[*]} = $FLAG_OFF_VALUE при пустом окружении"
+    "(допустимо: образ app и две новые переменные app с эффективным значением: из .env боя," \
+    "иначе $FLAG_DEFAULT_VALUE): ${bad#; }"
+  check "флаги app в конфигурации" ok "значения как в .env боя, иначе $FLAG_DEFAULT_VALUE" \
+    "по умолчанию compose${report}"
+  printf '%s\n' "${EXPECT_FLAGS[@]}" >"$RES/flags-effective.txt"
   check "прочая конфигурация" ok "совпадает со снимком боя до патча (образ app и две переменные)"
 }
 
@@ -832,22 +881,39 @@ verify_ready() {
 }
 
 # В окружении app после пересоздания: переменные поиска G8w на месте (только наличие), обе новые
-# переменные есть и равны false (патч флаги не включает; значения только этих двух ключей).
+# переменные есть и равны эффективным значениям (из .env боя, иначе true; значения только этих
+# двух ключей и SUPPLIER_CARDS_ENABLED).
 verify_app_env() {
-  local key missing="" got bad=""
+  local key missing="" got bad="" pair want
   for key in "${G8W_APP_KEYS[@]}"; do
     [[ -n "$(container_env_value "$CUTOVER_APP_CONTAINER" "$key")" ]] || missing+=" $key"
   done
   [[ -z "$missing" ]] || die "$EXIT_FAILED" "в окружении app пропали переменные G8w:$missing"
-  for key in "${NEW_APP_FLAGS[@]}"; do
+  for pair in "${EXPECT_FLAGS[@]}"; do
+    key="${pair%%=*}"
+    want="${pair#*=}"
     got="$(container_env_value "$CUTOVER_APP_CONTAINER" "$key")"
     [[ -n "$got" ]] || die "$EXIT_FAILED" "в окружении app нет новой переменной $key"
-    [[ "${got,,}" == "$FLAG_OFF_VALUE" ]] || bad+=" $key=$got"
+    [[ "$got" == "$want" ]] || bad+=" $key=$got (ожидается $want)"
   done
   [[ -z "$bad" ]] \
-    || die "$EXIT_FAILED" "патч флаги не включает, а в окружении app:$bad" \
-      "(ожидается $FLAG_OFF_VALUE)"
-  check "окружение app" ok "переменные поиска G8w на месте; ${NEW_APP_FLAGS[*]} = $FLAG_OFF_VALUE"
+    || die "$EXIT_FAILED" "в окружении app новые переменные не равны эффективным значениям:$bad"
+  check "окружение app" ok "переменные поиска G8w на месте; новые переменные: ${EXPECT_FLAGS[*]}"
+  warn_cards_flag "после замены"
+}
+
+# warn_cards_flag <когда>: у запущенного app SUPPLIER_CARDS_ENABLED не true - предупреждение (без
+# карточек пополнение базы не работает), не отказ. Читается только это значение.
+warn_cards_flag() {
+  local got
+  got="$(container_env_value "$CUTOVER_APP_CONTAINER" "$CARDS_KEY")"
+  if [[ "${got,,}" == "$CARDS_ON_VALUE" ]]; then
+    check "карточки поставщиков ($1)" ok "$CARDS_KEY=$CARDS_ON_VALUE"
+  else
+    check "карточки поставщиков ($1)" warn "$CARDS_KEY у app не $CARDS_ON_VALUE" \
+      "(${got:-нет}): пополнение базы без карточек не работает, «ещё 10» работает;" \
+      "включение карточек - отдельное решение владельца"
+  fi
 }
 
 # documents патчем не трогается: StartedAt тот же, что до замены (снимок в make_backup).
@@ -1012,6 +1078,7 @@ main() {
   check_g8y_applied
   check_changes
   check_battle_health
+  warn_cards_flag "до патча"
   check_resources
   ensure_images
   stage_tree

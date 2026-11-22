@@ -12,9 +12,10 @@
 # Состав (копии закоммиченного дерева, git show HEAD; незакоммиченное не попадает):
 #   patch.sh, lib.sh, verify-signatures.sh   сценарий патча G8z и общие функции (deploy/patch-8z,
 #                                            deploy/cutover)
-#   enable-flags.sh                          необязательный шаг runbook: включение флагов
+#   enable-flags.sh                          необязательный шаг runbook: выключатель флагов
 #                                            SHORTLIST_PAGING_ENABLED и SUPPLIER_DISCOVERY_ENABLED
-#                                            (сам патч флаги не включает)
+#                                            (по умолчанию обе функции включены; патч .env не
+#                                            меняет)
 #   tools/check-routes.sh, route-flags.tsv, routes.tsv   проверка маршрутов стека (маршруты
 #                                            берутся из готового routes.tsv, исходники проекта
 #                                            и route-manifest.ts на хосте не нужны)
@@ -30,12 +31,12 @@
 # digest и BAI_VERSION=1.1.6-pragmatika.3; с --prev-lock (lock боя после G8y, этап 8y2) lock
 # отличается от него ТОЛЬКО ключами BAI_VERSION и BAI_IMAGE_APP; подтверждение подписей (если
 # дано) относится к ЭТОМУ lock (sha256), этому ключу и покрывает все его образы. В HEAD
-# deploy/compose.project.yml обязан содержать обе новые переменные app с умолчанием false
-# (SHORTLIST_PAGING_ENABLED: ${SHORTLIST_PAGING_ENABLED:-false}, то же для
-# SUPPLIER_DISCOVERY_ENABLED). Только проверки (в пакет не попадают): оба файла compose в HEAD
-# (compose.project.yml и platform/compose.base.yml) содержат обе переменные поиска G8w
-# (YANDEX_SEARCH_MAX_CONCURRENCY, YANDEX_SEARCH_MIN_INTERVAL_MS) и четыре флага documents от G8x
-# (DOCUMENTS_EDIT_PPTX, DOCUMENTS_EDIT_PDF, DOCUMENTS_PPT_CONVERT,
+# deploy/compose.project.yml обязан содержать обе новые переменные app с умолчанием true
+# (SHORTLIST_PAGING_ENABLED: ${SHORTLIST_PAGING_ENABLED:-true}, то же для
+# SUPPLIER_DISCOVERY_ENABLED; false - выключатель в .env). Только проверки (в пакет не
+# попадают): оба файла compose в HEAD (compose.project.yml и platform/compose.base.yml) содержат
+# обе переменные поиска G8w (YANDEX_SEARCH_MAX_CONCURRENCY, YANDEX_SEARCH_MIN_INTERVAL_MS) и
+# четыре флага documents от G8x (DOCUMENTS_EDIT_PPTX, DOCUMENTS_EDIT_PDF, DOCUMENTS_PPT_CONVERT,
 # DOCUMENTS_EDIT_PDF_FALLBACK_FONT), а PLATFORM-VERSION в HEAD - версию 1.1.6. С --tgz пакет
 # упаковывается в архив (режим 600, корень patch-package/; обычно stage-8z/patch-package.tgz).
 #
@@ -52,8 +53,10 @@ ROUTE_TOOLS=(check-routes.sh route-flags.tsv)
 # Файлы дерева, которые патч вправе заменить (кроме images.lock в корне пакета).
 # ДОЛЖНО совпадать с PATCH_FILE_ALLOW в patch.sh.
 DEPLOY_FILES=(compose.project.yml)
-# Новые переменные app: обязаны быть в compose.project.yml из HEAD с умолчанием false.
+# Новые переменные app: обязаны быть в compose.project.yml из HEAD с умолчанием true (функции
+# включены по умолчанию, false в .env - выключатель).
 NEW_APP_VARS=(SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED)
+NEW_APP_DEFAULT="true"
 NEW_APP_FILE="compose.project.yml"
 # Ключи lock, которыми новый lock вправе отличаться от lock боя после G8y (--prev-lock).
 ALLOWED_LOCK_DIFF="BAI_VERSION BAI_IMAGE_APP"
@@ -192,12 +195,13 @@ for f in "${REQUIRED_VARS_FILES[@]}"; do
       || fail "в HEAD:deploy/$f нет переменной $v (G8z ставится поверх G8w и G8x)"
   done
 done
-# Новые переменные app в файле, который кладётся в пакет: обе с умолчанием false.
+# Новые переменные app в файле, который кладётся в пакет: обе с умолчанием true.
 content="$(git -C "$ROOT" show "HEAD:deploy/$NEW_APP_FILE")" \
   || fail "в HEAD нет deploy/$NEW_APP_FILE"
 for v in "${NEW_APP_VARS[@]}"; do
-  grep -qE "^[[:space:]]+$v: \\$\\{$v:-false\\}[[:space:]]*\$" <<<"$content" \
-    || fail "в HEAD:deploy/$NEW_APP_FILE у $v нет умолчания false (строка NAME: \${NAME:-false})"
+  grep -qE "^[[:space:]]+$v: \\$\\{$v:-$NEW_APP_DEFAULT\\}[[:space:]]*\$" <<<"$content" \
+    || fail "в HEAD:deploy/$NEW_APP_FILE у $v нет умолчания $NEW_APP_DEFAULT" \
+      "(строка NAME: \${NAME:-$NEW_APP_DEFAULT})"
 done
 version_line="PLATFORM_PACKAGES_VERSION=$PLATFORM_VERSION"
 content="$(git -C "$ROOT" show "HEAD:deploy/$PLATFORM_VERSION_FILE")" \

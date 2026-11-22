@@ -2,13 +2,17 @@
 # Тест deploy/patch-8z/patch.sh (патч G8z: платформа остаётся 1.1.6, катится ТОЛЬКО образ
 # pragmatika-app 1.1.6-pragmatika.3, documents остаётся на 1.1.6-pragmatika.2; из файлов дерева
 # заменяются images.lock и compose.project.yml с двумя новыми переменными app
-# SHORTLIST_PAGING_ENABLED и SUPPLIER_DISCOVERY_ENABLED, по умолчанию false) без настоящего Docker:
+# SHORTLIST_PAGING_ENABLED и SUPPLIER_DISCOVERY_ENABLED, по умолчанию true; false в .env боя -
+# выключатель) без настоящего Docker:
 # вместо docker - заглушка с памятью о контейнерах, их образах, окружении и времени старта (в том
 # числе пробы /health, /ready и POST /docx/amend и `compose config --format json`). Проверяются
 # отказы по предусловиям (бой не тронут, код 3), в том числе «патч G8y не применён», чужой ключ
-# lock (в том числе образ documents), чужой файл deploy/ в пакете, флаги не false или иное
-# различие в конфигурации compose и повторный запуск; --preflight-only (дерево побайтно прежнее);
-# успешный ход (только app, documents не пересоздаётся, обе новые переменные false); сбои с
+# lock (в том числе образ documents), чужой файл deploy/ в пакете, флаги не равны эффективным
+# значениям (из .env боя, иначе true) или иное различие в конфигурации compose и повторный запуск;
+# устойчивость сравнения конфигураций к каталогу рендера (корень примерки не равен боевому, пути
+# выше deploy: контекст сборки, тома migrate); --preflight-only (дерево побайтно прежнее);
+# успешный ход (только app, documents не пересоздаётся, обе новые переменные true; явный false в
+# .env боя остаётся выключенным, .env не меняется; нет карточек - только предупреждение); сбои с
 # автооткатом (код 1, дерево побайтно прежнее, app на образе G8y); невозможный откат (код 4);
 # ручной --rollback; настоящий JS пробы (если на хосте есть bun) против локального сервера; стиль.
 # Ход на настоящем Docker проверяет tools/patch-8z-synth.sh.
@@ -76,6 +80,14 @@ set_image() { # set_image <имя> <образ>: заменить или доб�
   mv "$STUB/containers.n" "$STUB/containers"
 }
 lock_ref() { grep -E "^$2=" "$1" | head -1 | cut -d= -f2-; }
+# Эффективное значение флага для заглушки: из .env, затем secrets.env дерева (без кавычек), пусто -
+# true (default).
+stub_flag() { # stub_flag <каталог deploy> <ИМЯ>
+  local v
+  v="$(cat "$1/.env" "$1/secrets.env" 2>/dev/null | sed -n "s/^$2=//p" | tail -1 \
+    | tr -d "\"'")"
+  echo "${v:-true}"
+}
 bump_started() { # bump_started <имя>: новое время старта контейнера
   local n
   n="$(cat "$STUB/counter" 2>/dev/null || echo 0)"
@@ -99,10 +111,16 @@ amend_reply() {
   exit 0
 }
 # Конфигурация compose одним JSON. Набор новых переменных app зависит от compose.project.yml
-# дерева (новый файл - есть обе переменные); ручки STUB_CFG_* портят только конфигурацию с
-# новым файлом. Пути томов зависят от каталога дерева (боевое и примерка): проверка нормализации.
+# дерева (новый файл - есть обе переменные), значения - от .env дерева (иначе true); ручки
+# STUB_CFG_* портят только конфигурацию с новым файлом. Как настоящий compose, пути раскрываются
+# от каталога файлов: том app лежит под deploy, а контекст сборки app и том migrate - ВЫШЕ deploy
+# (`../..`), то есть зависят от корня дерева (боевого или примерки): проверка нормализации корня.
 config_json() { # config_json <каталог deploy> <lock>
   local dir="$1" lock="$2" newvars=0 mem=1g pptx=true pg=r/postgres@sha256:pg
+  local root ctx vol
+  root="$(dirname "$dir")"
+  ctx="$root"
+  vol="$root/db/app"
   grep -q 'SHORTLIST_PAGING_ENABLED' "$dir/compose.project.yml" 2>/dev/null && newvars=1
   if ((newvars == 0)) && [[ "${STUB_LIVE_CFG_FAIL:-0}" == 1 ]]; then exit 1; fi
   [[ "${STUB_CFG_BAD_JSON:-0}" != 1 ]] || { echo '{"services":'; exit 0; }
@@ -110,19 +128,25 @@ config_json() { # config_json <каталог deploy> <lock>
     [[ "${STUB_CFG_APP_DRIFT:-0}" != 1 ]] || mem=2g
     [[ "${STUB_CFG_DOCS_DRIFT:-0}" != 1 ]] || pptx=false
     [[ "${STUB_CFG_OTHER_DRIFT:-0}" != 1 ]] || pg=r/postgres@sha256:other
+    [[ "${STUB_CFG_CONTEXT_DRIFT:-0}" != 1 ]] || ctx=/elsewhere/src
+    [[ "${STUB_CFG_PATH_DRIFT:-0}" != 1 ]] || vol=/elsewhere/db/app
   fi
+  echo "context $ctx" >>"$STUB/cfg-roots.log"
   printf '{"name":"p","services":{'
   if [[ "${STUB_CFG_NO_APP:-0}" != 1 ]]; then
     printf '"app":{"image":"%s","mem_limit":"%s",' "$(lock_ref "$lock" BAI_IMAGE_APP)" "$mem"
+    printf '"build":{"context":"%s"},' "$ctx"
     printf '"volumes":[{"type":"bind","source":"%s/nginx.conf"}],' "$dir"
     printf '"environment":{"OPENAI_API_KEY":"%s","YANDEX_SEARCH_MAX_CONCURRENCY":"1",' \
       "$APP_ENV_SECRET"
     printf '"YANDEX_SEARCH_MIN_INTERVAL_MS":"1200"'
     if ((newvars)); then
       [[ "${STUB_CFG_NO_PAGING:-0}" == 1 ]] \
-        || printf ',"SHORTLIST_PAGING_ENABLED":"%s"' "${STUB_CFG_PAGING:-false}"
+        || printf ',"SHORTLIST_PAGING_ENABLED":"%s"' \
+          "${STUB_CFG_PAGING:-$(stub_flag "$dir" SHORTLIST_PAGING_ENABLED)}"
       [[ "${STUB_CFG_NO_DISCOVERY:-0}" == 1 ]] \
-        || printf ',"SUPPLIER_DISCOVERY_ENABLED":"%s"' "${STUB_CFG_DISCOVERY:-false}"
+        || printf ',"SUPPLIER_DISCOVERY_ENABLED":"%s"' \
+          "${STUB_CFG_DISCOVERY:-$(stub_flag "$dir" SUPPLIER_DISCOVERY_ENABLED)}"
     fi
     printf '}},'
   fi
@@ -130,6 +154,7 @@ config_json() { # config_json <каталог deploy> <lock>
     "$(lock_ref "$lock" BAI_IMAGE_DOCUMENTS)" "$pptx"
   printf '"DOCUMENTS_EDIT_PDF":"true","DOCUMENTS_PPT_CONVERT":"true",'
   printf '"DOCUMENTS_EDIT_PDF_FALLBACK_FONT":"false"}},'
+  printf '"migrate":{"volumes":[{"type":"bind","source":"%s"}]},' "$vol"
   printf '"postgres":{"image":"%s"}}}\n' "$pg"
 }
 case "$1" in
@@ -164,10 +189,11 @@ case "$1" in
             fi
             if grep -q 'SHORTLIST_PAGING_ENABLED' "$dir/compose.project.yml" 2>/dev/null \
               && [[ "${STUB_APP_NO_NEWVARS:-0}" != 1 ]]; then
-              echo "SHORTLIST_PAGING_ENABLED=${STUB_ENV_PAGING:-false}" >>"$STUB/env/p-app-1.n"
+              echo "SHORTLIST_PAGING_ENABLED=${STUB_ENV_PAGING:-$(stub_flag "$dir" \
+                SHORTLIST_PAGING_ENABLED)}" >>"$STUB/env/p-app-1.n"
               [[ "${STUB_APP_NO_DISCOVERY_VAR:-0}" == 1 ]] \
-                || echo "SUPPLIER_DISCOVERY_ENABLED=${STUB_ENV_DISCOVERY:-false}" \
-                  >>"$STUB/env/p-app-1.n"
+                || echo "SUPPLIER_DISCOVERY_ENABLED=${STUB_ENV_DISCOVERY:-$(stub_flag "$dir" \
+                  SUPPLIER_DISCOVERY_ENABLED)}" >>"$STUB/env/p-app-1.n"
             fi
             mv "$STUB/env/p-app-1.n" "$STUB/env/p-app-1"
             [[ "${STUB_DOCS_RESTART:-0}" != 1 ]] || bump_started p-documents-1
@@ -290,12 +316,12 @@ write_lock() { # write_lock <файл> <app> <основа app> <documents> <о�
   } >"$1"
 }
 # compose.project.yml боя после G8y (без новых переменных) и пакета G8z (с ними).
-write_compose() { # write_compose <файл> <с новыми переменными: 0|1>
+write_compose() { # write_compose <файл> <с новыми переменными: 0|1> [значение по умолчанию]
   {
     printf 'services:\n  app:\n    environment:\n%s\n' "$YANDEX_VARS"
     if (($2)); then
-      printf '      SHORTLIST_PAGING_ENABLED: ${SHORTLIST_PAGING_ENABLED:-false}\n'
-      printf '      SUPPLIER_DISCOVERY_ENABLED: ${SUPPLIER_DISCOVERY_ENABLED:-false}\n'
+      printf '      SHORTLIST_PAGING_ENABLED: ${SHORTLIST_PAGING_ENABLED:-%s}\n' "${3:-true}"
+      printf '      SUPPLIER_DISCOVERY_ENABLED: ${SUPPLIER_DISCOVERY_ENABLED:-%s}\n' "${3:-true}"
     fi
     printf '  documents:\n    environment:\n'
     printf '      DOCUMENTS_EDIT_PPTX: ${DOCUMENTS_EDIT_PPTX:-true}\n'
@@ -660,18 +686,18 @@ refuse_case badjson "compose config отдал неразбираемый JSON"
 STUB_CFG_NO_APP=1 run noappsvc
 refuse_case noappsvc "в конфигурации нет сервиса app"
 
-# Конфигурация compose: обе новые переменные app обязаны быть и равняться false; остальная
-# конфигурация совпадает со снимком боя до патча.
-STUB_CFG_PAGING=true run cfgpaging
-refuse_case cfgpaging "SHORTLIST_PAGING_ENABLED=true в новой конфигурации (значение из .env)"
+# Конфигурация compose: обе новые переменные app обязаны быть и равняться эффективному значению
+# (при пустом .env - true по умолчанию compose); остальная конфигурация совпадает со снимком боя.
+STUB_CFG_PAGING=false run cfgpaging
+refuse_case cfgpaging "SHORTLIST_PAGING_ENABLED=false в новой конфигурации при пустом .env"
 assert "флаг paging: сообщение называет переменную" "out_has cfgpaging 'SHORTLIST_PAGING_ENABLED'"
-assert "флаг paging: сообщение говорит про enable-flags.sh" "out_has cfgpaging 'enable-flags.sh'"
-STUB_CFG_DISCOVERY=true run cfgdiscovery
-refuse_case cfgdiscovery "SUPPLIER_DISCOVERY_ENABLED=true в новой конфигурации"
+assert "флаг paging: сообщение называет эффективное значение" "out_has cfgpaging 'эффективн'"
+STUB_CFG_DISCOVERY=false run cfgdiscovery
+refuse_case cfgdiscovery "SUPPLIER_DISCOVERY_ENABLED=false в новой конфигурации при пустом .env"
 assert "флаг discovery: сообщение называет переменную" \
   "out_has cfgdiscovery 'SUPPLIER_DISCOVERY_ENABLED'"
 STUB_CFG_PAGING=1 run cfgpaging1
-refuse_case cfgpaging1 "SHORTLIST_PAGING_ENABLED=1 (не false)"
+refuse_case cfgpaging1 "SHORTLIST_PAGING_ENABLED=1 (не равно эффективному true)"
 STUB_CFG_NO_PAGING=1 run cfgnopaging
 refuse_case cfgnopaging "в новой конфигурации у app нет SHORTLIST_PAGING_ENABLED"
 assert "нет paging: сообщение называет переменную" "out_has cfgnopaging 'SHORTLIST_PAGING_ENABLED'"
@@ -698,6 +724,27 @@ run cfgsame
 refuse_case cfgsame "compose.project.yml пакета без новых переменных"
 assert "без новых переменных: сообщение называет переменную" \
   "out_has cfgsame 'SHORTLIST_PAGING_ENABLED'"
+# Пакет, у которого по умолчанию флаги ВЫКЛЮЧЕНЫ (`:-false`): решение владельца - по умолчанию
+# включено, такой пакет собран неверно.
+reset_stand
+write_compose "$PKG/deploy/compose.project.yml" 1 false
+seal
+run cfgdeffalse
+refuse_case cfgdeffalse "в compose.project.yml пакета по умолчанию false"
+assert "default false: сообщение называет строку по умолчанию" \
+  "out_has cfgdeffalse ':-true}'"
+# Корень дерева рендера: пути выше deploy (контекст сборки app, том migrate) раскрываются от
+# каталога файлов и в примерке отличаются от боевых. Нормализуется корень, но любое реальное
+# различие путей по-прежнему замечается.
+reset_stand
+STUB_CFG_CONTEXT_DRIFT=1 run cfgctxdrift
+refuse_case cfgctxdrift "контекст сборки app указывает в другое место"
+assert "дрейф контекста: сообщение называет services.app.build.context" \
+  "out_has cfgctxdrift 'services.app.build.context'"
+STUB_CFG_PATH_DRIFT=1 run cfgpathdrift
+refuse_case cfgpathdrift "том migrate указывает в другое место"
+assert "дрейф тома: сообщение называет services.migrate.volumes" \
+  "out_has cfgpathdrift 'services.migrate.volumes'"
 # Оболочечные переменные флагов патч сбрасывает: значение из окружения запуска сильнее .env.
 reset_stand
 SHORTLIST_PAGING_ENABLED=true SUPPLIER_DISCOVERY_ENABLED=true run shellenv --preflight-only
@@ -718,6 +765,7 @@ assert "откатный образ app: сообщение" "out_has norollback
 : >"$STUB/missing"
 
 # 2. --preflight-only: код 0, ничего не менялось.
+PF_RES="$TMP/home-preflight/.pragmatika-cutover/patch-8z-2*/results"
 run preflight --preflight-only
 assert "--preflight-only - код 0" "[[ $RC -eq 0 ]]"
 assert "--preflight-only: бой не тронут" "no_mutation preflight"
@@ -729,17 +777,78 @@ assert "--preflight-only: PREFLIGHT_OK в состоянии" \
   "grep -rq 'RESULT=PREFLIGHT_OK' '$TMP'/home-preflight/.pragmatika-cutover/patch-8z-*/state.env"
 assert "--preflight-only: журнал называет G8y применённым" \
   "out_has preflight 'патч G8y применён: ok'"
-assert "--preflight-only: журнал называет обе новые переменные = false" \
-  "out_has preflight 'SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED = false'"
+assert "--preflight-only: журнал называет обе функции включёнными (по умолчанию compose)" \
+  "out_has preflight 'SHORTLIST_PAGING_ENABLED включён' \
+   && out_has preflight 'SUPPLIER_DISCOVERY_ENABLED включён'"
+assert "--preflight-only: пути сравнены при разных корнях (боевой и примерка), код 0" \
+  "[[ \$(sort -u '$STUB/cfg-roots.log' | wc -l) -ge 2 ]] \
+   && grep -q 'context $LIVE_ROOT\$' '$STUB/cfg-roots.log' \
+   && grep -qE 'context .*/stage\$' '$STUB/cfg-roots.log'"
+assert "--preflight-only: эффективные значения записаны в результаты" \
+  "[[ \"\$(sort $PF_RES/flags-effective.txt | tr '\n' ' ')\" == \
+     'SHORTLIST_PAGING_ENABLED=true SUPPLIER_DISCOVERY_ENABLED=true ' ]]"
+assert "--preflight-only: нет карточек у app - предупреждение, не отказ" \
+  "out_has preflight 'карточки поставщиков (до патча): warn'"
 assert "--preflight-only: журнал называет сходство прочей конфигурации" \
   "out_has preflight 'прочая конфигурация: ok'"
-PF_RES="$TMP/home-preflight/.pragmatika-cutover/patch-8z-2*/results"
 assert "--preflight-only: в списке замены compose.project.yml" \
   "[[ \"\$(cat $PF_RES/file-changes.txt)\" == 'compose.project.yml' ]]"
 assert "--preflight-only: в списке lock BAI_VERSION и BAI_IMAGE_APP, больше ничего" \
   "[[ \"\$(sort $PF_RES/lock-changes.txt | tr '\n' ' ')\" == 'BAI_IMAGE_APP BAI_VERSION ' ]]"
 assert "--preflight-only: секрет из конфигурации не попал в вывод и журнал" \
   "! grep -rq '$APP_ENV_SECRET' '$TMP/out-preflight' '$TMP/home-preflight'"
+
+# Явный выключатель в .env боя: патч не отказывает и .env не меняет, функции остаются выключенными.
+reset_stand
+printf 'SHORTLIST_PAGING_ENABLED=false\nSUPPLIER_DISCOVERY_ENABLED=false\n' >>"$LIVE/.env"
+ENV_OFF_SUM="$(sha256sum <"$LIVE/.env")"
+W_OFF="$(tree_without_patched)"
+run offswitch
+assert "выключатель false в .env: патч не отказывает, код 0" "[[ $RC -eq 0 ]] && app_is_new"
+assert "выключатель false: .env боя побайтно прежний" \
+  "[[ \"\$(sha256sum <'$LIVE/.env')\" == \"\$ENV_OFF_SUM\" ]] \
+   && [[ \$(stat -c %a '$LIVE/.env') == 600 ]]"
+assert "выключатель false: в окружении app обе переменные false (остаются выключенными)" \
+  "grep -qx 'SHORTLIST_PAGING_ENABLED=false' '$STUB/env/p-app-1' \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=false' '$STUB/env/p-app-1'"
+assert "выключатель false: журнал говорит, что функции выключены выключателем в .env" \
+  "out_has offswitch 'SHORTLIST_PAGING_ENABLED выключен выключателем' \
+   && out_has offswitch 'SUPPLIER_DISCOVERY_ENABLED выключен выключателем'"
+assert "выключатель false: эффективные значения в результатах = false" \
+  "[[ \"\$(sort '$TMP'/home-offswitch/.pragmatika-cutover/patch-8z-2*/results/flags-effective.txt \
+     | tr '\n' ' ')\" == 'SHORTLIST_PAGING_ENABLED=false SUPPLIER_DISCOVERY_ENABLED=false ' ]]"
+assert "выключатель false: прочие файлы дерева (включая .env) побайтно прежние" \
+  "[[ \"\$(tree_without_patched)\" == \"\$W_OFF\" ]]"
+assert "выключатель false: documents не пересоздавался, up только app" \
+  "[[ \$(docs_up_count offswitch) -eq 0 ]] && docs_untouched && ! other_up offswitch | grep -q ."
+# Один флаг выключен, второй не задан; пустое значение и значение в кавычках = default true.
+reset_stand
+printf 'SHORTLIST_PAGING_ENABLED=false\n' >>"$LIVE/.env"
+run offpaging
+assert "выключен только paging: код 0" "[[ $RC -eq 0 ]] && app_is_new"
+assert "выключен только paging: у app paging=false, discovery=true" \
+  "grep -qx 'SHORTLIST_PAGING_ENABLED=false' '$STUB/env/p-app-1' \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=true' '$STUB/env/p-app-1'"
+reset_stand
+printf 'SHORTLIST_PAGING_ENABLED=\nSUPPLIER_DISCOVERY_ENABLED="true"\n' >>"$LIVE/.env"
+run emptyval
+assert "пустое значение и значение в кавычках: код 0, у app обе true" \
+  "[[ $RC -eq 0 ]] && grep -qx 'SHORTLIST_PAGING_ENABLED=true' '$STUB/env/p-app-1' \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=true' '$STUB/env/p-app-1'"
+# Значение флага из secrets.env сильнее .env (порядок --env-file).
+reset_stand
+printf 'SUPPLIER_DISCOVERY_ENABLED=false\n' >"$LIVE/secrets.env"
+chmod 600 "$LIVE/secrets.env"
+run secretsoff --preflight-only
+assert "secrets.env с false: эффективное значение false, preflight код 0" \
+  "[[ $RC -eq 0 ]] && out_has secretsoff 'SUPPLIER_DISCOVERY_ENABLED выключен выключателем'"
+# Карточки поставщиков включены у запущенного app: предупреждения нет.
+reset_stand
+echo "SUPPLIER_CARDS_ENABLED=true" >>"$STUB/env/p-app-1"
+run cardson
+assert "карточки включены: код 0, предупреждений нет (ok до и после)" \
+  "[[ $RC -eq 0 ]] && out_has cardson 'карточки поставщиков (до патча): ok' \
+   && out_has cardson 'карточки поставщиков (после замены): ok'"
 
 # Образ app не на хосте: preflight делает docker pull по digest; documents не тянется.
 reset_stand
@@ -763,10 +872,10 @@ assert "успех: lock боя равен lock пакета (образ app н�
   "cmp -s '$LIVE/images.lock' '$PKG/images.lock' && grep -q '$NEW_APP' '$LIVE/images.lock'"
 assert "успех: compose.project.yml боя равен файлу пакета" \
   "cmp -s '$LIVE/compose.project.yml' '$PKG/deploy/compose.project.yml'"
-assert "успех: в compose.project.yml боя обе новые переменные со значением false по умолчанию" \
-  "grep -q 'SHORTLIST_PAGING_ENABLED: \${SHORTLIST_PAGING_ENABLED:-false}' \
+assert "успех: в compose.project.yml боя обе новые переменные со значением true по умолчанию" \
+  "grep -q 'SHORTLIST_PAGING_ENABLED: \${SHORTLIST_PAGING_ENABLED:-true}' \
    '$LIVE/compose.project.yml' \
-   && grep -q 'SUPPLIER_DISCOVERY_ENABLED: \${SUPPLIER_DISCOVERY_ENABLED:-false}' \
+   && grep -q 'SUPPLIER_DISCOVERY_ENABLED: \${SUPPLIER_DISCOVERY_ENABLED:-true}' \
    '$LIVE/compose.project.yml'"
 assert "успех: BAI_VERSION боя $VER_TO" "grep -qx 'BAI_VERSION=$VER_TO' '$LIVE/images.lock'"
 assert "успех: образ documents и основы в lock прежние" \
@@ -797,11 +906,16 @@ assert "успех: БЕЗ down, --remove-orphans, --force-recreate" \
 assert "успех: ни stop, ни rm, ни образы не трогались" \
   "! grep -E '^(stop|rm|rmi|image rm|tag|kill|restart) ' '$TMP/docker-apply.log'"
 assert "успех: app на новом образе" "app_is_new"
-assert "успех: в окружении app обе новые переменные есть и равны false" \
-  "grep -qx 'SHORTLIST_PAGING_ENABLED=false' '$STUB/env/p-app-1' \
-   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=false' '$STUB/env/p-app-1'"
-assert "успех: журнал называет обе новые переменные" \
-  "out_has apply 'SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED = false'"
+assert "успех: в окружении app обе новые переменные есть и равны true (нет в .env - default)" \
+  "grep -qx 'SHORTLIST_PAGING_ENABLED=true' '$STUB/env/p-app-1' \
+   && grep -qx 'SUPPLIER_DISCOVERY_ENABLED=true' '$STUB/env/p-app-1'"
+assert "успех: журнал называет обе новые переменные с эффективными значениями" \
+  "out_has apply 'новые переменные: SHORTLIST_PAGING_ENABLED=true SUPPLIER_DISCOVERY_ENABLED=true'"
+assert "успех: .env боя патч не менял (нет переменных - нет и после)" \
+  "! grep -q 'SHORTLIST_PAGING_ENABLED' '$LIVE/.env' && cmp -s '$LIVE/.env' '$GOLDEN/.env'"
+assert "успех: нет карточек у app - только предупреждение до и после, код 0" \
+  "out_has apply 'карточки поставщиков (до патча): warn' \
+   && out_has apply 'карточки поставщиков (после замены): warn'"
 assert "успех: в окружении documents четыре флага G8x остались" \
   "grep -qx 'DOCUMENTS_EDIT_PPTX=true' '$STUB/env/p-documents-1' \
    && grep -qx 'DOCUMENTS_EDIT_PDF=true' '$STUB/env/p-documents-1' \
@@ -886,13 +1000,13 @@ rollback_case nodiscvar "в окружении app после замены не�
 assert "нет discovery: причина в журнале" \
   "out_has nodiscvar 'нет новой переменной SUPPLIER_DISCOVERY_ENABLED'"
 reset_stand
-STUB_ENV_PAGING=true run envpaging
-rollback_case envpaging "в окружении app SHORTLIST_PAGING_ENABLED=true (патч флаги не включает)"
-assert "включённый флаг в окружении: причина в журнале" \
-  "out_has envpaging 'патч флаги не включает'"
+STUB_ENV_PAGING=false run envpaging
+rollback_case envpaging "в окружении app SHORTLIST_PAGING_ENABLED=false (ждали true)"
+assert "не то значение в окружении: причина в журнале" \
+  "out_has envpaging 'не равны эффективным значениям'"
 reset_stand
-STUB_ENV_DISCOVERY=true run envdiscovery
-rollback_case envdiscovery "в окружении app SUPPLIER_DISCOVERY_ENABLED=true"
+STUB_ENV_DISCOVERY=false run envdiscovery
+rollback_case envdiscovery "в окружении app SUPPLIER_DISCOVERY_ENABLED=false при пустом .env"
 reset_stand
 STUB_DOCS_RESTART=1 run docsrestart
 rollback_case docsrestart "documents перезапущен во время замены app"
@@ -1120,10 +1234,15 @@ assert "patch.sh: PATCH_FILE_ALLOW - ровно compose.project.yml" \
 assert "patch.sh: ключи lock - ровно BAI_VERSION и BAI_IMAGE_APP" \
   "[[ \"\$(grep -m1 '^PATCH_LOCK_KEYS=' '$PS')\" == \
      'PATCH_LOCK_KEYS=\"BAI_VERSION BAI_IMAGE_APP\"' ]]"
-assert "patch.sh: новые переменные app - ровно две, значение false - константа" \
+assert "patch.sh: новые переменные app - ровно две, значение по умолчанию true - константа" \
   "[[ \"\$(grep -m1 '^NEW_APP_FLAGS=(' '$PS')\" == \
      'NEW_APP_FLAGS=(SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED)' ]] \
-   && grep -q '^FLAG_OFF_VALUE=\"false\"' '$PS'"
+   && grep -q '^FLAG_DEFAULT_VALUE=\"true\"' '$PS' && grep -q '^FLAG_OFF_VALUE=\"false\"' '$PS'"
+assert "patch.sh: патч не пишет в .env (нет sed -i, tee и перенаправлений в .env)" \
+  "! grep -vE '^[[:space:]]*#' '$PS' | grep -E '(>|>>|tee|sed -i).*(ENV_FILE_NAME|\\.env)' \
+   | grep -v 'cut_redact'"
+assert "patch.sh: сравнение конфигураций заменяет КОРЕНЬ примерки на боевой (не только deploy)" \
+  "sed -n '/^stage_tree()/,/^}/p' '$PS' | grep -q '\"\\\$LIVE_NEW_DIR\" \"\\\$STAGE_DIR\"'"
 assert "patch.sh: оболочечные переменные флагов сбрасываются (unset)" \
   "grep -qE '^unset \"\\\$\\{NEW_APP_FLAGS\\[@\\]\\}\"' '$PS'"
 assert "patch.sh: конфигурация сравнивается без печати значений (config_delta, без журнала)" \
