@@ -50,6 +50,7 @@ from pragmatika_documents.docx_amend import (
     read_party_block,
     validate_number_edit,
 )
+from pragmatika_documents.docx_pages import document_pages
 from pragmatika_documents.docx_signatory import SignatoryForms, replace_signatory
 
 logger = logging.getLogger(__name__)
@@ -61,8 +62,15 @@ ROUTE_AMEND = "/docx/amend"
 ROUTE_PARTY_BLOCK = "/docx/party-block"
 ROUTE_REPLACE_SIGNATORY = "/docx/replace-signatory"
 ROUTE_CLASSIFY = "/docx/classify"
+ROUTE_PAGES = "/docx/pages"
 # Все маршруты пакета: по ним проверка маршрутов и тесты отличают проектные ручки.
-DOCX_ROUTES = (ROUTE_AMEND, ROUTE_PARTY_BLOCK, ROUTE_REPLACE_SIGNATORY, ROUTE_CLASSIFY)
+DOCX_ROUTES = (
+    ROUTE_AMEND,
+    ROUTE_PARTY_BLOCK,
+    ROUTE_REPLACE_SIGNATORY,
+    ROUTE_CLASSIFY,
+    ROUTE_PAGES,
+)
 ERR_BAD_REQUEST = "bad_request"
 MAX_SIGNATORY_FORM_CHARS = 200
 
@@ -155,6 +163,18 @@ class ClassifyContractRequest(ClassifyContractParams):
     content_base64: str
 
 
+class PagesParams(BaseModel):
+    """Параметры /docx/pages без файла: имя файла нужно лишь для журнала, поэтому необязательно."""
+
+    file_name: str = ""
+
+
+class PagesRequest(PagesParams):
+    """Тело /docx/pages: документ (docx, .doc или RTF) в base64."""
+
+    content_base64: str
+
+
 def decode_docx(content_base64: str) -> bytes:
     """Байты документа из base64; не base64 - `AmendError` с кодом `bad_request`."""
     try:
@@ -197,7 +217,7 @@ async def _guarded(call: Awaitable[Response]) -> Response:
 def register_docx_routes(
     app: FastAPI, cfg: Settings, file_route: FileRoute, gate: PriorityGate
 ) -> None:
-    """Регистрирует четыре маршрута `/docx/*` на приложении платформы.
+    """Регистрирует маршруты `/docx/*` на приложении платформы.
 
     Args:
         app: Приложение, которое вернул платформенный `create_app`.
@@ -338,4 +358,24 @@ def register_docx_routes(
             file_route(
                 request, ClassifyContractRequest, ClassifyContractParams, decode_docx, run, gate
             )
+        )
+
+
+    @app.post(ROUTE_PAGES)
+    async def pages_route(request: Request) -> Response:
+        """Тексты страниц документа по фактической раскладке (рендер LibreOffice в PDF).
+
+        Принимает docx, .doc и RTF. Ответ `{page_count, pages: [{number, text}], truncated}`:
+        номера с 1, пустая страница - пустой `text`; страниц не больше 500, текста на страницу
+        не больше 20000 знаков, сверх - `truncated: true` (`page_count` остаётся настоящим).
+        Отказ: 422 `{"detail": {"error": "<код>"}}`; размер или время - 413; спул не принял
+        файлы - 503 `spool_unavailable`. Схема: `CONTRACT-9p.md`.
+        """
+
+        def run(data: Source, _body: PagesParams, _sink: BinaryIO | None) -> dict[str, Any]:
+            # PDF строится из файла целиком: читаем его разом, как и у остальных договорных ручек
+            return document_pages(read_all(data), cfg.limits).as_dict()
+
+        return await _guarded(
+            file_route(request, PagesRequest, PagesParams, decode_docx, run, gate)
         )

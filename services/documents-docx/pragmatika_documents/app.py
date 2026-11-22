@@ -56,7 +56,7 @@ def _build_platform_app(cfg: Settings) -> tuple[FastAPI, FileRoute]:
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    """Создаёт приложение: все платформенные маршруты и четыре проектных `/docx/*`."""
+    """Создаёт приложение: все платформенные маршруты и проектные `/docx/*`."""
     cfg = settings or load_settings()
     app, file_route = _build_platform_app(cfg)
     if not cfg.office_convert_endpoints:
