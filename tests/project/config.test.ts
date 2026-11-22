@@ -113,19 +113,18 @@ describe('проверки связей между переменными', () =
     expect(crossCheckErrors(withCards, NO_MAILBOX)).toEqual([]);
   });
 
-  test('пополнение базы требует карточки, «ещё 10» - нет (этап 8z)', () => {
-    const config = configWith({ SUPPLIER_DISCOVERY_ENABLED: 'true' });
-    expect(crossCheckErrors(config, NO_MAILBOX)).toEqual([
-      'SUPPLIER_DISCOVERY_ENABLED требует SUPPLIER_CARDS_ENABLED',
-    ]);
-    const withCards = configWith({
-      SUPPLIER_DISCOVERY_ENABLED: 'true',
-      SUPPLIER_CARDS_ENABLED: 'true',
+  test('«ещё 10» и пополнение базы включены по умолчанию и не требуют связей (этап 8z)', () => {
+    const config = configWith();
+    expect(config.SHORTLIST_PAGING_ENABLED).toBe('true');
+    expect(config.SUPPLIER_DISCOVERY_ENABLED).toBe('true');
+    // Включённый по умолчанию режим не роняет запуск без карточек: инструментов просто нет.
+    expect(crossCheckErrors(config, NO_MAILBOX)).toEqual([]);
+    const off = configWith({
+      SHORTLIST_PAGING_ENABLED: 'false',
+      SUPPLIER_DISCOVERY_ENABLED: 'false',
     });
-    expect(crossCheckErrors(withCards, NO_MAILBOX)).toEqual([]);
-    expect(
-      crossCheckErrors(configWith({ SHORTLIST_PAGING_ENABLED: 'true' }), NO_MAILBOX),
-    ).toEqual([]);
+    expect(off.SHORTLIST_PAGING_ENABLED).toBe('false');
+    expect(off.SUPPLIER_DISCOVERY_ENABLED).toBe('false');
   });
 
   test('Telegram-источник требует токен читателя', () => {

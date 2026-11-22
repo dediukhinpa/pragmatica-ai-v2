@@ -695,9 +695,11 @@ function declarationsOf(
       dailyDigest: monitoring,
       reminderReply: project.ORDER_REMINDER_REPLY_ENABLED === 'true',
       supplierMailProposals: proposalsReady,
-      // Новое поведение этапа 8z: оба флага выключены по умолчанию.
+      // Этап 8z: оба режима включены по умолчанию (решение владельца), false - выключатель.
+      // Пополнение базы пишет карточки, поэтому без карточек его инструментов нет.
       shortlistPaging: project.SHORTLIST_PAGING_ENABLED === 'true',
-      supplierDiscovery: project.SUPPLIER_DISCOVERY_ENABLED === 'true',
+      supplierDiscovery:
+        project.SUPPLIER_DISCOVERY_ENABLED === 'true' && project.SUPPLIER_CARDS_ENABLED === 'true',
       ...cardsOption,
       // Только у агента «Поиск поставщика»; кросс-проверка гарантирует включённые карточки.
       supplierExport: project.SUPPLIER_EXPORT_ENABLED === 'true',

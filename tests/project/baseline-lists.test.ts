@@ -67,9 +67,9 @@ const PROJECT_ENV_DEFAULTS: ReadonlyArray<readonly [string, unknown]> = [
   ['WEB_SEARCH_MAX_PER_TURN', 20],
   ['SUPPLIER_CARDS_ENABLED', 'false'],
   ['SUPPLIER_EXPORT_ENABLED', 'false'],
-  // Этап 8z: новое поведение выключено по умолчанию.
-  ['SHORTLIST_PAGING_ENABLED', 'false'],
-  ['SUPPLIER_DISCOVERY_ENABLED', 'false'],
+  // Этап 8z: по решению владельца включены по умолчанию (false - выключатель).
+  ['SHORTLIST_PAGING_ENABLED', 'true'],
+  ['SUPPLIER_DISCOVERY_ENABLED', 'true'],
   ['SUPPLIER_TEMPLATE_PATH', '/app/templates/supplier-template.xlsx'],
   ['PRICE_DISK_SYNC_ENABLED', 'false'],
   ['PRICE_DISK_INITIAL_IMPORT_ENABLED', 'false'],

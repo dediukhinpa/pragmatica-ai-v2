@@ -138,14 +138,23 @@ describe('сборка агентов Прагматики', () => {
   });
 
   test('все флаги выключены: наборы инструментов равны эталону прежней сборки', () => {
-    const { app } = buildPragmatika();
+    // Режимы этапа 8z включены по умолчанию; выключатель возвращает прежний набор.
+    const { app } = buildPragmatika({
+      SHORTLIST_PAGING_ENABLED: 'false',
+      SUPPLIER_DISCOVERY_ENABLED: 'false',
+    });
     for (const id of AGENT_IDS) {
       expect(toolsOf(app, id)).toEqual([...(BASELINE_MINIMAL_TOOLS[id] ?? [])].sort());
     }
   });
 
   test('SUPPLIER_CARDS_ENABLED добавляет карточки всем четырём агентам', () => {
-    const { app } = buildPragmatika({ SUPPLIER_CARDS_ENABLED: 'true' });
+    // Режимы этапа 8z (включены по умолчанию) здесь выключены: проверяются карточки как были.
+    const { app } = buildPragmatika({
+      SUPPLIER_CARDS_ENABLED: 'true',
+      SHORTLIST_PAGING_ENABLED: 'false',
+      SUPPLIER_DISCOVERY_ENABLED: 'false',
+    });
     for (const id of AGENT_IDS) {
       const expected = [...(BASELINE_MINIMAL_TOOLS[id] ?? []), ...SUPPLIER_CARD_TOOLS].sort();
       expect(toolsOf(app, id)).toEqual(expected);
@@ -165,35 +174,36 @@ describe('сборка агентов Прагматики', () => {
     expect(toolsOf(cardsOnly, 'order-calc')).not.toContain('exportSuppliers');
   });
 
-  test('«ещё 10» добавляет один инструмент только «Поиску поставщика» (этап 8z)', () => {
-    const base = buildPragmatika().app;
-    const on = buildPragmatika({ SHORTLIST_PAGING_ENABLED: 'true' }).app;
-    const had = toolsOf(base, 'order-calc');
+  test('«ещё 10» включён по умолчанию, добавляет один инструмент и выключается флагом', () => {
+    const off = buildPragmatika({ SHORTLIST_PAGING_ENABLED: 'false' }).app;
+    const on = buildPragmatika().app;
+    const had = toolsOf(off, 'order-calc');
     expect(toolsOf(on, 'order-calc').filter((n) => !had.includes(n))).toEqual([
       'showMoreSuppliers',
     ]);
     for (const id of ['prices', 'documents', 'site-export']) {
-      expect(toolsOf(on, id)).toEqual(toolsOf(base, id));
+      expect(toolsOf(on, id)).toEqual(toolsOf(off, id));
     }
-    expect(on.registry.get('order-calc').prompt).not.toBe(base.registry.get('order-calc').prompt);
-    expect(on.registry.get('documents').prompt).toBe(base.registry.get('documents').prompt);
+    expect(on.registry.get('order-calc').prompt).not.toBe(off.registry.get('order-calc').prompt);
+    expect(on.registry.get('documents').prompt).toBe(off.registry.get('documents').prompt);
   });
 
-  test('пополнение базы: два инструмента, только с карточками, прочим агентам - ничего', () => {
-    const cards = buildPragmatika({ SUPPLIER_CARDS_ENABLED: 'true' }).app;
-    const on = buildPragmatika({
+  test('пополнение базы: включено по умолчанию, два инструмента только вместе с карточками', () => {
+    const cards = buildPragmatika({
       SUPPLIER_CARDS_ENABLED: 'true',
-      SUPPLIER_DISCOVERY_ENABLED: 'true',
+      SUPPLIER_DISCOVERY_ENABLED: 'false',
     }).app;
+    const on = buildPragmatika({ SUPPLIER_CARDS_ENABLED: 'true' }).app;
     const had = toolsOf(cards, 'order-calc');
     const added = toolsOf(on, 'order-calc').filter((n) => !had.includes(n));
     expect(added).toEqual(['findSuppliersForBase', 'prepareDiscoveredSupplierCards']);
     for (const id of ['prices', 'documents', 'site-export']) {
       expect(toolsOf(on, id)).toEqual(toolsOf(cards, id));
     }
-    expect(() => buildPragmatika({ SUPPLIER_DISCOVERY_ENABLED: 'true' })).toThrow(
-      /SUPPLIER_DISCOVERY_ENABLED/,
-    );
+    // Без карточек запуск не падает, инструментов пополнения нет.
+    const noCards = toolsOf(buildPragmatika().app, 'order-calc');
+    expect(noCards).not.toContain('findSuppliersForBase');
+    expect(noCards).not.toContain('prepareDiscoveredSupplierCards');
   });
 
   test('имя поиска для пополнения базы входит в перечень внешних текстовых инструментов', () => {
