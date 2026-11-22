@@ -38,8 +38,8 @@ PDF с текстовым слоем (наложением, при любом с
 app, по умолчанию `true`). Доставляет «ещё 10» и пополнение базы поставщиков (§5б) сразу
 включёнными. Выключить функцию без отката образа: `SHORTLIST_PAGING_ENABLED=false` и/или
 `SUPPLIER_DISCOVERY_ENABLED=false` в `.env` и перезапуск app (скрипт
-`deploy/patch-8z/enable-flags.sh` с бэкапом `.env` и откатом). Применяет владелец по `OWNER-RUNBOOK.md` пакета (`sudo bash patch.sh`,
-исходники `deploy/patch-8z/`).
+`deploy/patch-8z/enable-flags.sh` с бэкапом `.env` и откатом). Применяет владелец по
+`OWNER-RUNBOOK.md` пакета (`sudo bash patch.sh`, исходники `deploy/patch-8z/`).
 
 Все операции на боевом хосте `pragmatika-ru` — красная зона: выполняет владелец. Перед любым
 изменением боя делать бэкап. Имена на бою неизменны: compose-проект `pragmatika`, тома
