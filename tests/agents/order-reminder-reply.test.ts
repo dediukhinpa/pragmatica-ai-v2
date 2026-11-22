@@ -32,7 +32,7 @@ import { MAIL_OWNER, ORDER_REQUEST, buildOrderDeps, type OrderTestDeps } from '.
 const TIMEZONE = 'Asia/Yekaterinburg';
 const BOT = 'order-bot';
 const THREAD = bindingThreadId({ botId: BOT, userId: MAIL_OWNER });
-const HEADLINE = 'План на день:';
+const HEADLINE = '**План на день (';
 
 /** Пятница 10:00 по Екатеринбургу (05:00 UTC): первая сводка. */
 const FRIDAY_DIGEST = '2026-10-09T05:00:00.000Z';
@@ -529,7 +529,8 @@ describe('этап 226, ревью: справка и допустимые за�
   test('старые заявки («старше N дней») тоже допустимы как показанные', async () => {
     await prepared('req-stale', 'старая заявка', { sentAt: '2026-09-01T10:00:00.000Z' });
     await digest();
-    expect(digests().at(-1)).toContain('старше');
+    expect(digests().at(-1)).toContain('Без ответа больше 14 дней:');
+    expect(digests().at(-1)).toContain('старая заявка');
     setNow(MONDAY_REPLY);
     expect(await blocksText()).toContain('requestId: req-stale');
     const result = await answerOrderReminder.execute(

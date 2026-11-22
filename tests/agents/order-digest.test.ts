@@ -118,7 +118,7 @@ function setNow(deps: OrderTestDeps, iso: string): void {
 
 const run = (deps: OrderTestDeps) => runOrdersDigest(deps, { timezone: TIMEZONE });
 
-const HEADLINE = 'План на день:';
+const HEADLINE = '**План на день (';
 
 /** Сообщения сводки (в чат попадают и показы записей инструментов). */
 function digests(deps: OrderTestDeps, threadId?: string): string[] {
@@ -358,7 +358,7 @@ describe('Сводка по заказам: ORDER_DIGEST_OPEN_MAX_DAYS', () => {
     expect(ORDER_DIGEST_OPEN_MAX_DAYS).toBe(14);
   });
 
-  test('заказ старше предела - одной строкой с числом, не по отдельности', async () => {
+  test('заказ старше предела - отдельным блоком с названием, датой и числом поставщиков', async () => {
     // 2026-09-25 - 17 дней до 12.10; 2026-09-28 - ровно 14 дней, ещё в списке.
     await sendRequests(deps, 'req-old', { sentAt: '2026-09-25T10:00:00.000Z', thread: THREAD_A });
     await sendRequests(deps, 'req-old2', { sentAt: '2026-09-24T10:00:00.000Z', thread: THREAD_A });
@@ -366,22 +366,24 @@ describe('Сводка по заказам: ORDER_DIGEST_OPEN_MAX_DAYS', () => {
     expect(await run(deps)).toEqual({ status: 'sent', messages: 1, orders: 3 });
     const text = digests(deps)[0] ?? '';
     expect(text).toContain('товар edge');
-    expect(text).not.toContain('товар old');
-    expect(text).toContain('• и 2 заказа старше 14 дней');
+    expect(text).toContain('Без ответа больше 14 дней:');
+    expect(text).toContain('• товар old: отправлено 25.09, поставщиков: 2');
+    expect(text).toContain('• товар old2: отправлено 24.09, поставщиков: 2');
+    expect(text).not.toContain('и 2 заказа старше');
   });
 
   test('сводка из одних старых заказов тоже уходит', async () => {
     await sendRequests(deps, 'req-old', { sentAt: '2026-09-01T10:00:00.000Z', thread: THREAD_A });
     expect((await run(deps)).status).toBe('sent');
-    expect(digests(deps)[0]).toContain('• и 1 заказ старше 14 дней');
+    expect(digests(deps)[0]).toContain('• товар old: отправлено 01.09, поставщиков: 2');
   });
 
   test('предел задаётся параметром', async () => {
     await sendRequests(deps, 'req-fri', { sentAt: FRIDAY_SENT, thread: THREAD_A });
     await runOrdersDigest(deps, { timezone: TIMEZONE, openMaxDays: 2 });
     const text = digests(deps)[0] ?? '';
-    expect(text).not.toContain('товар fri');
-    expect(text).toContain('• и 1 заказ старше 2 дней');
+    expect(text).toContain('Без ответа больше 2 дней:');
+    expect(text).toContain('• товар fri: отправлено 09.10, поставщиков: 2');
   });
 
   test('старый заказ с КП у всех в «старых» не считается', async () => {
@@ -405,7 +407,7 @@ describe('Сводка по заказам: план на день', () => {
     await run(deps);
     const text = digests(deps)[0] ?? '';
     const lines = text.split('\n');
-    expect(lines[0]).toBe('План на день:');
+    expect(lines[0]).toMatch(/^\*\*План на день \(\d{2}\.\d{2}\.\d{4}\):\*\*$/);
     expect(lines[1]).toBe('1. Проверьте, ответили ли поставщики по вашим запросам цен:');
     expect(lines).toContain('- товар honey');
     expect(lines).toContain('- товар plaid');
