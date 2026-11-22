@@ -7,6 +7,8 @@ export const DEFAULT_LAYOUT_TIMEOUT_MS = 90_000;
 const STATUS_OK = 200;
 /** Имя поля формы с файлом (контракт сервиса документов). */
 const FILE_FIELD = 'file';
+/** Поле параметров формы: платформенный разбор тела требует его у каждой ручки `/docx/*`. */
+const PARAMS_FIELD = 'params';
 /** Причина отказа при истечении срока запроса. */
 const TIMEOUT_REASON = 'timeout';
 /** Расширения, для которых сервис умеет отрисовать страницы. */
@@ -83,6 +85,7 @@ export class HttpDocxLayoutClient implements DocxLayoutClient {
     try {
       const form = new FormData();
       form.append(FILE_FIELD, blobOf(file.bytes), file.name);
+      form.append(PARAMS_FIELD, JSON.stringify({ file_name: file.name }));
       const response = await this.fetchFn(`${this.baseUrl}/docx/pages`, {
         method: 'POST',
         body: form,

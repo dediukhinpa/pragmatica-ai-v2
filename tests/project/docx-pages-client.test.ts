@@ -74,6 +74,10 @@ describe('клиент раскладки docx по страницам', () => {
     expect(file).toBeInstanceOf(File);
     expect((file as File).name).toBe('Договор №1.docx');
     expect(new Uint8Array(await (file as File).arrayBuffer())).toEqual(FILE_BYTES);
+    // Платформенный разбор тела требует поле params у каждой ручки (проверено на живом образе)
+    expect(JSON.parse(String((body as FormData).get('params')))).toEqual({
+      file_name: 'Договор №1.docx',
+    });
   });
 
   test('404 от старого сервиса даёт null и причину', async () => {
