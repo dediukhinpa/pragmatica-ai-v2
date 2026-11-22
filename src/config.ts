@@ -273,6 +273,10 @@ export const pragmatikaConfigSchema = z.object({
   SUPPLIER_CARDS_ENABLED: flag(),
   /** Выгрузка базы поставщиков файлом xlsx (требует SUPPLIER_CARDS_ENABLED). */
   SUPPLIER_EXPORT_ENABLED: flag(),
+  /** «Ещё 10»: следующая выдача шорт-листа без повторов (этап 8z). */
+  SHORTLIST_PAGING_ENABLED: flag(),
+  /** Пополнение базы: поиск новых поставщиков и заведение карточек (требует карточки, этап 8z). */
+  SUPPLIER_DISCOVERY_ENABLED: flag(),
   /** Файл xlsx-шаблона для кнопки «Шаблон». */
   SUPPLIER_TEMPLATE_PATH: emptyAsUnset(z.string().min(1).default(DEFAULT_SUPPLIER_TEMPLATE_PATH)),
   /** Синхронизация цен с диска (диск - источник правды). */
@@ -343,6 +347,9 @@ export function crossCheckErrors(project: PragmatikaConfig, platform: PlatformFa
   const errors: string[] = [];
   if (project.SUPPLIER_EXPORT_ENABLED === 'true' && project.SUPPLIER_CARDS_ENABLED !== 'true') {
     errors.push('SUPPLIER_EXPORT_ENABLED требует SUPPLIER_CARDS_ENABLED');
+  }
+  if (project.SUPPLIER_DISCOVERY_ENABLED === 'true' && project.SUPPLIER_CARDS_ENABLED !== 'true') {
+    errors.push('SUPPLIER_DISCOVERY_ENABLED требует SUPPLIER_CARDS_ENABLED');
   }
   if (
     project.TELEGRAM_CHANNEL_SOURCE_ENABLED === 'true' &&

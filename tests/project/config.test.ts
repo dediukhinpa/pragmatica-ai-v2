@@ -113,6 +113,21 @@ describe('проверки связей между переменными', () =
     expect(crossCheckErrors(withCards, NO_MAILBOX)).toEqual([]);
   });
 
+  test('пополнение базы требует карточки, «ещё 10» - нет (этап 8z)', () => {
+    const config = configWith({ SUPPLIER_DISCOVERY_ENABLED: 'true' });
+    expect(crossCheckErrors(config, NO_MAILBOX)).toEqual([
+      'SUPPLIER_DISCOVERY_ENABLED требует SUPPLIER_CARDS_ENABLED',
+    ]);
+    const withCards = configWith({
+      SUPPLIER_DISCOVERY_ENABLED: 'true',
+      SUPPLIER_CARDS_ENABLED: 'true',
+    });
+    expect(crossCheckErrors(withCards, NO_MAILBOX)).toEqual([]);
+    expect(
+      crossCheckErrors(configWith({ SHORTLIST_PAGING_ENABLED: 'true' }), NO_MAILBOX),
+    ).toEqual([]);
+  });
+
   test('Telegram-источник требует токен читателя', () => {
     const config = configWith({ TELEGRAM_CHANNEL_SOURCE_ENABLED: 'true' });
     expect(crossCheckErrors(config, NO_MAILBOX)).toEqual([
