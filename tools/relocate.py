@@ -47,6 +47,8 @@ PROJECT_SPECS = {
     ("src/application/agents/suppliers/confirm-card-right.ts", "../../access-actions"),
     ("src/application/agents/documents/declaration.ts", "../../documents-template-sender"),
     ("src/application/agents/documents/declaration.ts", "../../documents-paged-reader"),
+    ("src/application/agents/order-calc/declaration.ts", "../../shortlist-paging"),
+    ("src/application/agents/order-calc/declaration.ts", "../../supplier-discovery"),
 }
 # Пути-литералы относительно файла теста: `join(import.meta.dir, '../x')` и
 # `new URL('../x', import.meta.url)`. Цель - файл или каталог в любом месте дерева.

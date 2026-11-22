@@ -44,7 +44,14 @@ const request: ModelRequest = {
 
 describe('перечень внешних текстовых инструментов проекта', () => {
   test('имена совпадают с name инструментов, поиск в интернете среди них', () => {
-    const names = [searchInternet.name, searchWeb.name, gatherItemData.name, draftDescription.name];
+    const names = [
+      searchInternet.name,
+      searchWeb.name,
+      // Имя инструмента пополнения базы (этап 8z); совпадение с его `name` - в tests/project.
+      'findSuppliersForBase',
+      gatherItemData.name,
+      draftDescription.name,
+    ];
     expect([...PROJECT_EXTERNAL_TEXT_TOOL_NAMES].sort()).toEqual(names.sort());
     for (const name of EXTERNAL_TEXT_TOOL_NAMES) {
       expect(PROJECT_EXTERNAL_TEXT_TOOL_NAMES.has(name)).toBe(true);

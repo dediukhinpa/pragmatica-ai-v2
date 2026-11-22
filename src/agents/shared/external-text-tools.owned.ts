@@ -8,6 +8,7 @@
 export const PROJECT_EXTERNAL_TEXT_TOOL_NAMES: ReadonlySet<string> = new Set([
   'searchInternet',
   'searchWeb',
+  'findSuppliersForBase',
   'gatherItemData',
   'draftDescription',
 ]);

@@ -1,0 +1,10 @@
+--- src/application/agents/shared/external-text-tools.owned.ts
++++ src/application/agents/shared/external-text-tools.owned.ts
+@@ -8,6 +8,7 @@
+ export const PROJECT_EXTERNAL_TEXT_TOOL_NAMES: ReadonlySet<string> = new Set([
+   'searchInternet',
+   'searchWeb',
++  'findSuppliersForBase',
+   'gatherItemData',
+   'draftDescription',
+ ]);

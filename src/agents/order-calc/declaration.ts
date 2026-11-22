@@ -39,6 +39,8 @@ import { remindManager } from './remind-manager';
 import { routeSupplierMail } from './route-supplier-mail';
 import { reminderValidator, scheduleReminder } from './schedule-reminder';
 import { searchKnowledgeSuppliers, searchWeb } from './search-sources';
+import { SHORTLIST_PAGING_PROMPT, showMoreSuppliers } from '../../shortlist-paging';
+import { SUPPLIER_DISCOVERY_PROMPT, supplierDiscoveryTools } from '../../supplier-discovery';
 import { quoteSummaryValidator, sendQuoteSummary } from './send-quote-summary';
 import { withRequestRef } from './request-title';
 import { ORDER_CALC_GREETING, ORDER_CALC_MAIL_GREETING } from './greeting';
@@ -116,6 +118,16 @@ export interface OrderCalcAgentOptions {
    * декларация и промпт прежние.
    */
   supplierMailProposals?: boolean;
+  /**
+   * «Ещё 10» (`SHORTLIST_PAGING_ENABLED`, этап 8z): инструмент showMoreSuppliers и абзац
+   * промпта. По умолчанию выключено: декларация и промпт прежние.
+   */
+  shortlistPaging?: boolean;
+  /**
+   * Пополнение базы поставщиков (`SUPPLIER_DISCOVERY_ENABLED`, этап 8z): поиск кандидатов и
+   * заведение карточек, абзац промпта. Работает поверх `supplierCards`. По умолчанию выключено.
+   */
+  supplierDiscovery?: boolean;
 }
 
 /**
@@ -148,6 +160,8 @@ export function createOrderCalcAgent(options: OrderCalcAgentOptions): AgentDecla
         ? BUSINESS_CARD_PHOTO_PROMPT
         : '') +
       (options.supplierMailProposals === true ? SUPPLIER_MAIL_PROPOSALS_PROMPT : '') +
+      (options.shortlistPaging === true ? SHORTLIST_PAGING_PROMPT : '') +
+      (options.supplierDiscovery === true ? SUPPLIER_DISCOVERY_PROMPT : '') +
       (options.dataScript === true ? DATA_SCRIPT_PROMPT + ORDER_CALC_DATA_SCRIPT_PROMPT : '') +
       SESSION_SUMMARY_PROMPT +
       FILE_TOOL_PROMPT,
@@ -201,13 +215,16 @@ export function createOrderCalcAgent(options: OrderCalcAgentOptions): AgentDecla
       ...(supplierCards === undefined ? [] : supplierCardsTools()),
       ...(options.supplierExport === true ? supplierExportTools() : []),
       ...(options.supplierMailProposals === true ? [recordMailSupplierProposalDecision] : []),
+      ...(options.shortlistPaging === true ? [showMoreSuppliers] : []),
       // Сотрудник называет заявку по названию, а не по id: подмена на id до выполнения.
     ]
       .map((tool) => withRequestRef(tool))
       // Без withRequestRef намеренно: подмена неизвестного id на активную заявку диалога и
       // была ошибкой этапа 226 (ответ на напоминание уходил к последней заявке чата).
       // Допустимые заявки инструмент проверяет сам по последней сводке.
-      .concat(reminderReply ? [answerOrderReminder] : []),
+      .concat(reminderReply ? [answerOrderReminder] : [])
+      // Без withRequestRef: у инструментов пополнения базы нет заявки (этап 8z).
+      .concat(options.supplierDiscovery === true ? supplierDiscoveryTools : []),
     validators: [
       selectionValidator,
       quoteValidator,

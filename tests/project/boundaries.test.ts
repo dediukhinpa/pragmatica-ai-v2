@@ -35,6 +35,10 @@ const OWNED_ROOT_FILES = [
   'runtime.ts',
   'schedules.ts',
   // Этап 8z: общие ключи идентичности поставщика.
+  'shortlist-paging.ts',
+  'shortlist-paging-state.ts',
+  'supplier-discovery.ts',
+  'supplier-discovery-state.ts',
   'supplier-identity.ts',
 ];
 

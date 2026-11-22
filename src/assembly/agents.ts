@@ -695,6 +695,9 @@ function declarationsOf(
       dailyDigest: monitoring,
       reminderReply: project.ORDER_REMINDER_REPLY_ENABLED === 'true',
       supplierMailProposals: proposalsReady,
+      // Новое поведение этапа 8z: оба флага выключены по умолчанию.
+      shortlistPaging: project.SHORTLIST_PAGING_ENABLED === 'true',
+      supplierDiscovery: project.SUPPLIER_DISCOVERY_ENABLED === 'true',
       ...cardsOption,
       // Только у агента «Поиск поставщика»; кросс-проверка гарантирует включённые карточки.
       supplierExport: project.SUPPLIER_EXPORT_ENABLED === 'true',

@@ -13,6 +13,17 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   // Лимит чтений страниц - штатная защита, а не сбой: в прежнем ядре `info` (в платформе
   // `warning`, из-за чего разбор считал бы работу «с проблемами»). Замена разрешена ниже.
   web_fetch_rate_limited: 'info',
+  // Этап 8z: «ещё 10» и пополнение базы. Сбои источников (повторный поиск по базе, интернет,
+  // проверка карточек) не останавливают ответ: он честно говорит, что поиск не завершён.
+  shortlist_paging: 'info',
+  shortlist_paging_base_research: 'info',
+  shortlist_paging_web_step: 'info',
+  shortlist_paging_base_unavailable: 'warning',
+  shortlist_paging_card_lookup_failed: 'warning',
+  shortlist_paging_web_failed: 'warning',
+  supplier_discovery: 'info',
+  supplier_discovery_prepare: 'info',
+  supplier_discovery_base_scan_capped: 'warning',
   // Этап 230: наши реквизиты как данные. Нет записи юрлица - договор не собран (fail closed);
   // печатный блок шаблона расходится с записью - тоже отказ; запись изменена сотрудником
   // (в поле только юрлицо и названия полей); чтение записей для фильтра не удалось - остаётся env.

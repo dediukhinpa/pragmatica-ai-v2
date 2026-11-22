@@ -1,3 +1,7 @@
+import { findSuppliersForBase } from '../../src/supplier-discovery';
+import {
+  PROJECT_EXTERNAL_TEXT_TOOL_NAMES,
+} from '../../src/agents/shared/external-text-tools.owned';
 import { afterAll, describe, expect, test } from 'bun:test';
 import { removeTempDirs } from '@business-ai/testing';
 import { pragmatikaRuntime } from '../../src/runtime';
@@ -159,6 +163,42 @@ describe('сборка агентов Прагматики', () => {
     }
     const cardsOnly = buildPragmatika({ SUPPLIER_CARDS_ENABLED: 'true' }).app;
     expect(toolsOf(cardsOnly, 'order-calc')).not.toContain('exportSuppliers');
+  });
+
+  test('«ещё 10» добавляет один инструмент только «Поиску поставщика» (этап 8z)', () => {
+    const base = buildPragmatika().app;
+    const on = buildPragmatika({ SHORTLIST_PAGING_ENABLED: 'true' }).app;
+    const had = toolsOf(base, 'order-calc');
+    expect(toolsOf(on, 'order-calc').filter((n) => !had.includes(n))).toEqual([
+      'showMoreSuppliers',
+    ]);
+    for (const id of ['prices', 'documents', 'site-export']) {
+      expect(toolsOf(on, id)).toEqual(toolsOf(base, id));
+    }
+    expect(on.registry.get('order-calc').prompt).not.toBe(base.registry.get('order-calc').prompt);
+    expect(on.registry.get('documents').prompt).toBe(base.registry.get('documents').prompt);
+  });
+
+  test('пополнение базы: два инструмента, только с карточками, прочим агентам - ничего', () => {
+    const cards = buildPragmatika({ SUPPLIER_CARDS_ENABLED: 'true' }).app;
+    const on = buildPragmatika({
+      SUPPLIER_CARDS_ENABLED: 'true',
+      SUPPLIER_DISCOVERY_ENABLED: 'true',
+    }).app;
+    const had = toolsOf(cards, 'order-calc');
+    const added = toolsOf(on, 'order-calc').filter((n) => !had.includes(n));
+    expect(added).toEqual(['findSuppliersForBase', 'prepareDiscoveredSupplierCards']);
+    for (const id of ['prices', 'documents', 'site-export']) {
+      expect(toolsOf(on, id)).toEqual(toolsOf(cards, id));
+    }
+    expect(() => buildPragmatika({ SUPPLIER_DISCOVERY_ENABLED: 'true' })).toThrow(
+      /SUPPLIER_DISCOVERY_ENABLED/,
+    );
+  });
+
+  test('имя поиска для пополнения базы входит в перечень внешних текстовых инструментов', () => {
+    expect(findSuppliersForBase.name).toBe('findSuppliersForBase');
+    expect(PROJECT_EXTERNAL_TEXT_TOOL_NAMES.has(findSuppliersForBase.name)).toBe(true);
   });
 
   test('приём заявки включается флагом и добавляет три инструмента', () => {
