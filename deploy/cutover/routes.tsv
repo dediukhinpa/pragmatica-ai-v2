@@ -2,6 +2,7 @@ bitrix24	POST	/{method}	external
 documents	POST	/authorship	route
 documents	POST	/docx/amend	route
 documents	POST	/docx/classify	route
+documents	POST	/docx/pages	route
 documents	POST	/docx/party-block	route
 documents	POST	/docx/replace-signatory	route
 documents	POST	/edit-prices	route

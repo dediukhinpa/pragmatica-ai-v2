@@ -237,8 +237,9 @@ if command -v bun >/dev/null 2>&1; then
   run all --base "documents=$base_all" --base "pseudonymizer=$base_all" --base "mask=$base_all" \
     --base "embeddings=$base_all" --base "speech=$base_all"
   assert "манифест из сборщика: код 0" "[[ $RC -eq 0 ]]"
-  assert "манифест из сборщика: проверены все четыре /docx/*" \
-    "[[ \$(grep -c '^POST /docx/' '$TMP/all.log') -eq 4 ]]"
+  assert "манифест из сборщика: проверены все пять /docx/* (с /docx/pages)" \
+    "[[ \$(grep -c '^POST /docx/' '$TMP/all.log') -eq 5 ]] \
+     && grep -q '^POST /docx/pages ' '$TMP/all.log'"
   assert "манифест из сборщика: пробован /mask_image и /embed" \
     "grep -q '^POST /mask_image ' '$TMP/all.log' && grep -q '^POST /embed ' '$TMP/all.log'"
   assert "манифест из сборщика: шаблоны и шлюз не пробуются" \

@@ -25,6 +25,7 @@ const EXIT_USAGE = 2;
 const DOCX_ROUTES = [
   '/docx/amend',
   '/docx/classify',
+  '/docx/pages',
   '/docx/party-block',
   '/docx/replace-signatory',
 ];
@@ -45,13 +46,15 @@ describe('tools/route-manifest.ts: реальное дерево', () => {
     expect(result.problems).toEqual([]);
   });
 
-  test('находит все четыре /docx/* из http-contract-amender.ts как POST documents', () => {
+  test('находит все пять /docx/* как POST documents (в том числе /docx/pages)', () => {
     for (const path of DOCX_ROUTES) {
       expect(has(result.rows, 'documents', 'POST', path)).toBe(true);
       expect(kindOf(result.rows, 'documents', 'POST', path)).toBe('route');
     }
     const sources = result.sources.get('documents POST /docx/amend') ?? [];
     expect(sources.some((s) => s.includes('http-contract-amender.ts'))).toBe(true);
+    const pagesSources = result.sources.get('documents POST /docx/pages') ?? [];
+    expect(pagesSources.some((s) => s.includes('docx-pages-client.ts'))).toBe(true);
   });
 
   test('находит маршруты платформенных адаптеров по сервисам', () => {

@@ -41,6 +41,20 @@ app, по умолчанию `true`). Доставляет «ещё 10» и по
 `deploy/patch-8z/enable-flags.sh` с бэкапом `.env` и откатом). Применяет владелец по
 `OWNER-RUNBOOK.md` пакета (`sudo bash patch.sh`, исходники `deploy/patch-8z/`).
 
+**Патч G9p (этап 9p)** ставится строго после G8z (порядок G8 → G8w → G8x → G8y → G8z → G9p):
+платформа остаётся 1.1.6, меняются ДВА образа проекта, `documents` (новая ручка `POST /docx/pages`:
+номера страниц docx/doc/rtf по раскладке) и `app`, оба на `1.1.6-pragmatika.4`, а из файлов дерева
+заменяются `images.lock` и `compose.project.yml` (две новые переменные app
+`PRICE_EDIT_FIRST_ENABLED` и `DOCX_PAGES_ENABLED`, по умолчанию `true`). Доставляет правку цены в файле сотрудника сразу и
+номера страниц docx сразу включёнными. Выкатка как в G8y: сначала `up -d --no-deps documents`,
+затем `up -d --no-deps app`, без `down`; проверка образов по digest, четырёх флагов documents (G8x),
+пробы `POST /docx/pages` (новый образ: 422 с кодом, старый: 404), `/ready` и ботов, переменных app
+G8w и G8z, маршрутов стека, выдержка; при сбое автооткат на образы G8z. Выключить функцию без
+отката образов: `PRICE_EDIT_FIRST_ENABLED=false` и/или `DOCX_PAGES_ENABLED=false` в `.env` и
+перезапуск app (скрипт `deploy/patch-9p/enable-flags.sh` с бэкапом `.env` и откатом; патч `.env` не
+меняет). Применяет владелец по `OWNER-RUNBOOK.md` пакета (`sudo bash patch.sh`, исходники
+`deploy/patch-9p/`).
+
 Все операции на боевом хосте `pragmatika-ru` — красная зона: выполняет владелец. Перед любым
 изменением боя делать бэкап. Имена на бою неизменны: compose-проект `pragmatika`, тома
 `pragmatika_*`, контейнеры `pragmatika-<сервис>-1`, пути `/etc/pragmatika`, `/srv/pragmatika`,
