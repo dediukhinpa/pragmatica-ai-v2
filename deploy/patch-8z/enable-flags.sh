@@ -350,7 +350,8 @@ check_preconditions() {
     got="$(effective_app_value "$FLAG_CARDS")"
     [[ "$got" == "$FLAG_ON" ]] \
       || refuse "$FLAG_DISCOVERY=$FLAG_ON требует $FLAG_CARDS=$FLAG_ON, а в конфигурации" \
-        "'${got:-<пусто>}': сначала включите карточки поставщиков (иначе app не стартует)"
+        "'${got:-<пусто>}': сначала включите карточки поставщиков (без них пополнение базы" \
+        "не подключается)"
   fi
   check "предусловия" ok "G8z применён, app здоров (ботов $bots), флаги сейчас: ${PRE_VALUES[*]}"
 }
