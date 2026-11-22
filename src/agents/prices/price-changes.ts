@@ -133,8 +133,8 @@ export const previewPriceChanges = defineTool<PreviewInput, PreviewOutput, Price
     'Сравнить прайс в staging с текущим прайсом поставщика до фиксации: новые позиции, ' +
     'снятые, изменения цен (в %), скачки сверх порога, позиции без артикула и ' +
     'неоднозначные. Возвращает числа и примеры (полный результат сохраняется для файла ' +
-    'изменений), diffHash и jumpHash. Скачки фиксацию не блокируют, подтверждения не ' +
-    'требуют и попадают в файл изменений.',
+    'изменений), diffHash и jumpHash. Скачки - обычные цены: фиксацию не блокируют, ' +
+    'подтверждений и уведомлений о них нет.',
   inputSchema: z.object({ supplierId: z.string().min(1), fileHash: z.string().min(1) }),
   outputSchema: z.object({
     importId: z.string(),
@@ -234,31 +234,23 @@ function currencyText(change: PriceChange): string {
     : `${change.oldCurrency} → ${change.currency}`;
 }
 
-function jumpDetails(jump: PriceChange): string {
-  const oldPrice = shownPrice(jump.oldPrice, jump.oldQualifier, jump.oldMax);
-  const newPrice = shownPrice(jump.newPrice, jump.newQualifier, jump.newMax);
-  if (jump.removed === true) return `снята с прайса, была ${oldPrice} ${jump.oldCurrency}`;
-  const sign = jump.changePct > 0 ? '+' : '';
-  if (jump.newItem === true) {
-    return `новая позиция ${newPrice}, одноимённая в прайсе ${oldPrice} ` +
-      `(${sign}${jump.changePct}%)`;
-  }
-  const confirmed =
-    jump.confirmedPrice === undefined ? '' : `, ранее принятая цена ${jump.confirmedPrice}`;
-  return `было ${oldPrice}, стало ${newPrice} (${sign}${jump.changePct}%)${confirmed}`;
+/** Записи «на проверку» без скачков цены: скачок - обычное изменение цены (этап 9p). */
+function reviewEntries(preview: Preview): Preview['diff']['review'] {
+  return preview.diff.review.filter((entry) => entry.reason !== 'price_jump');
 }
 
 /**
- * Строки листа «На проверку». Скачки не подтверждаются кнопкой: сотрудник видит их здесь и
- * сверяет перед внесением на диск (решение владельца 26.10.2026).
+ * Строки листа «На проверку». Скачки цены сюда не попадают: они принимаются как обычные цены
+ * без просьбы проверить (решение владельца 22.11.2026) и видны на листе «Изменения»; число
+ * скачков остаётся в `counts.jumps` для журнала и метрик.
  */
 function reviewRows(preview: Preview): TableCell[][] {
-  const jumps = new Map(preview.diff.jumps.map((jump) => [jump.key, jump]));
-  return preview.diff.review.map((entry): TableCell[] => {
-    const jump = entry.reason === 'price_jump' ? jumps.get(entry.key) : undefined;
-    const details = jump === undefined ? '' : `${jumpDetails(jump)}; проверьте перед внесением`;
-    return [entry.sku ?? '', entry.productName, REVIEW_REASON_LABELS[entry.reason], details];
-  });
+  return reviewEntries(preview).map((entry): TableCell[] => [
+    entry.sku ?? '',
+    entry.productName,
+    REVIEW_REASON_LABELS[entry.reason],
+    '',
+  ]);
 }
 
 function sourceRows(preview: Preview, committed: boolean): TableCell[][] {
@@ -378,7 +370,7 @@ function buildChangesText(
   return (
     `Прайс «${preview.supplierName}»: подготовлено для внесения в корпоративный диск, ` +
     `проверьте и внесите. Изменений цен: ${c.changed}, новых позиций: ${c.added}, снято: ` +
-    `${c.removed}, на проверку: ${c.review}. ${state} Файл с изменениями ниже.`
+    `${c.removed}, на проверку: ${reviewEntries(preview).length}. ${state} Файл с изменениями ниже.`
   );
 }
 

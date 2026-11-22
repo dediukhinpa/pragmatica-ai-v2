@@ -1,0 +1,79 @@
+--- src/application/agents/prices/stale-price-files.ts
++++ src/application/agents/prices/stale-price-files.ts
+@@ -385,15 +385,34 @@
+   return a.entry.path < b.entry.path ? -1 : a.entry.path > b.entry.path ? 1 : 0;
+ }
+ 
++/** Знаки, которые ломают жирную разметку и теги в сообщении: из названий они убираются. */
++const MARKUP_CHARS = /[*[\]]/gu;
++
++/**
++ * Название поставщика для жирной строки `**Название:**`: знаки разметки (`*`, `[`, `]`) убраны,
++ * иначе название ломало бы выделение (этап 9p, решение владельца 22.11.2026). Пустое после
++ * очистки название - как «поставщик не определён».
++ */
++export function boldSupplierLabel(name: string): string {
++  const clean = name.replace(MARKUP_CHARS, '').replace(/\s+/gu, ' ').trim();
++  return clean === '' ? UNKNOWN_SUPPLIER_LABEL : clean;
++}
++
++/** Дата отчёта «дд.мм.гггг» из ключа даты `гггг-мм-дд` (день проверки в поясе бизнеса). */
++function reportDate(dateKey: string): string {
++  const [year = '', month = '', day = ''] = dateKey.split('-');
++  return `${day}.${month}.${year}`;
++}
++
+ /** Блок сообщения: файлы, сгруппированные по поставщикам (список уже отсортирован). */
+ function groupedLines(items: readonly PriceFileItem[]): string[] {
+   const lines: string[] = [];
+   let current: string | null = null;
+   for (const item of items) {
+-    const who = item.supplier?.name ?? UNKNOWN_SUPPLIER_LABEL;
++    const who = boldSupplierLabel(item.supplier?.name ?? UNKNOWN_SUPPLIER_LABEL);
+     if (who !== current) {
+       if (current !== null) lines.push('');
+-      lines.push(`${who}:`);
++      lines.push(`**${who}:**`);
+       current = who;
+     }
+     const suffix =
+@@ -408,20 +427,27 @@
+   stale: readonly PriceFileItem[],
+   undated: readonly PriceFileItem[],
+   deferred: number,
++  dateKey: string,
+ ): string {
+   const blocks: string[] = [];
+   if (stale.length > 0) {
+     blocks.push(
+       [
+-        `Прайсы не обновлялись последние ${PRICE_FILE_STALE_MONTHS} месяца ` +
+-          '(по дате в названии файла):',
++        `**Еженедельный отчет (${reportDate(dateKey)}). Прайсы не обновлялись последние ` +
++          `${PRICE_FILE_STALE_MONTHS} месяца (по дате в названии файла):**`,
++        // Пустая строка после заголовка перед первым поставщиком (решение владельца 22.11.2026)
++        '',
+         ...groupedLines(stale),
+       ].join('\n'),
+     );
+   }
+   if (undated.length > 0) {
+     blocks.push(
+-      ['Дата в названии не найдена — проверьте вручную:', ...groupedLines(undated)].join('\n'),
++      [
++        '**Дата в названии не найдена — проверьте вручную:**',
++        '',
++        ...groupedLines(undated),
++      ].join('\n'),
+     );
+   }
+   if (deferred > 0) {
+@@ -674,7 +700,7 @@
+       if (!(await hasSlot(state, DUTY, slotKey))) {
+         await deps.chat.reply(
+           thread,
+-          { text: buildMessage(listedStale, listedUndated, threadDeferred) },
++          { text: buildMessage(listedStale, listedUndated, threadDeferred, dateKey) },
+           `price-stale-files:${dateKey}:${stableHash(thread)}`,
+         );
+         await markSlot(state, DUTY, slotKey, now);

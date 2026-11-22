@@ -1,0 +1,91 @@
+--- tests/application/agents/prices-stale-files.test.ts
++++ tests/application/agents/prices-stale-files.test.ts
+@@ -199,19 +199,35 @@
+     expect(chat.outbox).toHaveLength(1);
+     expect(chat.outbox[0]?.threadId).toBe(RESPONSIBLE_THREAD);
+     const text = textOf();
++    // Заголовок жирным с датой отчёта, после него пустая строка, поставщики жирным
++    expect(text.startsWith(`**Еженедельный отчет (12.10.2026). Прайсы не обновлялись последние 3 месяца (по дате в названии файла):**\n\n**`)).toBe(true);
+     expect(text).toContain(
+-      'Прайсы не обновлялись последние 3 месяца (по дате в названии файла):',
++      '**МеталлТорг:**\n• Металл/МеталлТорг/прайс_01.03.2026.xlsx — 01.03.2026\n' +
++        '• Металл/МеталлТорг/прайс_03.2026.xlsx — 03.2026',
+     );
+     expect(text).toContain(
+-      'МеталлТорг:\n• Металл/МеталлТорг/прайс_01.03.2026.xlsx — 01.03.2026\n' +
+-        '• Металл/МеталлТорг/прайс_03.2026.xlsx — 03.2026',
++      '**поставщик не определён:**\n• Крепёж/старый_15.01.2026.xlsx — 15.01.2026',
+     );
+-    expect(text).toContain('поставщик не определён:\n• Крепёж/старый_15.01.2026.xlsx — 15.01.2026');
+     // Поставщик с названием идёт раньше «не определён».
+-    expect(text.indexOf('МеталлТорг:')).toBeLessThan(text.indexOf('поставщик не определён:'));
++    expect(text.indexOf('**МеталлТорг:**')).toBeLessThan(
++      text.indexOf('**поставщик не определён:**'),
++    );
+     expect(text).not.toContain('Дата в названии не найдена');
+   });
+ 
++  test('точный текст: жирный заголовок с датой, пустая строка, поставщик жирным', async () => {
++    put('Металл/МеталлТорг/прайс_01.01.2026.xlsx');
++    await check();
++    expect(textOf()).toBe(
++      '**Еженедельный отчет (12.10.2026). Прайсы не обновлялись последние 3 месяца (по дате в названии файла):**\n' +
++        '\n' +
++        '**МеталлТорг:**\n' +
++        '• Металл/МеталлТорг/прайс_01.01.2026.xlsx — 01.01.2026\n' +
++        '\n' +
++        'Проверьте, актуальны ли эти прайсы, и запросите обновление у поставщиков.',
++    );
++  });
++
+   test('без ответственного адресат - менеджер', async () => {
+     const bare = { ...deps, responsibleThreadId: undefined };
+     put('a/старый_01.01.2026.xlsx');
+@@ -227,7 +243,7 @@
+       notes: [],
+     });
+     await check();
+-    expect(textOf()).toContain('МеталлТорг:\n• Разное/f1_01.01.2026.xlsx — 01.01.2026');
++    expect(textOf()).toContain('**МеталлТорг:**\n• Разное/f1_01.01.2026.xlsx — 01.01.2026');
+   });
+ 
+   test('лимит строк: остаток числом, порядок детерминирован, остаток - в понедельник', async () => {
+@@ -249,7 +265,8 @@
+     // Через неделю тот же детерминированный порядок и тот же остаток.
+     clock.advance(WEEK_MS);
+     expect(await check()).toMatchObject({ status: 'sent', notified: PRICE_FILE_MAX_LISTED });
+-    expect(textOf(1)).toBe(text);
++    // Тот же состав и порядок; меняется только дата отчёта в заголовке
++    expect(textOf(1)).toBe(text.replace('(12.10.2026)', '(19.10.2026)'));
+   });
+ });
+ 
+@@ -263,12 +280,16 @@
+     expect(result).toMatchObject({ status: 'sent', notified: 3, undated: 2 });
+     const text = textOf();
+     const staleAt = text.indexOf('не обновлялись последние 3 месяца');
+-    const undatedAt = text.indexOf('Дата в названии не найдена — проверьте вручную:');
++    const undatedAt = text.indexOf('**Дата в названии не найдена — проверьте вручную:**');
+     expect(staleAt).toBeGreaterThanOrEqual(0);
+     expect(undatedAt).toBeGreaterThan(staleAt);
+     const undatedBlock = text.slice(undatedAt);
+-    expect(undatedBlock).toContain('МеталлТорг:\n• Металл/МеталлТорг/прайс-новый.xlsx');
+-    expect(undatedBlock).toContain('поставщик не определён:\n• Крепёж/ассортимент.csv');
++    expect(undatedBlock).toContain('**МеталлТорг:**\n• Металл/МеталлТорг/прайс-новый.xlsx');
++    expect(undatedBlock).toContain('**поставщик не определён:**\n• Крепёж/ассортимент.csv');
++    // Пустая строка между заголовком блока и первым поставщиком
++    expect(undatedBlock.startsWith('**Дата в названии не найдена — проверьте вручную:**\n\n**')).toBe(
++      true,
++    );
+     expect(undatedBlock).not.toContain('прайс_01.01.2026');
+     // У файла без даты нет суффикса с датой.
+     expect(undatedBlock).not.toContain('— 0');
+@@ -278,7 +299,7 @@
+     put('Склад/прайс-без-даты.xlsx');
+     expect(await check()).toMatchObject({ status: 'sent', notified: 1, undated: 1 });
+     const text = textOf();
+-    expect(text.startsWith('Дата в названии не найдена — проверьте вручную:')).toBe(true);
++    expect(text.startsWith('**Дата в названии не найдена — проверьте вручную:**\n\n**')).toBe(true);
+     expect(text).toContain('• Склад/прайс-без-даты.xlsx');
+     expect(text).not.toContain('не обновлялись');
+     expect(text).not.toContain('запросите обновление');

@@ -117,7 +117,7 @@ describe('R6-06-06: поставщик за пределом 2000 по назв�
     const withClock: PricesDeps = { ...deps, clock: new FixedClock(now) };
     await runStalePriceFilesCheck(withClock, { timezone: 'Europe/Moscow' });
     const text = deps.chat.outbox[0]?.message?.text ?? '';
-    expect(text).toContain('Ярус Опт:\n• Склад/Ярус Опт/прайс_01.01.2026.xlsx — 01.01.2026');
+    expect(text).toContain('**Ярус Опт:**\n• Склад/Ярус Опт/прайс_01.01.2026.xlsx — 01.01.2026');
   });
 });
 
