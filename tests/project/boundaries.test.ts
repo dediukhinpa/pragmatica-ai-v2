@@ -34,6 +34,8 @@ const OWNED_ROOT_FILES = [
   'project.ts',
   'runtime.ts',
   'schedules.ts',
+  // Этап 8z: общие ключи идентичности поставщика.
+  'supplier-identity.ts',
 ];
 
 /** Платформенные файлы, которых в проекте быть не должно: их держит пакет платформы. */
