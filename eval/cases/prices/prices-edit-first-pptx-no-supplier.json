@@ -1,0 +1,102 @@
+{
+  "id": "prices-edit-first-pptx-no-supplier",
+  "agent": "prices",
+  "description": "Этап 9p (правка файла сразу): сотрудник прислал pptx и просит «на слайде 11 цену 680 замени на 700», поставщика не называет. Агент сразу вызывает editPriceInFile (без поставщика, черновика импорта и вопросов до правки), исправленный файл уходит в чат, ячейка слайда 11 меняется со старой ценой 680 в expected. В том же ответе: список изменений (слайд 11, было и стало), вопрос про поставщика и «обновить цены этих позиций в базе?». В базу ничего не записано, ожидание ответа заведено.",
+  "request": "Прислала презентацию Спецпредложение.pptx. На слайде 11 цену 680 замени на 700. Ответственная — Анна Громова, +7 (903) 410-52-61.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Саморез",
+        "price": 680
+      }
+    ],
+    "priceEditFirst": true,
+    "chatFiles": [
+      {
+        "path": "Спецпредложение.pptx",
+        "text": "# Спецпредложение\n\n## Слайд 3: Крепёж\n\n| Позиция | Цена |\n| --- | --- |\n| Болт М8 | 45 |\n| Гайка М8 | 12 |\n\n## Слайд 11: Метизы\n\n| Позиция | Цена |\n| --- | --- |\n| Шайба | 12.5 |\n| Саморез | 680 |"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 4,
+    "requiredTools": [
+      "listIntakeFiles",
+      "editPriceInFile"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "searchSuppliers",
+      "stagePriceRows",
+      "normalizePriceTable",
+      "savePriceImport",
+      "editPricesInSourceFile",
+      "recordEmployeePriceUpdates",
+      "previewPriceChanges",
+      "commitPriceImport",
+      "sendPriceChangeFile"
+    ],
+    "outputContains": [
+      "слайд 11",
+      "680",
+      "700",
+      "поставщик",
+      "обновить цены этих позиций в базе"
+    ],
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 1
+      },
+      {
+        "probe": "editedCellCount",
+        "value": 1
+      },
+      {
+        "probe": "editedValue",
+        "arg": "1:2:1",
+        "value": 700
+      },
+      {
+        "probe": "editedExpected",
+        "arg": "1:2:1",
+        "value": 680
+      },
+      {
+        "probe": "chatFileContains",
+        "arg": "Саморез | 700",
+        "value": 1
+      },
+      {
+        "probe": "pendingPriceEdit",
+        "value": 1
+      },
+      {
+        "probe": "storedPrice",
+        "arg": "s1:Саморез",
+        "value": 680
+      },
+      {
+        "probe": "storedPriceCount",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Громова",
+      "Анна"
+    ],
+    "phones": [
+      "+7 (903) 410-52-61"
+    ]
+  }
+}

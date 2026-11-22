@@ -1,0 +1,22 @@
+--- eval/state.ts
++++ eval/state.ts
+@@ -39,6 +39,19 @@
+     files: z.array(fileSchema).default([]),
+     /** Текущий момент прогона (ISO); не задан - время часов оценки по умолчанию. */
+     now: z.string().datetime().optional(),
++    /**
++     * Правка цены в файле сотрудника сразу, без вопроса о поставщике (как
++     * `PRICE_EDIT_FIRST_ENABLED`, этап 9p): у агента инструменты editPriceInFile,
++     * getPendingPriceEdit, closePendingPriceEdit и абзац промпта. По умолчанию выключено,
++     * состав инструментов остальных кейсов не меняется.
++     */
++    priceEditFirst: z.boolean().default(false),
++    /**
++     * Файлы, присланные сотрудником в чат (`path` - имя файла, `text` - содержимое). Для pptx
++     * текст - markdown разбора: заголовки «## Слайд N» и таблицы цен. Файлы кладутся в приём
++     * файлов треда кейса до первого хода; путь для инструментов даёт listIntakeFiles.
++     */
++    chatFiles: z.array(fileSchema).default([]),
+   })
+   .strict();
+ /** Начальное состояние агента «Подготовка документов (ИИ агент)». */

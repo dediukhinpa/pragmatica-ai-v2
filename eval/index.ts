@@ -16,6 +16,7 @@ import { withShortlistProposal } from './environments/choice-proposal';
 import { buildDocumentsEnvironment } from './environments/documents';
 import { buildHandoffEnvironment } from './environments/handoff';
 import { buildOrderCalcEnvironment } from './environments/order-calc';
+import { PRICE_EDIT_PROBE_NAMES } from './environments/price-edit-first';
 import { buildPricesEnvironment } from './environments/prices';
 import { buildSiteExportEnvironment } from './environments/site-export';
 import {
@@ -44,6 +45,15 @@ const agentIds = [
   ...manifestEval.agentIds.filter((id) => id !== HANDOFF_AGENT_ID),
 ];
 
+/**
+ * Имена замеров: из манифеста, а у агента прайсов ещё замеры режима правки цены в файле сразу
+ * (этап 9p; их реализует окружение прайсов только у кейсов с этим режимом).
+ */
+const probeNames: Readonly<Record<string, readonly string[]>> = {
+  ...manifestEval.probeNames,
+  prices: [...(manifestEval.probeNames['prices'] ?? []), ...PRICE_EDIT_PROBE_NAMES],
+};
+
 /** Окружение кейса по агенту: заглушки в памяти с начальным состоянием. */
 function buildEnvironment(testCase: EvalCase, model: string): Promise<EvalEnvironment> {
   switch (testCase.agent) {
@@ -68,7 +78,7 @@ function buildEnvironment(testCase: EvalCase, model: string): Promise<EvalEnviro
 export const pragmatikaEvalSpec: EvalProjectSpec = {
   rootDir: import.meta.dir,
   agentIds,
-  probeNames: manifestEval.probeNames,
+  probeNames,
   stateSchemas: {
     prices: pricesStateSchema,
     documents: documentsStateSchema,

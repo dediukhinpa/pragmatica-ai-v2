@@ -1,0 +1,82 @@
+{
+  "id": "prices-edit-first-confirm-no",
+  "agent": "prices",
+  "description": "Этап 9p (правка файла сразу): после правки файла сотрудник отвечает «Нет, в базу не надо». Агент закрывает ожидание как declined, запись цен (recordEmployeePriceUpdates, previewPriceChanges, commitPriceImport) не вызывается, цена в базе прежняя, предложения цен нет.",
+  "request": "Прислала презентацию Спецпредложение.pptx. На слайде 11 цену 680 замени на 700. Ответственная — Марина Ершова, +7 (926) 540-33-12.",
+  "followUps": [
+    "Нет, в базу не надо."
+  ],
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Саморез",
+        "price": 680
+      }
+    ],
+    "priceEditFirst": true,
+    "chatFiles": [
+      {
+        "path": "Спецпредложение.pptx",
+        "text": "# Спецпредложение\n\n## Слайд 3: Крепёж\n\n| Позиция | Цена |\n| --- | --- |\n| Болт М8 | 45 |\n| Гайка М8 | 12 |\n\n## Слайд 11: Метизы\n\n| Позиция | Цена |\n| --- | --- |\n| Шайба | 12.5 |\n| Саморез | 680 |"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 5,
+    "requiredTools": [
+      "editPriceInFile",
+      "closePendingPriceEdit"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "stagePriceRows",
+      "normalizePriceTable",
+      "savePriceImport",
+      "editPricesInSourceFile",
+      "recordEmployeePriceUpdates",
+      "previewPriceChanges",
+      "commitPriceImport",
+      "sendPriceChangeFile"
+    ],
+    "outputContains": [
+      "в базе",
+      "прежн"
+    ],
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 1
+      },
+      {
+        "probe": "pendingPriceEdit",
+        "value": 0
+      },
+      {
+        "probe": "storedPrice",
+        "arg": "s1:Саморез",
+        "value": 680
+      },
+      {
+        "probe": "storedPriceCount",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Ершова",
+      "Марина"
+    ],
+    "phones": [
+      "+7 (926) 540-33-12"
+    ]
+  }
+}

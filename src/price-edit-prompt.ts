@@ -37,7 +37,10 @@ export const PRICE_EDIT_FIRST_PROMPT = `
     пиши. Затем прежний
     путь записи цен со слов сотрудника: recordEmployeePriceUpdates (название и артикул из
     rowCells, price = newPrice), previewPriceChanges и дальше как в пункте в) источников; после
-    записи closePendingPriceEdit(saved). «Нет», «не надо» - closePendingPriceEdit(declined),
+    записи closePendingPriceEdit(saved). Результат скажи как есть: цены с диска пишутся в базу
+    сразу, а цены со слов сотрудника commitPriceImport принимает предложением
+    (proposed_not_written): в базу они попадут, когда появятся на диске, - так и скажи, не
+    говори «записано в базу». «Нет», «не надо» - closePendingPriceEdit(declined),
     в базу ничего не пишется. Если сотрудник не ответил, база остаётся прежней: ожидание живёт
     сутки в этом чате и сбрасывается новой правкой.
 `;

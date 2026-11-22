@@ -3,6 +3,7 @@ import { loadCases } from '@business-ai/eval';
 import { pragmatikaProject } from '../../src';
 import { HANDOFF_TO_PRICES_TOOL } from '../../src/agents/order-calc/handoff-to-prices';
 import { pragmatikaEvalSpec } from '../../eval';
+import { PRICE_EDIT_PROBE_NAMES } from '../../eval/environments/price-edit-first';
 import { DEFAULT_CASES_DIR, DEFAULT_RECORDINGS_DIR } from '../../eval/paths';
 
 /** Агент, которого гоняет набор по передачам: раннер платформы берёт первого из `agentIds`. */
@@ -27,8 +28,12 @@ describe('eval/index: описание проекта для раннера', ()
     expect(pragmatikaEvalSpec.agentIds[0]).toBe(HANDOFF_AGENT_ID);
   });
 
-  test('имена замеров берутся из манифеста', () => {
-    expect(pragmatikaEvalSpec.probeNames).toEqual(manifestEval?.probeNames ?? {});
+  test('имена замеров берутся из манифеста, у прайсов добавлены замеры правки файла', () => {
+    const fromManifest = manifestEval?.probeNames ?? {};
+    const { prices, ...others } = pragmatikaEvalSpec.probeNames;
+    const { prices: manifestPrices, ...manifestOthers } = fromManifest;
+    expect(others).toEqual(manifestOthers);
+    expect(prices).toEqual([...(manifestPrices ?? []), ...PRICE_EDIT_PROBE_NAMES]);
   });
 
   test('схема состояния есть у каждого агента', () => {

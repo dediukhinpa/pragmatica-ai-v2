@@ -15,22 +15,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6631,
+        "inputTokens": 6657,
         "outputTokens": 16
       },
       "latencyMs": 400,
-      "requestHash": "44ea6dce955728486b5d040e6b85e84324f4d5eacea2ac04f95e082ae1775bdc"
+      "requestHash": "4299a362b8ecb0783ca8b13bc24ce6a465d1e1a5803fc50f07d181e0d56025b3"
     },
     {
       "content": "Прайсы с датой в названии старше 3 месяцев:\n- produkciya/Кружки/Прайс_Кружки_Сублимация_28.02.2026.xlsx (дата в названии 28.02.2026)",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 6723,
+        "inputTokens": 6749,
         "outputTokens": 34
       },
       "latencyMs": 400,
-      "requestHash": "c43d76a3ebda01d1e61586c0f82fa9c50c03cab6f5ec4066005742367b1efcb2"
+      "requestHash": "2c3df4188e14ab4a0f98fae0af4ba2226792c16bddcee90f6a40ab9aaeaf91ea"
     }
   ],
   "synthetic": true

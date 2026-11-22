@@ -1,0 +1,91 @@
+--- /dev/null
++++ eval/cases/prices/prices-edit-first-confirm-yes.json
+@@ -0,0 +1,88 @@
++{
++  "id": "prices-edit-first-confirm-yes",
++  "agent": "prices",
++  "description": "Этап 9p (правка файла сразу): после правки файла сотрудник отвечает «Да, это МеталлТорг». Агент читает ожидание (getPendingPriceEdit), находит поставщика, ведёт прежний путь записи цен со слов сотрудника (recordEmployeePriceUpdates, previewPriceChanges, commitPriceImport) и закрывает ожидание как saved. Диск остаётся источником правды, поэтому цена из чата попадает в базу предложением (proposedPrice 700), а цена в базе с диска прежняя (680).",
++  "request": "Прислала презентацию Спецпредложение.pptx. На слайде 11 цену 680 замени на 700. Ответственный — Игорь Платов, +7 (905) 320-18-74.",
++  "followUps": [
++    "Да, это МеталлТорг."
++  ],
++  "state": {
++    "suppliers": [
++      {
++        "id": "s1",
++        "name": "МеталлТорг"
++      }
++    ],
++    "prices": [
++      {
++        "supplierId": "s1",
++        "productName": "Саморез",
++        "price": 680
++      }
++    ],
++    "priceEditFirst": true,
++    "chatFiles": [
++      {
++        "path": "Спецпредложение.pptx",
++        "text": "# Спецпредложение\n\n## Слайд 3: Крепёж\n\n| Позиция | Цена |\n| --- | --- |\n| Болт М8 | 45 |\n| Гайка М8 | 12 |\n\n## Слайд 11: Метизы\n\n| Позиция | Цена |\n| --- | --- |\n| Шайба | 12.5 |\n| Саморез | 680 |"
++      }
++    ]
++  },
++  "expect": {
++    "maxSteps": 10,
++    "requiredTools": [
++      "editPriceInFile",
++      "getPendingPriceEdit",
++      "recordEmployeePriceUpdates",
++      "commitPriceImport",
++      "closePendingPriceEdit"
++    ],
++    "toolOrder": "ordered",
++    "forbiddenTools": [
++      "stagePriceRows",
++      "normalizePriceTable",
++      "savePriceImport",
++      "editPricesInSourceFile"
++    ],
++    "outputContains": [
++      "МеталлТорг",
++      "Саморез",
++      "700"
++    ],
++    "stateChecks": [
++      {
++        "probe": "chatFiles",
++        "op": "gte",
++        "value": 1
++      },
++      {
++        "probe": "pendingPriceEdit",
++        "value": 0
++      },
++      {
++        "probe": "proposedPrice",
++        "arg": "s1:Саморез",
++        "value": 700
++      },
++      {
++        "probe": "storedPrice",
++        "arg": "s1:Саморез",
++        "value": 680
++      },
++      {
++        "probe": "storedPriceCount",
++        "value": 1
++      }
++    ],
++    "noPiiInRequests": true
++  },
++  "pii": {
++    "names": [
++      "Платов",
++      "Игорь"
++    ],
++    "phones": [
++      "+7 (905) 320-18-74"
++    ]
++  }
++}

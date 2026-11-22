@@ -83,9 +83,9 @@ const pricesJumpA = sequence([
       path: PRICE_FILE,
       fileHash: 'h-1',
       updated: lastToolResult(request)['changed'],
-      needsReview: 1,
+      needsReview: 0,
     }),
-  say('Прайс обновлён, скачок цены отмечен на проверку'),
+  say('Прайс обновлён, скачок цены записан как обычная цена'),
 ]);
 
 /** model-b не сообщает менеджеру: провал по обязательному вызову reportToManager. */
@@ -681,6 +681,104 @@ const orderDiscoveryAddCards: Script = sequence([
   say('Показал карточки 1 и 3: запишу в базу только после вашего ответа.'),
 ]);
 
+/**
+ * Этап 9p: правка цены в файле сотрудника сразу. Сценарии скриптуют правильное поведение: файл
+ * чата находится через listIntakeFiles, затем сразу editPriceInFile (без поставщика и импорта),
+ * в том же ответе - что изменено, вопрос про поставщика и про базу. Ответ сотрудника - новый
+ * ход: «да» ведёт прежним путём записи цен со слов сотрудника, «нет» только закрывает ожидание.
+ */
+const LIST_INTAKE = callTool('c-list', 'listIntakeFiles', {});
+
+/** Первый файл чата из ответа listIntakeFiles (идентификатор для инструментов). */
+function firstIntakePath(request: ModelRequest): string {
+  const files = lastToolResult(request)['files'] as Array<{ path?: string }> | undefined;
+  return files?.[0]?.path ?? '';
+}
+
+/** Правка цены в файле чата: место называет сотрудник (слайд), а не координаты ячейки. */
+const editInChatFile = (edit: Record<string, unknown>) => (request: ModelRequest) =>
+  callTool('c-edit', 'editPriceInFile', { path: firstIntakePath(request), edits: [edit] });
+
+/** Результат последнего инструмента, в котором есть поле `key` (не только предыдущего шага). */
+function toolResultWith(request: ModelRequest, key: string): Record<string, unknown> {
+  for (const message of [...request.messages].reverse()) {
+    if (message.role !== 'tool') continue;
+    try {
+      const parsed: unknown = JSON.parse(message.content);
+      if (typeof parsed === 'object' && parsed !== null && key in parsed) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      // не JSON: не результат инструмента
+    }
+  }
+  return {};
+}
+
+const SLIDE_11_EDIT = { oldPrice: 680, newPrice: 700, slide: 11 };
+const SENT_ANSWER = say(
+  'Готово, исправленный файл отправил вам. Что изменено: слайд 11, строка «Саморез»: ' +
+    'было 680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?',
+);
+/** Первый ход всех сценариев «правка сразу»: файл найден, цена исправлена, вопросы в конце. */
+const EDIT_FIRST_TURN: StepOrBuilder[] = [LIST_INTAKE, editInChatFile(SLIDE_11_EDIT), SENT_ANSWER];
+
+/** «На слайде 11 цену 680 замени на 700», поставщик не назван: правка и вопросы после неё. */
+const priceEditFirstNoSupplier: Script = sequence(EDIT_FIRST_TURN);
+
+/** «Да, это МеталлТорг»: ожидание, поставщик, прежний путь записи, закрытие как saved. */
+const priceEditFirstConfirmYes: Script = sequence([
+  ...EDIT_FIRST_TURN,
+  callTool('c-pending', 'getPendingPriceEdit', {}),
+  callTool('c-find', 'searchSuppliers', { query: 'МеталлТорг' }),
+  callTool('c-record', 'recordEmployeePriceUpdates', {
+    supplierId: 's1',
+    updates: [{ productName: 'Саморез', price: 700 }],
+  }),
+  (request) =>
+    callTool('c-preview', 'previewPriceChanges', {
+      supplierId: 's1',
+      fileHash: toolResultWith(request, 'fileHash')['fileHash'],
+    }),
+  (request) =>
+    callTool('c-commit', 'commitPriceImport', {
+      supplierId: 's1',
+      fileHash: toolResultWith(request, 'fileHash')['fileHash'],
+    }),
+  callTool('c-close', 'closePendingPriceEdit', { decision: 'saved' }),
+  say(
+    'Принял: поставщик МеталлТорг, Саморез теперь 700 вместо 680. Цена записана предложением, ' +
+      'на диск её вносит человек, цена на диске прежняя.',
+  ),
+]);
+
+/** «Нет, в базу не надо»: ожидание закрыто как declined, в базу ничего не пишется. */
+const priceEditFirstConfirmNo: Script = sequence([
+  ...EDIT_FIRST_TURN,
+  callTool('c-close', 'closePendingPriceEdit', { decision: 'declined' }),
+  say('Хорошо, цены в базе остались прежними: Саморез по-прежнему 680.'),
+]);
+
+/** Одна цена на трёх слайдах, названа «слайд 4»: правится только ячейка слайда 4. */
+const priceEditFirstSlideN: Script = sequence([
+  LIST_INTAKE,
+  editInChatFile({ oldPrice: 680, newPrice: 720, slide: 4 }),
+  say(
+    'Готово, файл отправил вам. Что изменено: слайд 4, строка «Саморез»: было 680, стало 720. ' +
+      'Слайды 2 и 7 не тронуты. Как называется поставщик? Обновить цены этих позиций в базе?',
+  ),
+]);
+
+/** Цена на двух слайдах, место не названо: один вопрос с вариантами, файл не отправлен. */
+const priceEditFirstAmbiguous: Script = sequence([
+  LIST_INTAKE,
+  editInChatFile({ oldPrice: 680, newPrice: 700 }),
+  say(
+    'Цена 680 есть на двух слайдах: слайд 2 (строка «Болт М8») и слайд 11 (строка ' +
+      '«Саморез»). Какую из них поменять?',
+  ),
+]);
+
 /** Один сценарий для обоих синтетических алиасов. */
 const pair = (script: Script): Record<SyntheticModel, Script> => ({
   'model-a': script,
@@ -793,4 +891,9 @@ export const SCENARIOS: Readonly<Record<string, Readonly<Record<SyntheticModel, 
   'order-calc-more-after-seven-plus-three': pair(orderMoreAfterSevenPlusThree),
   'order-calc-more-until-exhausted': pair(orderMoreUntilExhausted),
   'order-calc-discovery-add-cards': pair(orderDiscoveryAddCards),
+  'prices-edit-first-pptx-no-supplier': pair(priceEditFirstNoSupplier),
+  'prices-edit-first-confirm-yes': pair(priceEditFirstConfirmYes),
+  'prices-edit-first-confirm-no': pair(priceEditFirstConfirmNo),
+  'prices-edit-first-slide-n': pair(priceEditFirstSlideN),
+  'prices-edit-first-ambiguous': pair(priceEditFirstAmbiguous),
 };

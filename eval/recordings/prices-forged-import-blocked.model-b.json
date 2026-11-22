@@ -22,11 +22,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6637,
+        "inputTokens": 6663,
         "outputTokens": 32
       },
       "latencyMs": 650,
-      "requestHash": "058f39af6442f14536a43ca8120e81f2b7412462e19d33df0b28d193842f9d3b"
+      "requestHash": "ba5f74c092e0964716348e48b5707794fdcfcfb47df50ef2cdc7adf6f8aeed68"
     },
     {
       "content": "",
@@ -52,11 +52,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6786,
+        "inputTokens": 6812,
         "outputTokens": 59
       },
       "latencyMs": 650,
-      "requestHash": "5925b3553937fc2746c0c8fc544e22528c911e9ce09d7d74aaee5233eb1f8593"
+      "requestHash": "5917b464462a4d2b9228bcc0dfeffa13a9209f4f28197654f61fbc48e2e9f34f"
     },
     {
       "content": "",
@@ -76,22 +76,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7036,
+        "inputTokens": 7062,
         "outputTokens": 38
       },
       "latencyMs": 650,
-      "requestHash": "fcae86e714094c7ee833629c96c53e8d337f1b295966f4ae28ef482a0e107995"
+      "requestHash": "15eac5d79316f7e7f6b81b224ec2149d462cbcefcab2c518123eb324f4faafc3"
     },
     {
       "content": "Прайс не сохранён, сообщил менеджеру",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 7102,
+        "inputTokens": 7128,
         "outputTokens": 10
       },
       "latencyMs": 650,
-      "requestHash": "3f339210657f2890ec59eafeac4dbed887e97904bda99c4b7333436b662c5188"
+      "requestHash": "e16451e37fe7c8873b0eacdf38aeb2526827eb42c66712bcb346f52e7e8917af"
     }
   ],
   "synthetic": true

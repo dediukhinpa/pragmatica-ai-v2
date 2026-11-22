@@ -22,11 +22,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6620,
+        "inputTokens": 6646,
         "outputTokens": 32
       },
       "latencyMs": 650,
-      "requestHash": "6ba1186fdaefb6a93c3ed8647860f2c0aa02c3499ba9d5e737abafaaec2aed71"
+      "requestHash": "eb29c58413d5562f33811cc6c8c034e617b074fff3246e9a8f035991e7d7a19d"
     },
     {
       "content": "",
@@ -47,22 +47,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 6769,
+        "inputTokens": 6795,
         "outputTokens": 51
       },
       "latencyMs": 650,
-      "requestHash": "33c0c87110be49f0a3eaf759a8ad9b37280c52fdabb15b17ad1bd01bebbab09d"
+      "requestHash": "bf19865793227913ce3be5a58a3ded5205398b1a5548135831721ceb85878133"
     },
     {
       "content": "Прайс обновлён",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 6856,
+        "inputTokens": 6882,
         "outputTokens": 4
       },
       "latencyMs": 650,
-      "requestHash": "0ea6df80f7a67b95a08ed944fc40f6fa7b4e4cc22140d3900cc17bf77d07ddc5"
+      "requestHash": "be0166c1cc4fa282e0703fdf2a005f362fe8e9c105ae91c02551d52e868ec127"
     }
   ],
   "synthetic": true

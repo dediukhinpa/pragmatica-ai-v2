@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-slide-n",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7472,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "64a6b0186902d768292badcfe867a720c67dfc821eb95f901a669744f3b72b66"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-edit",
+          "name": "editPriceInFile",
+          "arguments": {
+            "path": "wkkqspqmqnrnxvqy/hyhwvhrtkxgwjzzjtghyvtwhgjqyhrjz_Прайс_акция.pptx",
+            "edits": [
+              {
+                "oldPrice": 680,
+                "newPrice": 720,
+                "slide": 4
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7561,
+        "outputTokens": 46
+      },
+      "latencyMs": 400,
+      "requestHash": "05f6444d73c81d45aab168206c5bd665cca9ea22ace1028d4dfbe49bb7614ab3"
+    },
+    {
+      "content": "Готово, файл отправил вам. Что изменено: слайд 4, строка «Саморез»: было 680, стало 720. Слайды 2 и 7 не тронуты. Как называется поставщик? Обновить цены этих позиций в базе?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7835,
+        "outputTokens": 44
+      },
+      "latencyMs": 400,
+      "requestHash": "13be64631f589b8f12231d18d87d684c229c51ae3227ea50745fe647428b39cc"
+    }
+  ],
+  "synthetic": true
+}
