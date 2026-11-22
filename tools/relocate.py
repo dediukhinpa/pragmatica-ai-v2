@@ -49,6 +49,11 @@ PROJECT_SPECS = {
     ("src/application/agents/documents/declaration.ts", "../../documents-paged-reader"),
     ("src/application/agents/order-calc/declaration.ts", "../../shortlist-paging"),
     ("src/application/agents/order-calc/declaration.ts", "../../supplier-discovery"),
+    ("src/application/agents/prices/declaration.ts", "../../price-edit-direct"),
+    ("src/application/agents/prices/declaration.ts", "../../price-edit-followup"),
+    ("src/application/agents/prices/declaration.ts", "../../price-edit-prompt"),
+    ("src/application/agents/prices/deps.ts", "../../docx-pages-client"),
+    ("src/application/agents/prices/read-price-file.ts", "../../price-table-places"),
 }
 # Пути-литералы относительно файла теста: `join(import.meta.dir, '../x')` и
 # `new URL('../x', import.meta.url)`. Цель - файл или каталог в любом месте дерева.

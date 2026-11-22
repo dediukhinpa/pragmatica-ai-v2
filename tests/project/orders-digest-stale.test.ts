@@ -7,7 +7,12 @@ import {
   runOrdersDigest,
 } from '../../src/agents/order-calc/orders-digest';
 import { workSubject } from '../../src/agents/shared/work-owner.owned';
-import { MAIL_OWNER, ORDER_REQUEST, buildOrderDeps, type OrderTestDeps } from '../agents/order-support';
+import {
+  MAIL_OWNER,
+  ORDER_REQUEST,
+  buildOrderDeps,
+  type OrderTestDeps,
+} from '../agents/order-support';
 
 /**
  * Утренняя сводка (этап 9p, решение владельца 22.11.26): старые заявки перечисляются по названию

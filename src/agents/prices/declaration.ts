@@ -21,6 +21,9 @@ import { recordEmployeePriceUpdates } from './employee-updates';
 import { listIntakeFiles, readIntakeFile } from './intake-tools';
 import { previewPriceChanges, sendPriceChangeFile } from './price-changes';
 import { editPricesInSourceFile } from './price-edit-source';
+import { editPriceInFile } from '../../price-edit-direct';
+import { closePendingPriceEdit, getPendingPriceEdit } from '../../price-edit-followup';
+import { PRICE_EDIT_FIRST_PROMPT } from '../../price-edit-prompt';
 import { markPriceMailHandled, readPriceMail } from './price-mail';
 import { listStalePriceSuppliers } from './stale-price-suppliers';
 import { listStalePriceFiles } from './stale-price-files-tool';
@@ -62,6 +65,12 @@ export interface PricesAgentOptions {
    * промпта. Без опции инструмента нет, декларация прежняя.
    */
   dataScript?: boolean;
+  /**
+   * Правка цены в файле сотрудника сразу, без поставщика (`PRICE_EDIT_FIRST_ENABLED`, этап 9p):
+   * инструменты editPriceInFile, getPendingPriceEdit, closePendingPriceEdit и абзац промпта.
+   * Без опции декларация и промпт прежние.
+   */
+  priceEditFirst?: boolean;
 }
 
 /**
@@ -80,6 +89,7 @@ export function createPricesAgent(options: PricesAgentOptions): AgentDeclaration
       (monitoring ? (mail ? PRICES_MONITORING_MAIL_PROMPT : PRICES_MONITORING_PROMPT) : '') +
       (supplierCards === undefined ? '' : SUPPLIER_CARDS_PROMPT) +
       (options.dataScript === true ? DATA_SCRIPT_PROMPT + PRICES_DATA_SCRIPT_PROMPT : '') +
+      (options.priceEditFirst === true ? PRICE_EDIT_FIRST_PROMPT : '') +
       SESSION_SUMMARY_PROMPT +
       FILE_TOOL_PROMPT,
     model: options.model,
@@ -111,6 +121,9 @@ export function createPricesAgent(options: PricesAgentOptions): AgentDeclaration
       ...supplierLookupTools(),
       ...(options.dataScript === true ? [runDataScript] : []),
       ...(supplierCards === undefined ? [] : supplierCardsTools()),
+      ...(options.priceEditFirst === true
+        ? [editPriceInFile, getPendingPriceEdit, closePendingPriceEdit]
+        : []),
     ],
     validators: [
       priceImportValidator,

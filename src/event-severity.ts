@@ -15,6 +15,9 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   web_fetch_rate_limited: 'info',
   // Этап 8z: «ещё 10» и пополнение базы. Сбои источников (повторный поиск по базе, интернет,
   // проверка карточек) не останавливают ответ: он честно говорит, что поиск не завершён.
+  // Этап 9p: раскладка docx по страницам - подсказка, сбой сервиса не останавливает чтение файла
+  // (страница «не определена»).
+  docx_pages_unavailable: 'warning',
   shortlist_paging: 'info',
   shortlist_paging_base_research: 'info',
   shortlist_paging_web_step: 'info',

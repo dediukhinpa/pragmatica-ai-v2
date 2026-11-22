@@ -40,6 +40,8 @@ import { assertCrossChecks, type PragmatikaConfig } from '../config';
 import { restoreLegacyTools } from '../legacy-tools';
 import { HttpContractAmender } from '../kit/adapters/http/http-contract-amender';
 import { HttpPriceFileEditor } from '../kit/adapters/http/http-price-file-editor';
+import { HttpDocxLayoutClient, type DocxLayoutClient } from '../docx-pages-client';
+import { DOCX_PAGES_PROMPT } from '../docx-pages-prompt';
 import {
   ModelSupplierMailClassifier,
 } from '../kit/adapters/litellm/supplier-mail-model-classifier';
@@ -119,6 +121,7 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
       ? new VisionTableDocumentParser(services.parser, services.imageReader)
       : services.parser;
   const shared = { tableExporter: services.tableExporter, intake: services.intake };
+  const docxLayout = docxLayoutOf(ctx);
   const prices: PricesDeps = {
     files: files.prices,
     fileRefSecret: secret,
@@ -145,9 +148,15 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
       timeoutMs: config.documents.renderTimeoutMs,
       telemetry: services.telemetry,
     }),
+    // Номера страниц docx (этап 9p); без флага раскладки нет, страница «не определена».
+    ...(docxLayout === undefined ? {} : { docxLayout }),
     ...shared,
   };
   const documents = buildDocumentsDeps(ctx, own, files, shared);
+  if (docxLayout !== undefined) {
+    // Читатель вложений «Документов» берёт раскладку из тех же зависимостей (`PagedReaderHost`).
+    (documents as DocumentsDeps & { docxLayout?: DocxLayoutClient }).docxLayout = docxLayout;
+  }
   const orderCalc: OrderCalcDeps = {
     requests: own.requests,
     suppliers: own.suppliers,
@@ -673,6 +682,8 @@ function declarationsOf(
       ...dataScript,
       mailbox,
       monitoring,
+      // Этап 9p: правка цены в файле сразу, без вопроса о поставщике; false - выключатель.
+      priceEditFirst: project.PRICE_EDIT_FIRST_ENABLED === 'true',
       ...cardsOption,
     }),
     createDocumentsAgent({
@@ -715,10 +726,27 @@ function declarationsOf(
     limitWarnings: config.agents.feedbackLimitWarnings,
   });
   // Правило языка ответов - во все промпты агентов проекта, не только документов (этап 8y).
+  // Этап 9p: «Документы» узнают, как читать маркеры страниц docx; без флага промпт прежний.
+  const pagesPrompt =
+    project.DOCX_PAGES_ENABLED === 'true' && ports.attachments !== undefined
+      ? DOCX_PAGES_PROMPT
+      : '';
   return restored.map((declaration) => ({
     ...declaration,
-    prompt: `${declaration.prompt}\n${REPLY_LANGUAGE_PROMPT_RULE}\n`,
+    prompt:
+      `${declaration.prompt}${declaration.id === DOCUMENTS_AGENT_ID ? pagesPrompt : ''}` +
+      `\n${REPLY_LANGUAGE_PROMPT_RULE}\n`,
   }));
+}
+
+/** Клиент раскладки docx по страницам (этап 9p); нет при выключенном `DOCX_PAGES_ENABLED`. */
+function docxLayoutOf(ctx: Context): DocxLayoutClient | undefined {
+  if (ctx.project.DOCX_PAGES_ENABLED !== 'true') return undefined;
+  return new HttpDocxLayoutClient({
+    baseUrl: ctx.config.documents.baseUrl,
+    // Причина без имени и содержимого файла: ПДн в журнал не попадают.
+    onFailure: (reason) => ctx.services.log('docx_pages_unavailable', { reason }),
+  });
 }
 
 type RawChat = Context['services']['chat'];

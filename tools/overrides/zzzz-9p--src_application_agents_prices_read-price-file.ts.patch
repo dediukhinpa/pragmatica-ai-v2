@@ -1,0 +1,72 @@
+--- src/application/agents/prices/read-price-file.ts
++++ src/application/agents/prices/read-price-file.ts
+@@ -5,6 +5,12 @@
+ import { SCAN_EXTENSIONS, type PricesDeps } from './deps';
+ import { parseSource } from './parse-cache';
+ import { openPriceSource, type PriceSource } from './price-sources';
++import {
++  headingNames,
++  labelTables,
++  tablePagesNote,
++  textWithPages,
++} from '../../price-table-places';
+ 
+ /** Максимум символов markdown на одной странице ответа: больше модель не прочтёт целиком. */
+ export const MAX_MARKDOWN_CHARS = 60_000;
+@@ -43,6 +49,10 @@
+   truncated: boolean;
+   /** Предупреждения парсера. */
+   warnings: string[];
++  /** Место каждой таблицы: «Слайд 11», «Страница 3», «Лист «X»»; null - не определено. */
++  tablePlaces?: Array<string | null> | undefined;
++  /** «страница не определена»: у docx нет номеров страниц (не придумывать). */
++  pagesNote?: string | undefined;
+ }
+ 
+ export const readPriceFileOutputSchema = z.object({
+@@ -58,6 +68,8 @@
+   hiddenSheets: z.array(z.string()),
+   truncated: z.boolean(),
+   warnings: z.array(z.string()),
++  tablePlaces: z.array(z.string().nullable()).optional(),
++  pagesNote: z.string().optional(),
+ });
+ 
+ function badCursor(): DomainError {
+@@ -122,17 +134,33 @@
+   };
+   // Если есть таблицы, текст не дублируем: парсер кладёт в text то же содержимое.
+   if (!hasRows) {
+-    const page = textPage(parsed.text.trim(), cursor);
+-    return { ...base, ...flags, markdown: page.markdown, nextCursor: page.next };
++    const paged = await textWithPages(deps, source, parsed.text.trim());
++    const page = textPage(paged.text, cursor);
++    return {
++      ...base,
++      ...flags,
++      markdown: page.markdown,
++      nextCursor: page.next,
++      ...(paged.note === undefined ? {} : { pagesNote: paged.note }),
++    };
+   }
+   const match = cursor === undefined ? null : TABLE_CURSOR.exec(cursor);
+   if (cursor !== undefined && match === null) throw badCursor();
+   const from = { table: Number(match?.[1] ?? 0), row: Number(match?.[2] ?? 0) };
+   if (from.table >= parsed.tables.length) throw badCursor();
+-  const page = tablesPageToMarkdown(parsed.tables, from, MAX_MARKDOWN_CHARS, parsed.tableNames);
++  const labels = await labelTables(deps, source, parsed);
++  const page = tablesPageToMarkdown(
++    parsed.tables,
++    from,
++    MAX_MARKDOWN_CHARS,
++    headingNames(parsed, labels),
++  );
++  const pagesNote = tablePagesNote(source, labels);
+   return {
+     ...base,
+     ...flags,
++    tablePlaces: labels.map((label) => label.text),
++    ...(pagesNote === undefined ? {} : { pagesNote }),
+     markdown: page.markdown,
+     nextCursor: page.next === null ? null : `${page.next.table}:${page.next.row}`,
+   };

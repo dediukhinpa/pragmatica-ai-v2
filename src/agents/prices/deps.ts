@@ -20,6 +20,7 @@ import type { PriceTableIndex } from '../../kit/ports/price-table-index';
 import type { PriceRepository, SupplierRepository } from '../../kit/ports/repositories.owned';
 import type { SupplierPriceScriptRepository } from '../../kit/ports/supplier-price-scripts';
 import type { PriceFileEditor } from '../../kit/ports/price-file-editor';
+import type { DocxLayoutClient } from '../../docx-pages-client';
 import type { SupplierCardsDeps } from '../suppliers/deps';
 import type { FailureLog, ScriptResultKindHandler } from '@business-ai/core';
 import type { MailSenderTrustSettings } from '@business-ai/core';
@@ -172,6 +173,11 @@ export interface PricesDeps extends
   tableExporter?: TableExporter | undefined;
   /** Правка цен в копии исходного файла. Без него editPricesInSourceFile — not_configured. */
   priceFileEditor?: PriceFileEditor | undefined;
+  /**
+   * Раскладка docx по страницам (`DOCX_PAGES_ENABLED`, этап 9p): по ней агент видит номер страницы
+   * у таблиц и текста docx/doc/rtf. Нет - страница в таких файлах «не определена».
+   */
+  docxLayout?: DocxLayoutClient | undefined;
   /**
    * Тред ответственного за прайсы: запасной адресат файла изменений, когда
    * владельца работы нет (плановый запуск, почта); по умолчанию менеджер.

@@ -142,6 +142,8 @@ describe('сборка агентов Прагматики', () => {
     const { app } = buildPragmatika({
       SHORTLIST_PAGING_ENABLED: 'false',
       SUPPLIER_DISCOVERY_ENABLED: 'false',
+      PRICE_EDIT_FIRST_ENABLED: 'false',
+      DOCX_PAGES_ENABLED: 'false',
     });
     for (const id of AGENT_IDS) {
       expect(toolsOf(app, id)).toEqual([...(BASELINE_MINIMAL_TOOLS[id] ?? [])].sort());
@@ -154,6 +156,8 @@ describe('сборка агентов Прагматики', () => {
       SUPPLIER_CARDS_ENABLED: 'true',
       SHORTLIST_PAGING_ENABLED: 'false',
       SUPPLIER_DISCOVERY_ENABLED: 'false',
+      PRICE_EDIT_FIRST_ENABLED: 'false',
+      DOCX_PAGES_ENABLED: 'false',
     });
     for (const id of AGENT_IDS) {
       const expected = [...(BASELINE_MINIMAL_TOOLS[id] ?? []), ...SUPPLIER_CARD_TOOLS].sort();

@@ -93,14 +93,14 @@ const NO_COORDINATES_MESSAGE =
   'Для этого импорта нет координат ячеек цен (файл разобран до появления правки на месте ' +
   'или записан иначе): исходный файл править нельзя. Предложите сотруднику прислать файл ' +
   'заново, тогда цены можно будет изменить прямо в нём.';
-const UNSUPPORTED_MESSAGE =
+export const UNSUPPORTED_MESSAGE =
   'Этот формат файла на месте не правится (xls, скан, pdf без текстового слоя, зашифрованный ' +
   'файл и подобные). Файл не отправлен. ' +
   'Предложите сотруднику xlsx-копию с тем же содержимым (один лист, структура исходного, с ' +
   'новыми ценами) и делайте её ТОЛЬКО с его согласия.';
 
 /** Понятные сотруднику причины отказа строгих проверок сервиса (по машинному коду). */
-const REFUSAL_TEXTS: Readonly<Record<string, string>> = {
+export const REFUSAL_TEXTS: Readonly<Record<string, string>> = {
   price_not_found: 'цена на этом месте в файле не найдена',
   price_ambiguous: 'цена на этом месте найдена не однозначно (несколько совпадений)',
   price_not_isolated: 'цена слита с другим текстом в одном блоке, отделить её нельзя',
@@ -123,10 +123,10 @@ const REFUSAL_TEXTS: Readonly<Record<string, string>> = {
   text_differs: 'после приведения старого .ppt к pptx состав текста слайдов не совпал с исходным',
 };
 /** Сколько причин отказа перечисляем в сообщении (остальные - числом). */
-const MAX_REFUSALS_LISTED = 10;
+export const MAX_REFUSALS_LISTED = 10;
 
 /** Отказ проверок: причины по местам, файл не отправлен, xlsx-копия - по согласию. */
-function refusedMessage(
+export function refusedMessage(
   reasons: readonly PriceEditRefusal[],
   keyAt: ReadonlyMap<string, string>,
 ): string {
@@ -146,7 +146,7 @@ function refusedMessage(
   );
 }
 /** Дописывается к сообщению об отправке, когда старый .ppt приведён к pptx. */
-const CONVERTED_PPT_NOTE =
+export const CONVERTED_PPT_NOTE =
   'Исходный файл был в старом формате .ppt: его привели к pptx и отправили pptx (обратная ' +
   'конвертация теряет вёрстку). Скажи сотруднику об этом.';
 
@@ -157,7 +157,7 @@ const NO_SUBSTITUTE_MESSAGE =
   'прайса, а другой файл без оформления и картинок.';
 
 /** Текст отказа по размеру: совет зависит от того, во что именно упёрся сервис правки. */
-const TOO_LARGE_MESSAGES: Readonly<Record<PriceFileTooLargeReason, string>> = {
+export const TOO_LARGE_MESSAGES: Readonly<Record<PriceFileTooLargeReason, string>> = {
   file_size:
     'Файл слишком большой, чтобы поправить цены прямо в нём: сервис правки его не принял. ' +
     `${NO_SUBSTITUTE_MESSAGE} Предложи прислать файл полегче (например, без картинок) или ` +
@@ -231,7 +231,7 @@ function sendKey(input: EditInput): string {
 }
 
 /** Файл с расширением исходного: имя считается как у файла изменений, кроме расширения. */
-function sourceFileName(supplierName: string, isoDate: string, fileName: string): string {
+export function sourceFileName(supplierName: string, isoDate: string, fileName: string): string {
   const base = priceChangeFileName(supplierName, isoDate);
   const stem = base.slice(0, base.length - CHANGES_FILE_FORMAT.length - 1);
   const extension = extensionOf(fileName);
@@ -425,7 +425,7 @@ function planEdits(
 }
 
 /** Позиция по координатам, чтобы объяснить пропуск ячейки, который вернул сервис. */
-function skippedFromService(
+export function skippedFromService(
   item: SkippedPriceEdit,
   keyAt: ReadonlyMap<string, string>,
 ): SkippedOutput {
@@ -437,10 +437,10 @@ function skippedFromService(
 }
 
 /** Пустое содержимое файла, чей текст лежит на диске. */
-const EMPTY_BYTES = new Uint8Array(0);
+export const EMPTY_BYTES = new Uint8Array(0);
 
 /** Результат правки для инструмента: файл либо в памяти (`bytes`), либо на диске (`disk`). */
-interface EditedFile {
+export interface EditedFile {
   /** Имя результата по версии сервиса (расширение у файла, сменившего формат, - новое). */
   fileName: string;
   mimeType: string;
@@ -456,7 +456,7 @@ interface EditedFile {
  * Править источник: файл на диске и редактор с поддержкой диска идут потоком (этап 231, пик
  * памяти не растёт с размером файла), остальное - прежним путём через память.
  */
-async function editSource(
+export async function editSource(
   editor: PriceFileEditor,
   source: PriceSource,
   fileName: string,
