@@ -25,6 +25,7 @@ import { type PriceItem, type PurchaseRequest } from '../../kit/domain/models';
 import { type MarketPriceSample } from '../../kit/domain/market-price';
 import type { KnowledgeScope } from '../../kit/ports/knowledge-search.owned';
 import { defineTool } from '@business-ai/core';
+import type { ToolContext } from '@business-ai/core';
 import { KNOWLEDGE_REFERENCE_LIMIT, SOURCE_RESULT_LIMIT, type OrderCalcDeps } from './deps';
 import {
   assertExternalQuery,
@@ -126,6 +127,21 @@ interface KnowledgeSearchInput extends SearchInput {
   /** Подсказки только из документов одного поставщика (включает раздел поставщиков). */
   supplierId?: string | undefined;
 }
+
+/**
+ * Условия внутреннего запуска поиска по базе («ещё 10», этап 8z). Не часть схемы инструмента:
+ * модель их не задаёт. Без них поиск прежний: предел `SOURCE_RESULT_LIMIT`, результат
+ * сохраняется в состоянии заявки, закрытый канал Telegram опрашивается.
+ */
+export interface KnowledgeSearchOptions {
+  /** Предел кандидатов на позицию вместо `SOURCE_RESULT_LIMIT`. */
+  resultLimit?: number | undefined;
+  /**
+   * Забрать результат вызывающему: в `order-calc:source` он не пишется (сохранённая первая
+   * выдача не затирается), канал Telegram не опрашивается.
+   */
+  capture?: ((result: SourceResult) => void) | undefined;
+}
 const knowledgeSearchInputSchema = searchInputSchema.extend({
   section: z.enum(KNOWLEDGE_SECTIONS).optional(),
   supplierId: z.string().min(1).optional(),
@@ -222,8 +238,8 @@ async function findCards(
   deps: OrderCalcDeps,
   query: string,
   shortQueries: readonly string[] = [],
+  limit: number = SOURCE_RESULT_LIMIT,
 ): Promise<Map<string, SupplierCard>> {
-  const limit = SOURCE_RESULT_LIMIT;
   const calls: Array<Promise<SupplierCard[]>> = [deps.suppliers.searchCards({ query, limit })];
   for (const token of cardTokens(query)) {
     calls.push(deps.suppliers.searchCards({ category: token, wordStart: true, limit }));
@@ -399,6 +415,7 @@ async function searchPrices(
   deps: OrderCalcDeps,
   query: string,
   shortQueries: readonly string[] = [],
+  limit: number = SOURCE_RESULT_LIMIT,
 ): Promise<PriceSearch> {
   const parts = splitProductParts(productQueryWithoutPackaging(query));
   const seen = new Set<string>();
@@ -414,7 +431,7 @@ async function searchPrices(
     }
   }
   if (ranked.length > 0) return { ranked, fallback: emptyPriceFind() };
-  return { ranked, fallback: await findPricesByWordStart(deps, query) };
+  return { ranked, fallback: await findPricesByWordStart(deps, query, limit) };
 }
 
 function emptyPriceFind(): PriceFind {
@@ -428,9 +445,13 @@ function emptyPriceFind(): PriceFind {
 }
 
 /** Итог поиска: оценённые строки гибридного поиска либо запасной результат. */
-function settlePrices(search: PriceSearch, graded: readonly GradedPriceRow[]): PriceFind {
+function settlePrices(
+  search: PriceSearch,
+  graded: readonly GradedPriceRow[],
+  limit: number = SOURCE_RESULT_LIMIT,
+): PriceFind {
   if (search.ranked.length === 0) return search.fallback;
-  const best = bestPerSupplier(graded, SOURCE_RESULT_LIMIT);
+  const best = bestPerSupplier(graded, limit);
   const items = best.map(({ row }) => row);
   const analogs = new Map(
     best.filter(({ grade }) => grade === 'analog').map(({ row, reason }) => [row, reason]),
@@ -453,13 +474,17 @@ function settlePrices(search: PriceSearch, graded: readonly GradedPriceRow[]): P
  * слова, поставщик ранжируется по доле совпавших слов. Нет ни одного значимого слова - пусто
  * (не «всё подряд»).
  */
-async function findPricesByWordStart(deps: OrderCalcDeps, query: string): Promise<PriceFind> {
+async function findPricesByWordStart(
+  deps: OrderCalcDeps,
+  query: string,
+  limit: number = SOURCE_RESULT_LIMIT,
+): Promise<PriceFind> {
   const tokens = significantProductTokens(query);
   if (tokens.length === 0) return emptyPriceFind();
   // Лучшая позиция поставщика в каждой валюте: больше совпавших слов, при равенстве - дешевле.
   const best = new Map<string, { item: PriceItem; share: number }>();
   for (const token of tokens) {
-    const rows = await deps.prices.searchSuppliersByProduct(token, SOURCE_RESULT_LIMIT, {
+    const rows = await deps.prices.searchSuppliersByProduct(token, limit, {
       wordStart: true,
     });
     for (const item of rows) {
@@ -486,7 +511,7 @@ async function findPricesByWordStart(deps: OrderCalcDeps, query: string): Promis
     share.set(entry.item.supplierId, Math.max(share.get(entry.item.supplierId) ?? 0, entry.share));
   }
   // Лимит режет поставщиков, а не позиции: как у строгого поиска.
-  const suppliers = new Set([...share.keys()].slice(0, SOURCE_RESULT_LIMIT));
+  const suppliers = new Set([...share.keys()].slice(0, limit));
   const kept = ranked.filter((entry) => suppliers.has(entry.item.supplierId));
   return {
     items: kept.map((entry) => entry.item),
@@ -643,6 +668,7 @@ async function searchSource(
   references: () => SearchOutput['references'] = () => [],
   external = false,
   signal?: AbortSignal | undefined,
+  capture?: ((result: SourceResult) => void) | undefined,
 ): Promise<SearchOutput> {
   const request = await loadRequest(deps, input.requestId);
   if (input.query !== undefined && input.query.trim() === '') {
@@ -665,7 +691,9 @@ async function searchSource(
     const reason = failureReason(error);
     result = { source, status: 'unavailable', reason, candidates: [] };
   }
-  await saveSourceResult(deps, input.requestId, result);
+  // Внутренний запуск («ещё 10», этап 8z) забирает результат себе: состояние заявки не пишется.
+  if (capture === undefined) await saveSourceResult(deps, input.requestId, result);
+  else capture(result);
   const excludedInactive = result.candidates.filter((c) => c.status === 'inactive').length;
   return {
     source,
@@ -683,26 +711,22 @@ async function searchSource(
  * слабее) и документы базы знаний как подсказки. Поставщик со статусом «не работаем»
  * сохраняется в результате с этим статусом (шорт-лист его исключит), в ответе - счётчик.
  */
-export const searchKnowledgeSuppliers = defineTool<
-  KnowledgeSearchInput,
-  SearchOutput,
-  OrderCalcDeps
->({
-  name: 'searchKnowledgeSuppliers',
-  description:
-    'Найти поставщиков в базе знаний по позициям заявки requestId (или по своему query): по ' +
-    'прайсам и по карточкам (название, категории, бренды). Результат сохраняется; ' +
-    'возвращаются статус, число найденных (поставщики «не работаем» не считаются, их число ' +
-    'в excludedInactive) и документы-подсказки. section=suppliers или supplierId ограничивают ' +
-    'подсказки разделом поставщиков / одним поставщиком.',
-  inputSchema: knowledgeSearchInputSchema,
-  outputSchema: searchOutputSchema,
-  async execute(input, deps, context) {
+export const knowledgeSearch = {
+  async run(
+    input: KnowledgeSearchInput,
+    deps: OrderCalcDeps,
+    context: ToolContext,
+    options: KnowledgeSearchOptions = {},
+  ): Promise<SearchOutput> {
+    const resultLimit = options.resultLimit ?? SOURCE_RESULT_LIMIT;
     const hints = new Map<string, string>();
     // Закрытый Telegram-канал опрашивается параллельно с базой (этап 216) и пишет свою запись
     // источника; сбой канала не бросается и поиск по базе не затрагивает. Источник выключен -
     // runTelegramSource ничего не делает, и поведение поиска прежнее.
-    const telegram = runTelegramSource(deps, input, context);
+    const telegram =
+      options.capture === undefined
+        ? runTelegramSource(deps, input, context)
+        : Promise.resolve();
     const knowledge = searchSource(
       'knowledge',
       input,
@@ -748,10 +772,10 @@ export const searchKnowledgeSuppliers = defineTool<
                   : await deps.knowledge.search(query, DOCUMENT_CANDIDATES_PER_QUERY, scope);
             }
             hintsOf[index] = hits.slice(0, KNOWLEDGE_REFERENCE_LIMIT);
-            const priceSearch = await searchPrices(deps, query, shortQueriesOf(query));
+            const priceSearch = await searchPrices(deps, query, shortQueriesOf(query), resultLimit);
             // Карточки - дополнительный источник: сбой не должен убрать результаты по прайсам.
             const shorts = shortQueriesOf(query);
-            const cards = await findCards(deps, query, shorts).catch((error: unknown) => {
+            const cards = await findCards(deps, query, shorts, resultLimit).catch((error: unknown) => {
               deps.log?.('order_calc_card_search_failed', {
                 code: failureCode(error),
               });
@@ -782,7 +806,7 @@ export const searchKnowledgeSuppliers = defineTool<
         );
         const settled = perQuery.map((found, index) => ({
           ...found,
-          ...settlePrices(found.priceSearch, relevant[index] ?? []),
+          ...settlePrices(found.priceSearch, relevant[index] ?? [], resultLimit),
         }));
         // Неподтверждённые предложения цен (не с диска) по поставщику: только справка.
         const proposalsOf = new Map<string, PriceProposal[]>();
@@ -929,6 +953,9 @@ export const searchKnowledgeSuppliers = defineTool<
         documentId,
         snippet,
       })),
+      false,
+      undefined,
+      options.capture,
     );
     try {
       return await knowledge;
@@ -936,6 +963,24 @@ export const searchKnowledgeSuppliers = defineTool<
       await telegram;
     }
   },
+};
+
+/** Поиск в базе знаний как инструмент агента; тело - `knowledgeSearch.run`. */
+export const searchKnowledgeSuppliers = defineTool<
+  KnowledgeSearchInput,
+  SearchOutput,
+  OrderCalcDeps
+>({
+  name: 'searchKnowledgeSuppliers',
+  description:
+    'Найти поставщиков в базе знаний по позициям заявки requestId (или по своему query): по ' +
+    'прайсам и по карточкам (название, категории, бренды). Результат сохраняется; ' +
+    'возвращаются статус, число найденных (поставщики «не работаем» не считаются, их число ' +
+    'в excludedInactive) и документы-подсказки. section=suppliers или supplierId ограничивают ' +
+    'подсказки разделом поставщиков / одним поставщиком.',
+  inputSchema: knowledgeSearchInputSchema,
+  outputSchema: searchOutputSchema,
+  execute: (input, deps, context) => knowledgeSearch.run(input, deps, context),
 });
 
 /** Веб-поиск: один сайт = один кандидат (название компании), адреса страниц — ссылки. */
