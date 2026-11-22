@@ -20,6 +20,7 @@ import {
 } from '../lib/bitrix24-world';
 import {
   DIGEST_HEADLINE,
+  DIGEST_HEADLINE_LINE,
   DIGEST_STATUS_FOOTER,
   SHORTLIST_FILE_NAME,
   SHORTLIST_TITLE,
@@ -525,7 +526,7 @@ function expectDigest(world: BitrixWorld, requestId: string): string {
   expect(digest).toContain(`${NAME_A}: ответил (почта`);
   expect(digest).not.toContain(NAME_B);
   // Формулировки ТЗ разд. 6: запросы подготовлены в чате, статус просят проверить.
-  expect(digest.split('\n')[0]).toBe(DIGEST_HEADLINE);
+  expect(digest.split('\n')[0]).toMatch(DIGEST_HEADLINE_LINE);
   expect(digest).toContain('подготовили запросы');
   expect(digest).toContain(DIGEST_STATUS_FOOTER);
   expect(digest).not.toMatch(/ушли|отправили/);

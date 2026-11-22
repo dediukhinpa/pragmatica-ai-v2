@@ -520,8 +520,9 @@ async function expectChangesWorkbook(
   if (expected.jumpy) {
     expect(changed).toContain('AR-001');
     expect(changed).toContain('Арматура А500С d12');
-    expect(review).toContain('Скачок цены');
-    expect(review).toContain('проверьте перед внесением');
+    // Скачок - обычное изменение цены: на лист «На проверку» не попадает (этап 9p)
+    expect(review).not.toContain('Скачок цены');
+    expect(review).not.toContain('проверьте перед внесением');
   } else {
     expect(changed).toContain('AR-001');
     expect(changed).toContain('LS-010');
