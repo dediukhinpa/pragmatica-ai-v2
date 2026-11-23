@@ -9,7 +9,7 @@ import {
   type ProductionConfig,
 } from '@business-ai/core/compose';
 import type { ProjectSchedule } from '@business-ai/core';
-import { HOUR_MS } from './kit/domain/time';
+import { DAY_MS, HOUR_MS } from './kit/domain/time';
 import { ORDER_CALC_AGENT_ID, type OrderCalcDeps } from './agents/order-calc';
 import { runOrdersDigest } from './agents/order-calc/orders-digest';
 import { PRICES_AGENT_ID, type PricesDeps } from './agents/prices';
@@ -18,6 +18,7 @@ import { PRICE_DISK_SYNC_INTERVAL_MS, runPriceDiskSync } from './agents/prices/p
 import { runPriceMailTriggers } from './agents/prices/price-mail-triggers';
 import { runStalePriceFilesCheck } from './agents/prices/stale-price-files';
 import { runSupplierMailProposals } from './agents/suppliers/mail-proposals';
+import { auditChatAttachments, CHAT_ATTACHMENTS_PURGE_ACTION } from './assembly/chat-attachments';
 import type { PragmatikaConfig } from './config';
 import { pragmatikaRuntime } from './runtime';
 
@@ -28,6 +29,10 @@ export const PRICE_DISK_SYNC_JOB = 'prices.disk-sync';
  * задача могла остаться в очереди, и без обработчика она давала бы `unknown_job`.
  */
 export const SUPPLIER_CRM_SYNC_JOB = 'suppliers.crm-sync';
+/** Очистка архива файлов чатов по сроку и по объёму (этап 9s). */
+export const CHAT_ATTACHMENTS_PURGE_JOB = 'chat-attachments.purge';
+/** Первая очистка после старта службы: не мешает запуску и приёму первых сообщений. */
+export const CHAT_ATTACHMENTS_PURGE_FIRST_DELAY_MS = 15 * 60_000;
 /** Обзор почты сотрудников: предложения завести карточки поставщиков. */
 export const SUPPLIER_MAIL_PROPOSALS_JOB = 'suppliers.mail-proposals';
 /** Как часто тикает обзор почты: проход раз в несколько суток, тик только проверяет слот. */
@@ -146,6 +151,35 @@ function monitoringHandler(options: DefaultJobsOptions): JobHandler {
   };
 }
 
+/**
+ * Ежедневная очистка архива файлов чатов: записи и файлы старше срока, затем вытеснение по
+ * пределу объёма. Обработчик есть всегда (задача в очереди переживает выключение флага: уже
+ * сохранённое должно уйти по сроку). В журнал и аудит идут только числа.
+ */
+function chatAttachmentsPurgeHandler(options: DefaultJobsOptions): JobHandler {
+  return async (_task, now) => {
+    const archive = pragmatikaRuntime()?.chatAttachments;
+    if (archive === undefined) return;
+    const purged = await archive.purge(now);
+    const capped = await archive.enforceCap();
+    const fields = {
+      files: purged.files,
+      records: purged.records,
+      orphans: purged.orphans,
+      bytes: purged.bytes,
+      evicted: capped.evicted,
+      evictedBytes: capped.bytes,
+    };
+    options.log?.('chat_attachments_purged', fields);
+    await auditChatAttachments(
+      options.audit,
+      options.clock,
+      CHAT_ATTACHMENTS_PURGE_ACTION,
+      fields,
+    );
+  };
+}
+
 /** Синхронизация цен с диска: новые и изменённые прайсы ставятся агенту прайсов на импорт. */
 function priceDiskSyncHandler(options: DefaultJobsOptions): JobHandler {
   return async () => {
@@ -209,6 +243,12 @@ export const PROJECT_SCHEDULES: readonly ProjectSchedule[] = [
     handler: mailProposalsHandler,
     repeat: { everyMs: SUPPLIER_MAIL_PROPOSALS_TICK_INTERVAL_MS },
     enabled: (config) => projectOf(config).SUPPLIER_MAIL_PROPOSALS_ENABLED === 'true',
+  },
+  {
+    name: CHAT_ATTACHMENTS_PURGE_JOB,
+    handler: chatAttachmentsPurgeHandler,
+    repeat: { everyMs: DAY_MS, firstRunDelayMs: CHAT_ATTACHMENTS_PURGE_FIRST_DELAY_MS },
+    enabled: (config) => projectOf(config).CHAT_ATTACHMENTS_STORE_ENABLED === 'true',
   },
   { name: SUPPLIER_CRM_SYNC_JOB, handler: () => async () => undefined },
 ];

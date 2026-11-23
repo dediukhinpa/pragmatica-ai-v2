@@ -2,6 +2,12 @@ import { z } from 'zod';
 import { DIRECTORY_DEPARTMENT_PREFIX } from '@business-ai/core';
 import { emptyAsUnset, flag, positiveInt, splitList } from '@business-ai/core/compose';
 import { dealFieldMapSchema } from './adapters/deal-field-map';
+import {
+  CHAT_ATTACHMENTS_DEFAULT_MAX_BYTES,
+  CHAT_ATTACHMENTS_DEFAULT_RETENTION_DAYS,
+  CHAT_ATTACHMENTS_MAX_RETENTION_DAYS,
+  CHAT_ATTACHMENTS_MIN_RETENTION_DAYS,
+} from './chat-attachments';
 import { DEFAULT_PRICE_MIN_COSINE } from './kit/adapters/postgres/price-repository';
 import {
   PRICE_STALE_PREFIX_SEPARATOR,
@@ -338,6 +344,26 @@ export const pragmatikaConfigSchema = z.object({
    * `keepScanText` (текст скана остаётся в документе). Включено, false - выключатель (9u).
    */
   PRICES_SCAN_FLOW_ENABLED: flagOn(),
+  /**
+   * Каждый файл, присланный сотрудником боту в чат, сохраняется в томе приёма
+   * (`<INTAKE_ROOT>/chat-attachments`) на `CHAT_ATTACHMENTS_RETENTION_DAYS` суток для разбора
+   * ошибок (этап 9s); рядом ведётся индекс «кто, когда, какому боту». Включено, false -
+   * выключатель (сохранённое доживает срок).
+   */
+  CHAT_ATTACHMENTS_STORE_ENABLED: flagOn(),
+  /** Срок хранения файлов чатов, суток. */
+  CHAT_ATTACHMENTS_RETENTION_DAYS: emptyAsUnset(
+    z.coerce
+      .number()
+      .int()
+      .min(CHAT_ATTACHMENTS_MIN_RETENTION_DAYS)
+      .max(CHAT_ATTACHMENTS_MAX_RETENTION_DAYS)
+      .default(CHAT_ATTACHMENTS_DEFAULT_RETENTION_DAYS),
+  ),
+  /** Предел объёма архива файлов чатов, байт: сверх него удаляются самые старые файлы. */
+  CHAT_ATTACHMENTS_MAX_BYTES: emptyAsUnset(
+    z.coerce.number().int().positive().default(CHAT_ATTACHMENTS_DEFAULT_MAX_BYTES),
+  ),
   /** Файл xlsx-шаблона для кнопки «Шаблон». */
   SUPPLIER_TEMPLATE_PATH: emptyAsUnset(z.string().min(1).default(DEFAULT_SUPPLIER_TEMPLATE_PATH)),
   /** Синхронизация цен с диска (диск - источник правды). */

@@ -30,6 +30,8 @@ const HAND_WRITTEN = [
   'e2e/lib/project-env.ts',
   // Сценарий проекта (не из SRC): текст сообщения сотрудника через канал чата и мост проекта.
   'e2e/tests/z-documents-employee-requisites-chat.test.ts',
+  // Сценарий проекта этапа 9s: архив файлов чатов в настоящей сборке.
+  'e2e/tests/s-chat-attachments.test.ts',
   'e2e/register-project.ts',
   'e2e/bunfig.toml',
   'e2e/run.sh',
