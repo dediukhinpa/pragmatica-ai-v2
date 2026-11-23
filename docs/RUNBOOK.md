@@ -55,6 +55,20 @@ G8w и G8z, маршрутов стека, выдержка; при сбое а�
 меняет). Применяет владелец по `OWNER-RUNBOOK.md` пакета (`sudo bash patch.sh`, исходники
 `deploy/patch-9p/`).
 
+**Патч G9q (этап 9q)** ставится строго после G9p (порядок G8 → G8w → G8x → G8y → G8z → G9p → G9q):
+платформа остаётся 1.1.6, меняется ОДИН образ проекта `app` на `1.1.6-pragmatika.5` (documents
+остаётся на образе G9p, `1.1.6-pragmatika.4`), а из файлов дерева заменяются `images.lock` и
+`compose.project.yml` (две новые переменные app `PRICE_EDIT_DB_WRITE_ENABLED` и
+`PRICE_EDIT_TEXT_BLOCKS_ENABLED`, по умолчанию `true`). Доставляет запись цен из файла сотрудника в
+базу и правку pptx в текстовых блоках сразу включёнными; миграций БД нет. Выкатка как в G8z:
+`up -d --no-deps app`, без `down`; documents не пересоздаётся (проверяются его образ, четыре флага
+G8x и проба `POST /docx/pages`), `/ready` и боты, переменные app G9p, G8z и G8w, маршруты стека,
+выдержка; при сбое автооткат на образ app G9p. Выключить функцию без отката образа:
+`PRICE_EDIT_DB_WRITE_ENABLED=false` (прежнее поведение G9p: цены предложением) и/или
+`PRICE_EDIT_TEXT_BLOCKS_ENABLED=false` (pptx только в таблицах) в `.env` и перезапуск app (скрипт
+`deploy/patch-9q/enable-flags.sh` с бэкапом `.env` и откатом; патч `.env` не меняет). Применяет
+владелец по `OWNER-RUNBOOK.md` пакета (`sudo bash patch.sh`, исходники `deploy/patch-9q/`).
+
 Все операции на боевом хосте `pragmatika-ru` — красная зона: выполняет владелец. Перед любым
 изменением боя делать бэкап. Имена на бою неизменны: compose-проект `pragmatika`, тома
 `pragmatika_*`, контейнеры `pragmatika-<сервис>-1`, пути `/etc/pragmatika`, `/srv/pragmatika`,
