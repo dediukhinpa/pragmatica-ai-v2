@@ -11,7 +11,7 @@
 # патче не меняется (допускается в пакете, но заменяется, только если отличается от боевого).
 # Патч .env не меняет: явный `DOCUMENTS_EDIT_PDF_TEXT=false` (или 0, off, no) в .env боя
 # остаётся выключателем (патч пишет это в журнал и результат). Миграций БД нет. Ставится СТРОГО
-# ПОСЛЕ патча G9q2: lock боя 1.1.6-pragmatika.6, платформа 1.1.6, app и documents работают на
+# ПОСЛЕ патча G9q3: lock боя 1.1.6-pragmatika.7, платформа 1.1.6, app и documents работают на
 # образах из lock боя.
 #
 # Использование:
@@ -32,10 +32,10 @@
 #      сумма compose.base.yml сходится со строкой PLATFORM-VERSION, в ней есть новые переменные
 #      платформы; патч ещё не применён (lock боя не равен lock пакета, версия не
 #      1.1.10-pragmatika.1 и платформа боя не 1.1.10, иначе отказ: повторный запуск ничего не
-#      меняет), патч G9q2 применён (BAI_VERSION lock боя 1.1.6-pragmatika.6, платформа боя 1.1.6,
+#      меняет), патч G9q3 применён (BAI_VERSION lock боя 1.1.6-pragmatika.7, платформа боя 1.1.6,
 #      запущенные app и documents работают на образах из lock боя, в окружении app есть
-#      переменные G9q, G9p, G8z и поиска G8w, в окружении documents четыре флага G8x; иначе
-#      отказ с подсказкой «сначала примените патч G9q2»), lock пакета отличается от боевого ТОЛЬКО
+#      переменные G9q2, G9q, G9p, G8z и поиска G8w, в окружении documents четыре флага G8x; иначе
+#      отказ с подсказкой «сначала примените патч G9q3»), lock пакета отличается от боевого ТОЛЬКО
 #      ключами BAI_VERSION, BAI_IMAGE_APP, BAI_IMAGE_DOCUMENTS (оба образа обязаны смениться) и
 #      теми, что поменяла платформа: BAI_IMAGE_APP_BASE, BAI_IMAGE_DOCUMENTS_BASE,
 #      BAI_IMAGE_SPEECH (образ speech не запускается: профиль speech на бою выключен), бой здоров
@@ -60,13 +60,13 @@
 #      некорректным телом (образ отвечает 422 bad_request); проба POST /parse с locations=true на
 #      крошечном PDF, который строится внутри пробы (в журнал идут только статус, формат, число
 #      страниц и мест: «200 pdf 1 1»; при явном выключателе в .env ожидается ответ без locations);
-#      /ready app 200 и ботов не меньше ожидаемого; в окружении app значения переменных G9q, G9p,
-#      G8z и G8w не изменились, обе новые переменные равны эффективным; копия платформы в
+#      /ready app 200 и ботов не меньше ожидаемого; в окружении app значения переменных G9q2, G9q,
+#      G9p, G8z и G8w не изменились, обе новые переменные равны эффективным; копия платформы в
 #      дереве боя равна пакетной; маршруты стека не 404/405 (tools/check-routes.sh); выдержка (по
 #      умолчанию 2 минуты: documents и app не перезапускаются).
 #   Любой сбой после начала изменений -> автоматический откат: все заменённые файлы и images.lock
-#   возвращаются из бэкапа, `up -d --no-deps` documents и app на образы G9q2 (documents
-#   1.1.6-pragmatika.6, app 1.1.6-pragmatika.6), проверяется /ready.
+#   возвращаются из бэкапа, `up -d --no-deps` documents и app на образы G9q3 (documents
+#   1.1.6-pragmatika.6, app 1.1.6-pragmatika.7), проверяется /ready.
 # Результат: ~/patch9r-<время>.tgz (журнал, проверки; без секретов и данных) - вернуть
 # разработчику.
 #
@@ -123,14 +123,14 @@ LOCK_KEY_VERSION="BAI_VERSION"
 BUILD_ARG_APP_BASE="BAI_APP_BASE"
 DOCUMENTS_SERVICE="documents"
 APP_SERVICE="app"
-# Версия lock: боевая до патча (её ставит G9q2) и целевая в пакете; платформа 1.1.6 -> 1.1.10.
-LOCK_VERSION_FROM="1.1.6-pragmatika.6"
+# Версия lock: боевая до патча (её ставит G9q3) и целевая в пакете; платформа 1.1.6 -> 1.1.10.
+LOCK_VERSION_FROM="1.1.6-pragmatika.7"
 LOCK_VERSION_TO="1.1.10-pragmatika.1"
 PLATFORM_VERSION_FILE="platform/PLATFORM-VERSION"
 PLATFORM_VERSION_KEY="PLATFORM_PACKAGES_VERSION"
 PLATFORM_FROM="1.1.6"
 PLATFORM_TO="1.1.10"
-G9Q_HINT="сначала примените патч G9q2 (платформа ${PLATFORM_FROM}, lock ${LOCK_VERSION_FROM})"
+G9Q_HINT="сначала примените патч G9q3 (платформа ${PLATFORM_FROM}, lock ${LOCK_VERSION_FROM})"
 # Новые переменные платформы в копии compose.base.yml пакета: по ним видно, что это копия 1.1.10.
 PLATFORM_NEW_VARS=(DOCUMENTS_EDIT_PDF_TEXT B24_CALL_RECORDING_MAX_BYTES
   B24_CALL_RECORDING_TIMEOUT_MS)
@@ -151,16 +151,18 @@ B24_TIMEOUT_MAX_MS=3600000
 PDF_TEXT_KEY="DOCUMENTS_EDIT_PDF_TEXT"
 PDF_TEXT_TRUE_WORDS="1 true on yes"
 PDF_TEXT_FALSE_WORDS="0 false off no"
-# Переменные app от патчей G9q, G9p, G8z и G8w: признак, что они применены, и то, что при замене
-# app не должно потеряться и измениться (значения читаются у ЭТИХ ключей: флаги и числа, не
-# секреты). Значение до замены запоминается с запущенного app, после замены оно обязано
-# совпасть.
-KEEP_APP_KEYS=(PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED
-  PRICE_EDIT_FIRST_ENABLED DOCX_PAGES_ENABLED SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED
+# Переменные app от патчей G9q2, G9q, G9p, G8z и G8w: признак, что они применены, и то, что
+# при замене app не должно потеряться и измениться (значения читаются у ЭТИХ ключей: флаги и
+# числа, не секреты). Значение до замены запоминается с запущенного app, после замены оно
+# обязано совпасть.
+KEEP_APP_KEYS=(EMPTY_REPLY_GUARD_ENABLED PRICE_EDIT_DB_WRITE_ENABLED
+  PRICE_EDIT_TEXT_BLOCKS_ENABLED PRICE_EDIT_FIRST_ENABLED DOCX_PAGES_ENABLED
+  SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED
   YANDEX_SEARCH_MAX_CONCURRENCY YANDEX_SEARCH_MIN_INTERVAL_MS)
-# Флаги G9q в compose.project.yml по умолчанию включены (`:-true`): после патча файл не должен
-# потерять эту строку (если пакет его заменяет).
-G9Q_APP_FLAGS=(PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED)
+# Флаги G9q2 (защита от пустого ответа) и G9q в compose.project.yml по умолчанию включены
+# (`:-true`): после патча файл не должен потерять эти строки (если пакет его заменяет).
+G9Q_APP_FLAGS=(EMPTY_REPLY_GUARD_ENABLED PRICE_EDIT_DB_WRITE_ENABLED
+  PRICE_EDIT_TEXT_BLOCKS_ENABLED)
 FLAG_DEFAULT_VALUE="true"
 # Значение из окружения запуска сильнее .env и compose: сброс, чтобы эффективное значение
 # определялось только файлами дерева (переменная, экспортированная в оболочке владельца, иначе
@@ -645,11 +647,11 @@ check_not_applied() {
   check "патч G9r ещё не применён" ok "lock боя ${live_ver:-?} отличается от пакета"
 }
 
-# Патч G9q2 применён: lock боя 1.1.6-pragmatika.6, платформа боя 1.1.6, app и documents работают на
-# образах из lock боя, у app переменные G9q, G9p, G8z и поиска G8w (значения запоминаются, после
-# замены они обязаны совпасть), у documents четыре флага G8x.
+# Патч G9q3 применён: lock боя 1.1.6-pragmatika.7, платформа боя 1.1.6, app и documents работают на
+# образах из lock боя, у app переменные G9q2, G9q, G9p, G8z и поиска G8w (значения запоминаются,
+# после замены они обязаны совпасть), у documents четыре флага G8x.
 check_g9q_applied() {
-  phase "патч G9q2 применён"
+  phase "патч G9q3 применён"
   local ver live_ver key live_ref got want missing=""
   live_ver="$(live_lock_ref "$LOCK_KEY_VERSION")"
   [[ "$live_ver" == "$LOCK_VERSION_FROM" ]] \
@@ -682,8 +684,8 @@ check_g9q_applied() {
   docs_flags_check "$DOCS_NAME"
   [[ -z "$FLAGS_BAD" ]] \
     || refuse "в окружении $DOCS_NAME нет флагов G8x или они иные ($FLAGS_REPORT): $G9Q_HINT"
-  check "патч G9q2 применён" ok "lock $live_ver, платформа $ver, образы как в lock," \
-    "переменные G9q, G9p, G8z и G8w у app и флаги G8x у documents на месте"
+  check "патч G9q3 применён" ok "lock $live_ver, платформа $ver, образы как в lock," \
+    "переменные G9q2, G9q, G9p, G8z и G8w у app и флаги G8x у documents на месте"
 }
 
 # lock боя отличается от пакетного только ключами патча (версия, образы app и documents, основы и
@@ -839,7 +841,7 @@ ensure_images() {
   done
 }
 
-# Прежние образы documents и app (откатные, G9q2) на хосте: без них автооткат невозможен.
+# Прежние образы documents и app (откатные, G9q3) на хосте: без них автооткат невозможен.
 check_rollback_images() {
   phase "откатные образы documents и app"
   local ref key
@@ -1114,7 +1116,7 @@ verify_pages_probe() {
 
 # Проба POST /parse с locations=true на крошечном синтетическом PDF: образ G9r с включённой правкой
 # вне таблиц отдаёт locations (формат, страницы, места); при явном выключателе в .env locations
-# нет. Образ G9q2 и старше locations для PDF не отдаёт. В журнал и вывод идут только статус,
+# нет. Образ G9q3 и старше locations для PDF не отдаёт. В журнал и вывод идут только статус,
 # формат и числа (PARSE_PROBE_ON или PARSE_PROBE_OFF), тело ответа не печатается.
 verify_parse_probe() {
   local out line want
@@ -1154,7 +1156,7 @@ verify_ready() {
   check "/ready и боты" ok "200, ботов $bots"
 }
 
-# В окружении app после пересоздания: переменные G9q, G9p, G8z и G8w на месте и со значениями,
+# В окружении app после пересоздания: переменные G9q2, G9q, G9p, G8z и G8w на месте и со значениями,
 # какие были у запущенного app до замены (читаются значения только этих ключей: флаги и числа), а
 # обе новые переменные платформы есть и равны эффективным значениям (из .env боя, иначе умолчание).
 verify_app_env() {
@@ -1166,9 +1168,9 @@ verify_app_env() {
     if [[ -z "$got" ]]; then missing+=" $key"; elif [[ "$got" != "$want" ]]; then bad+=" $key"; fi
   done
   [[ -z "$missing" ]] \
-    || die "$EXIT_FAILED" "в окружении app пропали переменные G9q, G9p, G8z или G8w:$missing"
+    || die "$EXIT_FAILED" "в окружении app пропали переменные G9q2, G9q, G9p, G8z или G8w:$missing"
   [[ -z "$bad" ]] \
-    || die "$EXIT_FAILED" "в окружении app изменились значения переменных G9q, G9p, G8z" \
+    || die "$EXIT_FAILED" "в окружении app изменились значения переменных G9q2, G9q, G9p, G8z" \
       "или G8w:$bad"
   bad=""
   for pair in "${EXPECT_APP_NEW[@]}"; do
@@ -1180,7 +1182,7 @@ verify_app_env() {
   done
   [[ -z "$bad" ]] \
     || die "$EXIT_FAILED" "в окружении app новые переменные не равны эффективным значениям:$bad"
-  check "окружение app" ok "переменные G9q, G9p, G8z и G8w на месте и прежние;" \
+  check "окружение app" ok "переменные G9q2, G9q, G9p, G8z и G8w на месте и прежние;" \
     "новые переменные: ${EXPECT_APP_NEW[*]}"
 }
 
@@ -1267,7 +1269,7 @@ verify_app() {
 # Откат
 # ---------------------------------------------------------------------------------------------
 # rollback_patch <каталог запуска патча>: все заменённые файлы (копия платформы, при замене -
-# compose.project.yml) и images.lock из бэкапа, up -d --no-deps documents и app на образы G9q2,
+# compose.project.yml) и images.lock из бэкапа, up -d --no-deps documents и app на образы G9q3,
 # проверки. 0 - бой как до патча и проверен; иначе 1.
 ROLLBACK_FAILED=0
 rb_check() { # rb_check <имя> <ok|fail> <описание>
@@ -1301,7 +1303,7 @@ rollback_patch() {
   ((bad == 0)) \
     && rb_check "файлы дерева" ok "заменённые файлы и images.lock возвращены из бэкапа" \
     || rb_check "файлы дерева" fail "файлов не совпало с бэкапом: $bad"
-  # 2. Только documents и app, на образы G9q2: без down, без --remove-orphans.
+  # 2. Только documents и app, на образы G9q3: без down, без --remove-orphans.
   CUTOVER_NEW_DIR="$(dirname "$live")"
   dc_new up -d --no-deps "$DOCUMENTS_SERVICE" >>"$LOG_FILE" 2>&1 \
     && rb_check "поднят documents" ok "up -d --no-deps documents" \
@@ -1332,7 +1334,7 @@ rollback_patch() {
       || rb_check "образ $name" fail "сейчас $got, до патча $want"
   done <"$backup/containers-before.tsv"
   ((ROLLBACK_FAILED == 0)) || return 1
-  log "ОТКАТ ПАТЧА ВЫПОЛНЕН: файлы дерева из бэкапа, documents и app на образах G9q2," \
+  log "ОТКАТ ПАТЧА ВЫПОЛНЕН: файлы дерева из бэкапа, documents и app на образах G9q3," \
     "проверки прошли"
   state_set ROLLBACK_RESULT OK
 }

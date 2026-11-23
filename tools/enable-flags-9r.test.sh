@@ -228,10 +228,10 @@ reset_stand 1
 T0="$(tree_snapshot)"
 
 # 1. Отказы по предусловиям.
-sed -i "s|^BAI_VERSION=.*|BAI_VERSION=1.1.6-pragmatika.6|" "$LIVE/images.lock"
+sed -i "s|^BAI_VERSION=.*|BAI_VERSION=1.1.6-pragmatika.7|" "$LIVE/images.lock"
 T0="$(tree_snapshot)"
 run notg9r --text-blocks true
-refuse_case notg9r "G9r не применён (lock .6, стоит только G9q2)"
+refuse_case notg9r "G9r не применён (lock .6, стоит только G9q3)"
 assert "G9r не применён: сообщение «сначала примените патч G9r»" \
   "out_has notg9r 'сначала примените патч G9r'"
 assert "G9r не применён: сообщение называет нужную версию" "out_has notg9r '$LOCK_VERSION'"

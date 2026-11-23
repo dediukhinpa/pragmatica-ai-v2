@@ -3,7 +3,7 @@
 # compose.project.yml и копия платформы platform/compose.base.yml + platform/PLATFORM-VERSION,
 # плюс enable-flags.sh), манифест, запрет секретов и db, проверка подтверждения подписей
 # (обязательно, если дано; необязательно, если не дано), проверка версии lock
-# 1.1.10-pragmatika.1 и образов app и documents по digest, сравнение с lock боя после G9q2
+# 1.1.10-pragmatika.1 и образов app и documents по digest, сравнение с lock боя после G9q3
 # (--prev-lock: версия, оба образа проекта и ключи платформы - основы app и documents, speech;
 # образы app и documents обязаны смениться), сравнение с lock выпуска платформы (--platform-lock),
 # проверка копии платформы (версия 1.1.10, сумма compose.base.yml, новые переменные
@@ -53,7 +53,8 @@ for f in compose.project.yml platform/compose.base.yml; do
 done
 # Переменные app от G8z, G9p и G9q (уже на бою) с умолчанием true: только в compose.project.yml.
 for v in SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED PRICE_EDIT_FIRST_ENABLED \
-  DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED; do
+  DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED \
+  EMPTY_REPLY_GUARD_ENABLED; do
   printf '  %s: ${%s:-true}\n' "$v" "$v" >>"$REPO/deploy/compose.project.yml"
 done
 # Новые переменные платформы 1.1.10: только в копии платформы.
@@ -194,7 +195,8 @@ done
 # Переменных app нет в compose.project.yml, или умолчание не true - отказ; причина называет
 # переменную (пакет заменяет файл целиком, флаги G8z, G9p и G9q обязаны остаться).
 for var in SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED PRICE_EDIT_FIRST_ENABLED \
-  DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED; do
+  DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED \
+  EMPTY_REPLY_GUARD_ENABLED; do
   sed -i "/$var:/d" "$REPO/deploy/compose.project.yml"
   commit "без переменной $var"
   rc=0
@@ -265,7 +267,7 @@ done
 
 # Отказы по lock: версия не 1.1.10-pragmatika.1, нет app/documents/mask по digest.
 cp "$TMP/images.lock" "$TMP/images.keep"
-for ver in 1.1.6-pragmatika.6 1.1.10 1.1.10-pragmatika.2; do
+for ver in 1.1.6-pragmatika.6 1.1.6-pragmatika.7 1.1.10 1.1.10-pragmatika.2; do
   sed "s|^BAI_VERSION=.*|BAI_VERSION=$ver|" "$TMP/images.keep" >"$TMP/images.lock"
   make_sigs "$TMP/signatures.txt" OK
   rc=0
@@ -295,9 +297,9 @@ assert "BAI_IMAGE_DOCUMENTS по тегу, не по digest - отказ" "[[ $r
 cp "$TMP/images.keep" "$TMP/images.lock"
 make_sigs "$TMP/signatures.txt" OK
 
-# --prev-lock: lock боя после G9q2; новый lock отличается только версией, образами app и
+# --prev-lock: lock боя после G9q3; новый lock отличается только версией, образами app и
 # documents (обязаны смениться) и ключами платформы: основы app и documents, speech.
-sed -e "s|^BAI_VERSION=.*|BAI_VERSION=1.1.6-pragmatika.6|" \
+sed -e "s|^BAI_VERSION=.*|BAI_VERSION=1.1.6-pragmatika.7|" \
   -e "s|^BAI_IMAGE_APP=.*|BAI_IMAGE_APP=r/app@sha256:$DIGEST_B|" \
   -e "s|^BAI_IMAGE_DOCUMENTS=.*|BAI_IMAGE_DOCUMENTS=r/documents@sha256:$DIGEST_B|" \
   -e "s|^BAI_IMAGE_APP_BASE=.*|BAI_IMAGE_APP_BASE=r/app-base@sha256:$DIGEST_B|" \

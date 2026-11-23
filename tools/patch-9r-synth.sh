@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Проверка патч-пакета G9r на синтетическом «бое» (локальный стенд): настоящие compose-файлы
-# дерева v2 ПОСЛЕ патча G9q2 (платформа 1.1.6, lock 1.1.6-pragmatika.6; копия платформы 1.1.6 -
+# дерева v2 ПОСЛЕ патча G9q3 (платформа 1.1.6, lock 1.1.6-pragmatika.7; копия платформы 1.1.6 -
 # из коммита P9R_PLATFORM_REV, остальные файлы дерева - из HEAD репозитория), настоящие образы
-# app (прежний из lock этапа 9t и новый из lock этапа 9r); у app и у documents вместо сервисов
+# app (прежний из lock этапа 9u и новый из lock этапа 9r); у app и у documents вместо сервисов
 # заглушки на bun, которые отвечают на /health, /ready, POST /docx/pages и POST /parse. Образ
-# заглушки documents в lock стенда - образ с bun: до патча образ app из lock боя (G9q2), после
+# заглушки documents в lock стенда - образ с bun: до патча образ app из lock боя (G9q3), после
 # патча образ app из lock G9r (образ documents у G9r МЕНЯЕТСЯ, поэтому заглушки две). Заглушка
 # documents на POST /parse с locations=true отдаёт места PDF, если DOCUMENTS_EDIT_PDF_TEXT не
 # выключен в её окружении, и не отдаёт, если выключен; /docx/pages отвечает по логике пробы
@@ -21,19 +21,19 @@
 # предусловия и печатает, чего нет (lock'и, подтверждение подписей, образы на хосте, свободные
 # порты); если в $SYNTH нет дерева v2, оно собирается: compose.yml, compat.env,
 # compose.project.yml из HEAD, platform/compose.base.yml и platform/PLATFORM-VERSION версии 1.1.6
-# из коммита P9R_PLATFORM_REV (состояние «G9q2 применён») и синтетический .env из .env.example;
+# из коммита P9R_PLATFORM_REV (состояние «G9q3 применён») и синтетический .env из .env.example;
 # затем поднимает documents и app «до патча».
 #
 # Использование:
 #   bash tools/patch-9r-synth.sh [--steps список] [--help]
 # Шаги (по умолчанию все по порядку):
 #   prepare   проверить предусловия, собрать lock'и стенда и дерево, поднять documents и app «до
-#             патча» (образы G9q2, платформа 1.1.6: у documents четыре флага G8x и нет
+#             патча» (образы G9q3, платформа 1.1.6: у documents четыре флага G8x и нет
 #             DOCUMENTS_EDIT_PDF_TEXT, у app переменные G9q, G9p, G8z и поиска G8w и нет
 #             B24_CALL_RECORDING_*)
 #   preflight patch.sh --preflight-only: код 0, ничего не изменилось
-#   refuse    lock боя версии 1.1.6-pragmatika.5 (имитация «патч G9q2 не применён»): код 3 с
-#             текстом «сначала примените патч G9q2»; ничего не изменилось
+#   refuse    lock боя версии 1.1.6-pragmatika.6 (имитация «патч G9q3 не применён»): код 3 с
+#             текстом «сначала примените патч G9q3»; ничего не изменилось
 #   apply     patch.sh: код 0; documents и app на новых образах (сначала documents), images.lock и
 #             копия платформы боя равны пакету, compose.project.yml равен пакету, остальные
 #             файлы дерева (в том числе .env) побайтно прежние, у documents четыре флага G8x и
@@ -46,7 +46,7 @@
 #             у app PRICE_EDIT_TEXT_BLOCKS_ENABLED=false; затем enable-flags.sh --rollback: .env
 #             побайтно прежний, у documents пусто, у app true
 #   rollback  patch.sh --rollback по успешному запуску: дерево побайтно как до патча, documents и
-#             app на образах G9q2
+#             app на образах G9q3
 #   offswitch в .env боя явно DOCUMENTS_EDIT_PDF_TEXT=false: patch.sh без отказа (код 0), .env не
 #             изменён, у documents значение false, проба /parse с хоста без locations, в журнале
 #             «выключен выключателем»; затем patch.sh --rollback и возврат .env
@@ -54,8 +54,8 @@
 #             выдержки красная, автооткат (код 1), дерево побайтно как до патча
 #   cleanup   убрать стенд (контейнеры, сети проекта)
 # Результаты: $OUT/steps.tsv, $OUT/summary.txt, журналы патча $OUT/<шаг>.log.
-# Окружение: SYNTH (каталог стенда; дерево v2 после G9q2 лежит в $SYNTH/opt/pragmatika-v2/deploy),
-# OUT (каталог результатов), LOCK (lock этапа 9r), LOCK_OLD (lock боя после G9q2, этап 9t),
+# Окружение: SYNTH (каталог стенда; дерево v2 после G9q3 лежит в $SYNTH/opt/pragmatika-v2/deploy),
+# OUT (каталог результатов), LOCK (lock этапа 9r), LOCK_OLD (lock боя после G9q3, этап 9u),
 # SIGNATURES (вывод verify-signatures.sh по LOCK), STUB_IMAGE_OLD и STUB_IMAGE_NEW (образы с bun
 # для заглушки documents до и после патча; по умолчанию образы app из LOCK_OLD и LOCK),
 # P9R_PLATFORM_REV (коммит с копией платформы 1.1.6; по умолчанию 6a99a74), RUNBOOK_FILE
@@ -73,7 +73,7 @@ STAGE="${STAGE_DIR:-$REPORTS/stage-9r}"
 SYNTH="${SYNTH:-$STAGE/tmp/synth}"
 OUT="${OUT:-$STAGE/synth}"
 LOCK="${LOCK:-$STAGE/images.lock}"
-LOCK_OLD="${LOCK_OLD:-$REPORTS/stage-9t/images.lock}"
+LOCK_OLD="${LOCK_OLD:-$REPORTS/stage-9u/images.lock}"
 SIGNATURES="${SIGNATURES:-$STAGE/signatures.txt}"
 HEAVY_LOCK="${HEAVY_LOCK:-$REPORTS/heavy.lock}"
 PLATFORM_REV="${P9R_PLATFORM_REV:-6a99a74}"
@@ -117,15 +117,16 @@ FLAG_OFF="false"
 FLAG_ON="true"
 # Новые переменные app от платформы 1.1.10 и их умолчания платформы.
 B24_VARS=(B24_CALL_RECORDING_MAX_BYTES=104857600 B24_CALL_RECORDING_TIMEOUT_MS=600000)
-# Переменные app от G9q, G9p и G8z (уже на бою): остаются на месте.
-OLD_APP_FLAGS=(PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED PRICE_EDIT_FIRST_ENABLED
-  DOCX_PAGES_ENABLED SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED)
+# Переменные app от G9q2, G9q, G9p и G8z (уже на бою): остаются на месте.
+OLD_APP_FLAGS=(EMPTY_REPLY_GUARD_ENABLED PRICE_EDIT_DB_WRITE_ENABLED
+  PRICE_EDIT_TEXT_BLOCKS_ENABLED PRICE_EDIT_FIRST_ENABLED DOCX_PAGES_ENABLED
+  SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED)
 # Четыре флага G8x documents: остаются на месте после патча.
 DOCS_FLAGS=(DOCUMENTS_EDIT_PPTX=true DOCUMENTS_EDIT_PDF=true DOCUMENTS_PPT_CONVERT=true
   DOCUMENTS_EDIT_PDF_FALLBACK_FONT=false)
 PLATFORM_NOW="1.1.6"
-LOCK_VERSION_FROM="1.1.6-pragmatika.6"
-LOCK_VERSION_NOT_G9Q2="1.1.6-pragmatika.5"
+LOCK_VERSION_FROM="1.1.6-pragmatika.7"
+LOCK_VERSION_NOT_G9Q3="1.1.6-pragmatika.6"
 # Проба /docx/pages (как в patch.sh): путь, тело, ожидаемые статус и код ошибки.
 PAGES_ROUTE="/docx/pages"
 PAGES_BODY='{"file_name":"probe.docx","content_base64":"%%%"}'
@@ -174,7 +175,7 @@ result() { # result <проверка> <ok|FAIL> <пояснение>
 export STAND_APP_PORT="$PORT_APP"
 export STAND_DOCS_PORT="$PORT_DOCS"
 
-# compose стенда «как на бою после G9q2»: файлы дерева + надстройка стенда (заглушки).
+# compose стенда «как на бою после G9q3»: файлы дерева + надстройка стенда (заглушки).
 dcs() {
   local envs=(--env-file "$DEPLOY/images.lock" --env-file "$DEPLOY/.env") f
   for f in secrets.env secrets.mask.env; do
@@ -236,7 +237,7 @@ port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
 lock_ref() { grep -E "^$2=" "$1" | head -1 | cut -d= -f2-; }
 
 # Подготовка lock'ов стенда: образ documents заменён на образ-заглушку (в нём есть bun): в lock
-# боя (G9q2) - образ app из LOCK_OLD, в lock пакета (G9r) - образ app из LOCK (образ documents у
+# боя (G9q3) - образ app из LOCK_OLD, в lock пакета (G9r) - образ app из LOCK (образ documents у
 # G9r меняется, поэтому заглушки две). Подтверждение подписей пересчитано под новый lock (образ
 # заглушки подписан вместе с app: он взят из lock этапа).
 derive_stand_locks() {
@@ -272,7 +273,7 @@ fill_required_env() {
     | grep -oE '\$\{[A-Z0-9_]+:\?' | sed -E 's/^\$\{//; s/:\?$//' | sort -u)
 }
 
-# Дерево стенда «после G9q2» (если его нет): compose.yml, compat.env и compose.project.yml из
+# Дерево стенда «после G9q3» (если его нет): compose.yml, compat.env и compose.project.yml из
 # HEAD, копия платформы 1.1.6 из коммита PLATFORM_REV и синтетический .env из .env.example
 # (секретов нет).
 make_tree() {
@@ -290,7 +291,7 @@ make_tree() {
     || { result "prepare: дерево стенда из HEAD" FAIL "в HEAD нет deploy/.env.example"; return 1; }
   chmod 600 "$DEPLOY/.env"
   fill_required_env
-  result "prepare: дерево стенда собрано" ok "состояние «G9q2 применён», .env синтетический"
+  result "prepare: дерево стенда собрано" ok "состояние «G9q3 применён», .env синтетический"
 }
 
 patch_run() { # patch_run <шаг> [аргументы patch.sh]: код в RC, журнал $OUT/<шаг>.log
@@ -364,7 +365,7 @@ step_prepare() {
   done
   if ((${#missing[@]} > 0)); then
     result "prepare: подготовленные файлы" FAIL "нет: ${missing[*]}"
-    log "Нужны lock'и этапов 9t и 9r, подтверждение подписей по lock этапа 9r и надстройка стенда."
+    log "Нужны lock'и этапов 9u и 9r, подтверждение подписей по lock этапа 9r и надстройка стенда."
     return 1
   fi
   command -v docker >/dev/null || { result "prepare: docker" FAIL "нет docker"; return 1; }
@@ -379,7 +380,7 @@ step_prepare() {
   local flag
   for flag in "${DOCS_FLAGS[@]%%=*}" "$YANDEX_CONCURRENCY_KEY" "$FLAG_TEXT_BLOCKS"; do
     if ! grep -q "$flag" "$DEPLOY/compose.project.yml"; then
-      result "prepare: дерево стенда после G9q2" FAIL "в compose.project.yml нет $flag"
+      result "prepare: дерево стенда после G9q3" FAIL "в compose.project.yml нет $flag"
       return 1
     fi
   done
@@ -393,7 +394,7 @@ step_prepare() {
     return 1
   fi
   if ! grep -qx "BAI_VERSION=$LOCK_VERSION_FROM" "$LOCK_OLD"; then
-    result "prepare: lock боя G9q2" FAIL "в $LOCK_OLD не BAI_VERSION=$LOCK_VERSION_FROM"
+    result "prepare: lock боя G9q3" FAIL "в $LOCK_OLD не BAI_VERSION=$LOCK_VERSION_FROM"
     return 1
   fi
   for ((port = PORT_FIRST; port <= PORT_LAST; port++)); do
@@ -411,10 +412,10 @@ step_prepare() {
       || { result "prepare: образ на хосте" FAIL "нет ${ref##*/} (docker load / pull)"; return 1; }
   done
   result "prepare: образы app и заглушек documents на хосте" ok "прежние и новые"
-  # Синтетический .env стенда - как на бою после G9q2: ключей патча в нём нет (значения по
+  # Синтетический .env стенда - как на бою после G9q3: ключей патча в нём нет (значения по
   # умолчанию compose); сценарий offswitch задаёт их явно.
   sed -i -E "/^($FLAG_PDF_TEXT|B24_CALL_RECORDING_[A-Z_]+)=/d" "$DEPLOY/.env"
-  result "prepare: в .env стенда нет ключей G9r (как на бою после G9q2)" ok \
+  result "prepare: в .env стенда нет ключей G9r (как на бою после G9q3)" ok \
     "значения по умолчанию compose"
   dcs down -v --remove-orphans >/dev/null 2>&1 || true
   cp "$STAND_LOCK_OLD" "$DEPLOY/images.lock"
@@ -470,15 +471,15 @@ check_docs_flags() {
     || result "$1: четыре флага G8x в окружении documents ($2)" FAIL "$bad"
 }
 
-# check_old_flags <шаг> <когда>: переменные G9q, G9p и G8z есть в окружении app (только наличие).
+# check_old_flags <шаг> <когда>: переменные G9q2, G9q, G9p и G8z есть в окружении app (наличие).
 check_old_flags() {
   local name missing=""
   for name in "${OLD_APP_FLAGS[@]}"; do
     [[ -n "$(env_of "$APP" "$name")" ]] || missing+=" $name"
   done
   [[ -z "$missing" ]] \
-    && result "$1: у app переменные G9q, G9p и G8z ($2)" ok "${OLD_APP_FLAGS[*]}" \
-    || result "$1: у app переменные G9q, G9p и G8z ($2)" FAIL "нет:$missing"
+    && result "$1: у app переменные G9q2, G9q, G9p и G8z ($2)" ok "${OLD_APP_FLAGS[*]}" \
+    || result "$1: у app переменные G9q2, G9q, G9p и G8z ($2)" FAIL "нет:$missing"
 }
 
 # check_b24 <шаг> <present|absent>: две новые переменные app от платформы 1.1.10 - есть и равны
@@ -544,9 +545,9 @@ step_preflight() {
   patch_run preflight --preflight-only
   [[ "$RC" == 0 ]] && result "preflight: код" ok "0 (PREFLIGHT_OK)" \
     || result "preflight: код" FAIL "$RC (preflight.log)"
-  grep -q 'патч G9q2 применён: ok' "$OUT/preflight.log" \
-    && result "preflight: патч G9q2 распознан как применённый" ok "запись в журнале" \
-    || result "preflight: патч G9q2 распознан как применённый" FAIL "нет записи в журнале"
+  grep -q 'патч G9q3 применён: ok' "$OUT/preflight.log" \
+    && result "preflight: патч G9q3 распознан как применённый" ok "запись в журнале" \
+    || result "preflight: патч G9q3 распознан как применённый" FAIL "нет записи в журнале"
   grep -q 'правка PDF вне таблиц: ok' "$OUT/preflight.log" \
     && grep -q 'новые переменные app: ok' "$OUT/preflight.log" \
     && result "preflight: новые переменные платформы в новой конфигурации" ok "запись в журнале" \
@@ -560,16 +561,17 @@ step_preflight() {
 }
 
 step_refuse() {
-  # Lock боя версии .5 (до G9q2): предусловие «G9q2 применён» не выполнено - отказ ДО замены.
+  # Lock боя версии .6 (стоит только G9q2): предусловие «G9q3 применён» не выполнено - отказ ДО
+  # замены.
   local keep="$OUT/images.lock.keep"
   cp -p "$DEPLOY/images.lock" "$keep"
-  sed -i "s|^BAI_VERSION=.*|BAI_VERSION=$LOCK_VERSION_NOT_G9Q2|" "$DEPLOY/images.lock"
+  sed -i "s|^BAI_VERSION=.*|BAI_VERSION=$LOCK_VERSION_NOT_G9Q3|" "$DEPLOY/images.lock"
   patch_run refuse --preflight-only
   cp -p "$keep" "$DEPLOY/images.lock"
-  [[ "$RC" == 3 ]] && result "refuse: код (G9q2 не применён)" ok "3 (отказ по предусловиям)" \
-    || result "refuse: код (G9q2 не применён)" FAIL "$RC (refuse.log)"
-  grep -q 'сначала примените патч G9q2' "$OUT/refuse.log" \
-    && result "refuse: причина" ok "названа: сначала примените патч G9q2" \
+  [[ "$RC" == 3 ]] && result "refuse: код (G9q3 не применён)" ok "3 (отказ по предусловиям)" \
+    || result "refuse: код (G9q3 не применён)" FAIL "$RC (refuse.log)"
+  grep -q 'сначала примените патч G9q3' "$OUT/refuse.log" \
+    && result "refuse: причина" ok "названа: сначала примените патч G9q3" \
     || result "refuse: причина" FAIL "причина не названа"
   unchanged_since_prepare refuse
 }
@@ -802,8 +804,8 @@ step_broken() {
   unchanged_since_prepare broken
   [[ "$(container_image "$APP")" == "$(lock_ref "$STAND_LOCK_OLD" BAI_IMAGE_APP)" \
     && "$(container_image "$DOCS")" == "$STUB_OLD_REF" ]] \
-    && result "broken: documents и app снова на образах G9q2" ok "как до патча" \
-    || result "broken: documents и app снова на образах G9q2" FAIL \
+    && result "broken: documents и app снова на образах G9q3" ok "как до патча" \
+    || result "broken: documents и app снова на образах G9q3" FAIL \
       "app $(container_image "$APP"), documents $(container_image "$DOCS")"
 }
 

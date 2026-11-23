@@ -3,7 +3,7 @@
 # pragmatika-documents с правкой PDF вне таблиц и app pragmatika-app, оба 1.1.10-pragmatika.1,
 # основы app и documents и speech из lock платформы 1.1.10 и КОПИЯ платформы
 # deploy/platform/{compose.base.yml,PLATFORM-VERSION}): каталог, который переносят на боевой хост и
-# запускают там `bash patch.sh` (см. OWNER-RUNBOOK.md). Ставится строго после патча G9q2.
+# запускают там `bash patch.sh` (см. OWNER-RUNBOOK.md). Ставится строго после патча G9q3.
 # Красная зона: запускает владелец.
 #
 # Использование:
@@ -36,7 +36,7 @@
 # `bash patch.sh --images-tar ФАЙЛ`). Секретов, .env и ключей в пакет не кладётся: проверяется
 # перед записью манифеста. Миграций (db) в патче нет. Проверки сборки: lock содержит
 # BAI_IMAGE_APP, BAI_IMAGE_DOCUMENTS (и mask) по digest и BAI_VERSION=1.1.10-pragmatika.1; с
-# --prev-lock (lock боя после G9q2, этап 9t) lock отличается от него ТОЛЬКО ключами BAI_VERSION,
+# --prev-lock (lock боя после G9q3, этап 9t) lock отличается от него ТОЛЬКО ключами BAI_VERSION,
 # BAI_IMAGE_APP, BAI_IMAGE_DOCUMENTS (оба образа сменились) и BAI_IMAGE_APP_BASE,
 # BAI_IMAGE_DOCUMENTS_BASE, BAI_IMAGE_SPEECH (их меняет платформа); с --platform-lock (lock
 # выпуска платформы 1.1.10) основы app и documents и все прочие образы платформы в lock равны
@@ -51,7 +51,8 @@
 # DOCUMENTS_EDIT_PDF, DOCUMENTS_PPT_CONVERT, DOCUMENTS_EDIT_PDF_FALLBACK_FONT),
 # compose.project.yml в HEAD - переменные G8z (SHORTLIST_PAGING_ENABLED,
 # SUPPLIER_DISCOVERY_ENABLED), G9p (PRICE_EDIT_FIRST_ENABLED, DOCX_PAGES_ENABLED) и G9q
-# (PRICE_EDIT_DB_WRITE_ENABLED, PRICE_EDIT_TEXT_BLOCKS_ENABLED) с умолчанием true, routes.tsv в
+# (PRICE_EDIT_DB_WRITE_ENABLED, PRICE_EDIT_TEXT_BLOCKS_ENABLED) и G9q2 (EMPTY_REPLY_GUARD_ENABLED)
+# с умолчанием true, routes.tsv в
 # HEAD - маршрут /docx/pages. С --tgz пакет упаковывается в архив (режим 600, корень
 # patch-package/; обычно stage-9r/patch-package.tgz).
 #
@@ -68,15 +69,17 @@ ROUTE_TOOLS=(check-routes.sh route-flags.tsv)
 # Файлы дерева, которые патч вправе заменить (кроме images.lock в корне пакета).
 # ДОЛЖНО совпадать с PATCH_FILE_ALLOW в patch.sh.
 DEPLOY_FILES=(compose.project.yml platform/compose.base.yml platform/PLATFORM-VERSION)
-# Переменные app от G8z, G9p и G9q (уже на бою): обязаны остаться в compose.project.yml с умолчанием
-# true (флаги по умолчанию включены, false в .env - выключатель): пакет заменяет файл целиком.
+# Переменные app от G8z, G9p, G9q и G9q2 (уже на бою): обязаны остаться в compose.project.yml
+# с умолчанием true (флаги по умолчанию включены, false в .env - выключатель): пакет заменяет
+# файл целиком.
 OLD_APP_VARS=(SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED PRICE_EDIT_FIRST_ENABLED
-  DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED)
+  DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED
+  EMPTY_REPLY_GUARD_ENABLED)
 NEW_APP_DEFAULT="true"
 NEW_APP_FILE="compose.project.yml"
 # Маршрут documents от G9p (образ documents у G9r его сохраняет): обязан быть в routes.tsv из HEAD.
 PAGES_ROUTE_ROW=$'documents\tPOST\t/docx/pages\troute'
-# Ключи lock, которыми новый lock вправе отличаться от lock боя после G9q2 (--prev-lock): версия,
+# Ключи lock, которыми новый lock вправе отличаться от lock боя после G9q3 (--prev-lock): версия,
 # оба образа проекта (оба обязаны смениться) и ключи, которые поменяла платформа 1.1.6 -> 1.1.10
 # (основа app, основа documents, speech). Список выведен по lock выпусков платформы.
 ALLOWED_LOCK_DIFF="BAI_VERSION BAI_IMAGE_APP BAI_IMAGE_DOCUMENTS BAI_IMAGE_APP_BASE"
@@ -176,11 +179,11 @@ else
 fi
 for key in BAI_IMAGE_MASK BAI_IMAGE_APP BAI_IMAGE_DOCUMENTS; do
   grep -qE "^$key=[^@[:space:]]+@sha256:[0-9a-f]{64}\$" "$LOCK" \
-    || fail "в $LOCK нет $key (образ по digest): нужен lock платформы 1.1.10 после патча G9q2"
+    || fail "в $LOCK нет $key (образ по digest): нужен lock платформы 1.1.10 после патча G9q3"
 done
 grep -qx "BAI_VERSION=$TARGET_LOCK_VERSION" "$LOCK" \
   || fail "в $LOCK нет строки BAI_VERSION=$TARGET_LOCK_VERSION"
-# Lock отличается от lock боя после G9q2 только версией, образами app и documents и ключами
+# Lock отличается от lock боя после G9q3 только версией, образами app и documents и ключами
 # платформы.
 if [[ -n "$PREV_LOCK" ]]; then
   diff_keys="$(python3 -I - "$PREV_LOCK" "$LOCK" <<'PY'
@@ -264,7 +267,7 @@ for f in "${REQUIRED_VARS_FILES[@]}"; do
   for v in "${REQUIRED_VARS[@]}"; do
     # Имя целиком: DOCUMENTS_EDIT_PDF не должно находиться внутри DOCUMENTS_EDIT_PDF_FALLBACK_FONT.
     grep -qE "(^|[^A-Z0-9_])$v([^A-Z0-9_]|\$)" <<<"$content" \
-      || fail "в HEAD:deploy/$f нет переменной $v (G9r ставится поверх G8w, G8x и G9q2)"
+      || fail "в HEAD:deploy/$f нет переменной $v (G9r ставится поверх G8w, G8x и G9q3)"
   done
 done
 # Новые переменные app в файле, который кладётся в пакет: обе с умолчанием true.

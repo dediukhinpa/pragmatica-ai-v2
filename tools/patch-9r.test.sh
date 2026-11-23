@@ -7,7 +7,7 @@
 # умолчания платформы) без настоящего Docker: вместо docker - заглушка с памятью о контейнерах,
 # их образах, окружении и времени старта (в том числе пробы /health, /ready, POST /docx/pages и
 # POST /parse с locations=true и `compose config --format json`). Проверяются отказы по
-# предусловиям (бой не тронут, код 3), в том числе «патч G9q2 не применён», чужой ключ lock, lock
+# предусловиям (бой не тронут, код 3), в том числе «патч G9q3 не применён», чужой ключ lock, lock
 # без смены образа app или documents, чужой файл deploy/ в пакете, битая копия платформы, значения
 # новых переменных вне допустимых, иное различие в конфигурации compose и повторный запуск;
 # устойчивость сравнения конфигураций к каталогу рендера (корень примерки не равен боевому, пути
@@ -16,9 +16,9 @@
 # /parse, значения переменных G9q-G8w не изменились, новые переменные равны эффективным; явный
 # выключатель PDF вне таблиц в .env боя остаётся выключателем, .env не меняется); разные ответы
 # проб; сбои на каждом шаге с автооткатом (код 1, дерево побайтно прежнее, оба контейнера на
-# образах G9q2); невозможный откат (код 4); ручной --rollback; настоящий JS проб (если на хосте
+# образах G9q3); невозможный откат (код 4); ручной --rollback; настоящий JS проб (если на хосте
 # есть bun) против локального сервера; стиль. Ход на настоящем Docker проверяет
-# tools/patch-9r-synth.sh. PATCH9R_SRC подменяет каталог со скриптом (красный прогон на патче G9q2).
+# tools/patch-9r-synth.sh. PATCH9R_SRC подменяет каталог со скриптом (красный прогон на патче G9q3).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,7 +40,7 @@ EXIT_USAGE=2
 EXIT_REFUSED=3
 EXIT_STUCK=4
 SERVER_WAIT_S=10
-VER_FROM="1.1.6-pragmatika.6"
+VER_FROM="1.1.6-pragmatika.7"
 VER_TO="1.1.10-pragmatika.1"
 H_OLD_APP="1111111111111111111111111111111111111111111111111111111111111111"
 H_NEW_APP="2222222222222222222222222222222222222222222222222222222222222222"
@@ -79,7 +79,8 @@ cat >"$BIN/docker" <<'STUB'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$DOCKER_LOG"
 # Что видит docker из оболочечных переменных: патч обязан их сбросить.
-echo "${PRICE_EDIT_DB_WRITE_ENABLED-<unset>} ${PRICE_EDIT_TEXT_BLOCKS_ENABLED-<unset>}" \
+echo "${EMPTY_REPLY_GUARD_ENABLED-<unset>} ${PRICE_EDIT_DB_WRITE_ENABLED-<unset>}" \
+  "${PRICE_EDIT_TEXT_BLOCKS_ENABLED-<unset>}" \
   "${PRICE_EDIT_FIRST_ENABLED-<unset>} ${DOCX_PAGES_ENABLED-<unset>}" \
   "${SHORTLIST_PAGING_ENABLED-<unset>} ${SUPPLIER_DISCOVERY_ENABLED-<unset>}" \
   "${B24_CALL_RECORDING_MAX_BYTES-<unset>} ${B24_CALL_RECORDING_TIMEOUT_MS-<unset>}" \
@@ -143,8 +144,8 @@ parse_reply() {
   exit 0
 }
 # Конфигурация compose одним JSON. Новые переменные платформы есть только в конфигурации с новой
-# копией платформы; значения - из .env дерева (иначе умолчание платформы); переменные G9q2-G8w
-# есть всегда (бой после G9q2); ручки STUB_CFG_* портят только конфигурацию с новой копией. Образы
+# копией платформы; значения - из .env дерева (иначе умолчание платформы); переменные G9q3-G8w
+# есть всегда (бой после G9q3); ручки STUB_CFG_* портят только конфигурацию с новой копией. Образы
 # app и documents и основа сборки app берутся из lock дерева (они различаются у боя и примерки -
 # это допустимо). Как настоящий compose, пути раскрываются от каталога файлов: том app лежит под
 # deploy, а контекст сборки app и том migrate - ВЫШЕ deploy (`../..`), то есть зависят от корня
@@ -187,8 +188,9 @@ config_json() { # config_json <каталог deploy> <lock>
     printf '"PRICE_EDIT_FIRST_ENABLED":"%s",' "$(stub_val "$dir" PRICE_EDIT_FIRST_ENABLED true)"
     printf '"DOCX_PAGES_ENABLED":"%s","PRICE_EDIT_DB_WRITE_ENABLED":"%s",' \
       "$(stub_val "$dir" DOCX_PAGES_ENABLED true)" "$dbw"
-    printf '"PRICE_EDIT_TEXT_BLOCKS_ENABLED":"%s"' \
+    printf '"PRICE_EDIT_TEXT_BLOCKS_ENABLED":"%s",' \
       "$(stub_val "$dir" PRICE_EDIT_TEXT_BLOCKS_ENABLED true)"
+    printf '"EMPTY_REPLY_GUARD_ENABLED":"%s"' "$(stub_val "$dir" EMPTY_REPLY_GUARD_ENABLED true)"
     if ((newp)); then
       [[ "${STUB_CFG_NO_B24:-0}" == 1 ]] || printf ',"B24_CALL_RECORDING_MAX_BYTES":"%s"' "$b24max"
       printf ',"B24_CALL_RECORDING_TIMEOUT_MS":"%s"' "$b24to"
@@ -260,7 +262,7 @@ case "$1" in
             set_image p-app-1 "$ref"
             bump_started p-app-1
             grep -vE '^(YANDEX_|SHORTLIST_|SUPPLIER_DISCOVERY_|PRICE_EDIT_|DOCX_PAGES_|B24_)' \
-              "$STUB/env/p-app-1" >"$STUB/env/p-app-1.n" || true
+              "$STUB/env/p-app-1" | grep -v '^EMPTY_REPLY_' >"$STUB/env/p-app-1.n" || true
             if [[ "${STUB_APP_LOSE_YANDEX:-0}" != 1 || $isnew != 1 ]]; then
               echo "YANDEX_SEARCH_MAX_CONCURRENCY=1" >>"$STUB/env/p-app-1.n"
               echo "YANDEX_SEARCH_MIN_INTERVAL_MS=1200" >>"$STUB/env/p-app-1.n"
@@ -279,6 +281,8 @@ case "$1" in
             if [[ "${STUB_APP_LOSE_G9Q:-0}" != 1 || $isnew != 1 ]]; then
               dbw="$(stub_val "$dir" PRICE_EDIT_DB_WRITE_ENABLED true)"
               [[ $isnew != 1 ]] || dbw="${STUB_ENV_DB_WRITE:-$dbw}"
+              echo "EMPTY_REPLY_GUARD_ENABLED=$(stub_val "$dir" \
+                EMPTY_REPLY_GUARD_ENABLED true)" >>"$STUB/env/p-app-1.n"
               echo "PRICE_EDIT_DB_WRITE_ENABLED=$dbw" >>"$STUB/env/p-app-1.n"
               echo "PRICE_EDIT_TEXT_BLOCKS_ENABLED=$(stub_val "$dir" \
                 PRICE_EDIT_TEXT_BLOCKS_ENABLED true)" >>"$STUB/env/p-app-1.n"
@@ -396,7 +400,7 @@ chmod +x "$BIN/docker"
 printf '#!/usr/bin/env bash\nexit "${STUB_COSIGN_RC:-0}"\n' >"$BIN/cosign-stub"
 chmod +x "$BIN/cosign-stub"
 
-# --- Боевое дерево (после G9q2), пакет и заглушки инструментов ---------------------------------
+# --- Боевое дерево (после G9q3), пакет и заглушки инструментов ---------------------------------
 LIVE_ROOT="$TMP/opt/pragmatika-v2"
 LIVE="$LIVE_ROOT/deploy"
 GOLDEN="$TMP/golden"
@@ -418,7 +422,7 @@ write_lock() { # write_lock <файл> <app> <основа app> <documents> <о�
     echo "BAI_IMAGE_SPEECH=r/speech@sha256:$6"
   } >"$1"
 }
-# compose.project.yml боя (после G9q2; на этом этапе не меняется) - одинаковый у боя и пакета.
+# compose.project.yml боя (после G9q3; на этом этапе не меняется) - одинаковый у боя и пакета.
 write_compose() { # write_compose <файл> [значение по умолчанию флагов G9q]
   {
     printf 'services:\n  app:\n    environment:\n'
@@ -431,6 +435,7 @@ write_compose() { # write_compose <файл> [значение по умолча
     printf '      PRICE_EDIT_DB_WRITE_ENABLED: ${PRICE_EDIT_DB_WRITE_ENABLED:-%s}\n' "${2:-true}"
     printf '      PRICE_EDIT_TEXT_BLOCKS_ENABLED: ${PRICE_EDIT_TEXT_BLOCKS_ENABLED:-%s}\n' \
       "${2:-true}"
+    printf '      EMPTY_REPLY_GUARD_ENABLED: ${EMPTY_REPLY_GUARD_ENABLED:-true}\n'
     printf '  documents:\n    environment:\n'
     printf '      DOCUMENTS_EDIT_PPTX: ${DOCUMENTS_EDIT_PPTX:-true}\n'
     printf '      DOCUMENTS_EDIT_PDF: ${DOCUMENTS_EDIT_PDF:-true}\n'
@@ -454,7 +459,7 @@ write_platform_pkg() { # write_platform_pkg <каталог deploy> [верси�
     >"$dir/platform/PLATFORM-VERSION"
 }
 mkdir -p "$GOLDEN/platform" "$GOLDEN/hotfix" "$PKGG/tools" "$PKGG/deploy"
-# Основы app и documents и speech у G9q2 и G9r разные: платформа 1.1.6 -> 1.1.10.
+# Основы app и documents и speech у G9q3 и G9r разные: платформа 1.1.6 -> 1.1.10.
 write_lock "$GOLDEN/images.lock" "$OLD_APP" "r/app-base@sha256:$H_BASE" "$OLD_DOCS" \
   "r/bai-documents@sha256:$H_DBASE" "$H_SPEECH" "$VER_FROM"
 write_lock "$PKGG/images.lock" "$NEW_APP" "r/app-base@sha256:$H_BASE_NEW" "$NEW_DOCS" \
@@ -513,7 +518,7 @@ pkg_lock_edit() {
   seal
 }
 
-reset_stand() { # reset_stand: бой «после G9q2» (дерево, контейнеры, окружение), пакет как собран
+reset_stand() { # reset_stand: бой «после G9q3» (дерево, контейнеры, окружение), пакет как собран
   STUB="$TMP/stub"
   rm -rf "${STUB:?}" "${LIVE_ROOT:?}"
   mkdir -p "$STUB/env" "$STUB/started" "$LIVE_ROOT"
@@ -534,6 +539,7 @@ reset_stand() { # reset_stand: бой «после G9q2» (дерево, кон�
   printf 'PRICE_EDIT_FIRST_ENABLED=true\nDOCX_PAGES_ENABLED=true\n' >>"$STUB/env/p-app-1"
   printf 'PRICE_EDIT_DB_WRITE_ENABLED=true\nPRICE_EDIT_TEXT_BLOCKS_ENABLED=true\n' \
     >>"$STUB/env/p-app-1"
+  printf 'EMPTY_REPLY_GUARD_ENABLED=true\n' >>"$STUB/env/p-app-1"
   printf 'DOCUMENTS_EDIT_PPTX=true\nDOCUMENTS_EDIT_PDF=true\nDOCUMENTS_PPT_CONVERT=true\n' \
     >>"$STUB/env/p-documents-1"
   printf 'DOCUMENTS_EDIT_PDF_FALLBACK_FONT=false\n' >>"$STUB/env/p-documents-1"
@@ -675,18 +681,18 @@ pkg_lock_edit "s|^BAI_IMAGE_SPEECH=.*|BAI_IMAGE_SPEECH=r/speech@sha256:$H_SPEECH
 run keepbases --preflight-only
 assert "основа app и speech прежние: допустимо, preflight код 0" "[[ $RC -eq 0 ]]"
 
-# G9q2 не применён: разные признаки, подсказка «сначала примените патч G9q2».
+# G9q3 не применён: разные признаки, подсказка «сначала примените патч G9q3».
 g9q2_case() { # g9q2_case <имя> <описание>: код 3, бой не тронут, подсказка в сообщении
   assert "$2: код 3" "[[ $RC -eq $EXIT_REFUSED ]]"
   assert "$2: бой не тронут" "no_mutation $1 && [[ \"\$(tree_snapshot)\" == \"\$T1\" ]]"
-  assert "$2: сообщение «сначала примените патч G9q2»" "out_has $1 'сначала примените патч G9q2'"
+  assert "$2: сообщение «сначала примените патч G9q3»" "out_has $1 'сначала примените патч G9q3'"
 }
-for old_ver in 1.1.6-pragmatika.5 1.1.6-pragmatika.4 1.1.5-pragmatika.3; do
+for old_ver in 1.1.6-pragmatika.6 1.1.6-pragmatika.5 1.1.6-pragmatika.4 1.1.5-pragmatika.3; do
   reset_stand
   sed -i "s|^BAI_VERSION=.*|BAI_VERSION=$old_ver|" "$LIVE/images.lock"
   T1="$(tree_snapshot)"
   run "lockver-$old_ver"
-  g9q2_case "lockver-$old_ver" "G9q2 не применён: BAI_VERSION боя $old_ver"
+  g9q2_case "lockver-$old_ver" "G9q3 не применён: BAI_VERSION боя $old_ver"
   assert "версия lock $old_ver: сообщение называет ожидаемую" \
     "out_has 'lockver-$old_ver' '$VER_FROM'"
 done
@@ -694,30 +700,31 @@ reset_stand
 printf 'PLATFORM_PACKAGES_VERSION=1.1.5\n' >"$LIVE/platform/PLATFORM-VERSION"
 T1="$(tree_snapshot)"
 run platform115
-g9q2_case platform115 "G9q2 не применён: платформа боя 1.1.5"
+g9q2_case platform115 "G9q3 не применён: платформа боя 1.1.5"
 reset_stand
 rm -f "$LIVE/platform/PLATFORM-VERSION"
 T1="$(tree_snapshot)"
 run noplatform
-g9q2_case noplatform "G9q2 не применён: нет PLATFORM-VERSION"
+g9q2_case noplatform "G9q3 не применён: нет PLATFORM-VERSION"
 reset_stand
 sed -i "s|^p-app-1.*|p-app-1\tr/app@sha256:other|" "$STUB/containers"
 T1="$(tree_snapshot)"
 run appimage
-g9q2_case appimage "G9q2 не применён: app не на образе из lock боя"
+g9q2_case appimage "G9q3 не применён: app не на образе из lock боя"
 reset_stand
 sed -i "s|^p-documents-1.*|p-documents-1\tr/other-documents@sha256:other|" "$STUB/containers"
 T1="$(tree_snapshot)"
 run docsimage
-g9q2_case docsimage "G9q2 не применён: documents не на образе из lock боя"
+g9q2_case docsimage "G9q3 не применён: documents не на образе из lock боя"
 for app_var in YANDEX_SEARCH_MAX_CONCURRENCY YANDEX_SEARCH_MIN_INTERVAL_MS \
   SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED PRICE_EDIT_FIRST_ENABLED \
-  DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED; do
+  DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED \
+  EMPTY_REPLY_GUARD_ENABLED; do
   reset_stand
   sed -i "/^$app_var=/d" "$STUB/env/p-app-1"
   T1="$(tree_snapshot)"
   run "no-$app_var"
-  g9q2_case "no-$app_var" "G9q2 не применён: у app нет переменной $app_var"
+  g9q2_case "no-$app_var" "G9q3 не применён: у app нет переменной $app_var"
   assert "нет $app_var: сообщение называет её" "out_has 'no-$app_var' '$app_var'"
 done
 for flag_case in "DOCUMENTS_EDIT_PPTX|d" "DOCUMENTS_EDIT_PDF|d" "DOCUMENTS_PPT_CONVERT|d" \
@@ -733,7 +740,7 @@ for flag_case in "DOCUMENTS_EDIT_PPTX|d" "DOCUMENTS_EDIT_PDF|d" "DOCUMENTS_PPT_C
   fi
   T1="$(tree_snapshot)"
   run "flag-$flag-$how"
-  g9q2_case "flag-$flag-$how" "G9q2 не применён: флаг $flag ($how)"
+  g9q2_case "flag-$flag-$how" "G9q3 не применён: флаг $flag ($how)"
   assert "флаг $flag ($how): сообщение называет флаг" "out_has 'flag-$flag-$how' '$flag'"
 done
 
@@ -960,13 +967,14 @@ assert "дрейф тома: сообщение называет services.migrat
   "out_has cfgpathdrift 'services.migrate.volumes'"
 # Оболочечные переменные патч сбрасывает: значение из окружения запуска сильнее .env.
 PRICE_EDIT_FIRST_ENABLED=true DOCX_PAGES_ENABLED=true SHORTLIST_PAGING_ENABLED=false \
-  PRICE_EDIT_DB_WRITE_ENABLED=false PRICE_EDIT_TEXT_BLOCKS_ENABLED=false \
+  EMPTY_REPLY_GUARD_ENABLED=false PRICE_EDIT_DB_WRITE_ENABLED=false \
+  PRICE_EDIT_TEXT_BLOCKS_ENABLED=false \
   SUPPLIER_DISCOVERY_ENABLED=false B24_CALL_RECORDING_MAX_BYTES=5 \
   B24_CALL_RECORDING_TIMEOUT_MS=5 DOCUMENTS_EDIT_PDF_TEXT=false run shellenv --preflight-only
 assert "переменные в оболочке владельца: preflight код 0" "[[ $RC -eq 0 ]]"
 assert "переменные в оболочке: docker их не видит (сброшены)" \
   "[[ -s '$STUB/shellenv.log' ]] && ! grep -qv \
-   '^<unset> <unset> <unset> <unset> <unset> <unset> <unset> <unset> <unset>\$' \
+   '^<unset> <unset> <unset> <unset> <unset> <unset> <unset> <unset> <unset> <unset>\$' \
    '$STUB/shellenv.log'"
 reset_stand
 STUB_NO_READY=1 run noready
@@ -1025,8 +1033,8 @@ assert "--preflight-only: проб pages и parse не было" \
   "[[ \$(pages_probe_count preflight) -eq 0 && \$(parse_probe_count preflight) -eq 0 ]]"
 assert "--preflight-only: PREFLIGHT_OK в состоянии" \
   "grep -rq 'RESULT=PREFLIGHT_OK' '$TMP'/home-preflight/.pragmatika-cutover/patch-9r-*/state.env"
-assert "--preflight-only: журнал называет G9q2 применённым" \
-  "out_has preflight 'патч G9q2 применён: ok'"
+assert "--preflight-only: журнал называет G9q3 применённым" \
+  "out_has preflight 'патч G9q3 применён: ok'"
 assert "--preflight-only: журнал называет правку PDF вне таблиц включённой (по умолчанию)" \
   "out_has preflight 'DOCUMENTS_EDIT_PDF_TEXT включён'"
 assert "--preflight-only: журнал называет обе новые переменные app с умолчаниями" \
@@ -1041,7 +1049,7 @@ assert "--preflight-only: эффективные значения записан
 DOCUMENTS_EDIT_PDF_TEXT=<пусто: по умолчанию платформы включено> ' ]]"
 assert "--preflight-only: значения переменных app до замены записаны (флаги и числа)" \
   "grep -qx 'PRICE_EDIT_DB_WRITE_ENABLED=true' $PF_RES/app-values-before.txt \
-   && [[ \$(wc -l <$PF_RES/app-values-before.txt) -eq 8 ]]"
+   && [[ \$(wc -l <$PF_RES/app-values-before.txt) -eq 9 ]]"
 assert "--preflight-only: журнал называет сходство прочей конфигурации" \
   "out_has preflight 'прочая конфигурация: ok'"
 assert "--preflight-only: в списке замены две копии платформы (compose.project.yml равен)" \
@@ -1249,7 +1257,7 @@ assert "повтор: бой не тронут, дерево прежнее" \
 assert "повтор: проб pages и parse не было" \
   "[[ \$(pages_probe_count again) -eq 0 && \$(parse_probe_count again) -eq 0 ]]"
 
-# 5. Сбои после замены: автооткат, файлы из бэкапа побайтно, оба контейнера на образах G9q2.
+# 5. Сбои после замены: автооткат, файлы из бэкапа побайтно, оба контейнера на образах G9q3.
 # rollback_case <имя> <описание>: после сбоя проверяется одинаковый набор признаков отката.
 rollback_case() {
   assert "$2: код 1 (откат выполнен)" "[[ $RC -eq $EXIT_FAILED ]]"
@@ -1475,7 +1483,7 @@ run manual_rollback --rollback --run-dir "$rundir"
 assert "ручной откат - код 0" "[[ $RC -eq 0 ]]"
 assert "ручной откат: дерево побайтно прежнее (lock и копия платформы 1.1.6)" \
   "[[ \"\$(tree_snapshot)\" == \"\$T0\" ]]"
-assert "ручной откат: documents и app на образах G9q2" "app_is_old && docs_is_old"
+assert "ручной откат: documents и app на образах G9q3" "app_is_old && docs_is_old"
 assert "ручной откат: флаги documents на месте, новых переменных нет" \
   "grep -qx 'DOCUMENTS_EDIT_PPTX=true' '$STUB/env/p-documents-1' \
    && ! grep -q 'DOCUMENTS_EDIT_PDF_TEXT' '$STUB/env/p-documents-1' \
@@ -1694,7 +1702,7 @@ assert "patch.sh: сравнение конфигураций заменяет �
   "sed -n '/^stage_tree()/,/^}/p' '$PS' | grep -q '\"\\\$LIVE_NEW_DIR\" \"\\\$STAGE_DIR\"'"
 assert "patch.sh: оболочечные переменные сбрасываются (unset)" \
   "grep -qE '^unset \"\\\$\\{KEEP_APP_KEYS\\[@\\]\\}\"' '$PS' \
-   && sed -n '/^unset /,/^$/p' '$PS' | grep -q 'DOCUMENTS_EDIT_PDF_TEXT'"
+   && [[ \$(sed -n '/^unset /,/^$/p' '$PS' | grep -c 'DOCUMENTS_EDIT_PDF_TEXT') -ge 1 ]]"
 assert "patch.sh: конфигурация сравнивается без печати значений (config_delta, без журнала)" \
   "grep -q '^config_delta()' '$PS' && ! grep -vE '^[[:space:]]*#' '$PS' \
    | grep 'format json' | grep -qE '>>|tee|LOG_FILE'"
