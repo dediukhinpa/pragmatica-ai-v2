@@ -84,8 +84,8 @@ eval/cases/order-calc/order-calc-web-queries-unsafe-fallback.json	741eb1f114443c
 eval/cases/prices/prices-edit-first-ambiguous.json	532f19f67a888428fd077ecd45f913d39927d2256b51b36fdc989ac531041ed4
 eval/cases/prices/prices-edit-first-confirm-no.json	6b44f807bb7de7a8c19ddce06882f63edcf3307b7cfb109a6c4aecde8d49d985
 eval/cases/prices/prices-edit-first-confirm-yes.json	246e42b95f83187969a2409ae2c9d562db14ec3fd5ceabe62d5c40b75dc9a60c
-eval/cases/prices/prices-edit-first-older-file-keeps-price.json	a0123cdf647b3de6f51d5f5c10fae890eb8601d2f77c85e0e282301123d3dafd
-eval/cases/prices/prices-edit-first-pptx-list-spots.json	50f1fc93baa22a01ff40a64e537669a43f2238ad2ec61e19ed7efa6893c8de26
+eval/cases/prices/prices-edit-first-older-file-keeps-price.json	459c1fced482646898bc55f51671dff6cca94663fc0f92311f5a4f6e20a901f3
+eval/cases/prices/prices-edit-first-pptx-list-spots.json	56851ff8d0b4ad3fa3da5e518630991ad7b3b86c4569a294fd454a2a248039b1
 eval/cases/prices/prices-edit-first-pptx-no-supplier.json	6d550c3aa24e5b77067499a245e0fa020f474b8a990da609385d906d803ea7ec
 eval/cases/prices/prices-edit-first-pptx-text-block.json	85c77bc0d298c5ae7847ad02fd2144dd3ae7f95e11f75fa2903fadf56001d9b7
 eval/cases/prices/prices-edit-first-slide-n.json	7afa58d0667a1975159906e4775c8e3adaf3a7f3fe499017eff6f7ef13043a3f
@@ -197,10 +197,10 @@ eval/recordings/prices-edit-first-confirm-no.model-a.json	e11c550a68ab18d634d8ce
 eval/recordings/prices-edit-first-confirm-no.model-b.json	c0acddc8ccea6b731d24d2e6e99cf9662cfb5981396d48d8ed4187bee884cbb1
 eval/recordings/prices-edit-first-confirm-yes.model-a.json	6b63d632d14f74791c4ce67126c827485b9e46d28f2dc1a65a8f7d5fed6cd73c
 eval/recordings/prices-edit-first-confirm-yes.model-b.json	e632bf25f9929724f2573ffda8e1dcb5ab76227d55a5569ddc88551872aeee2f
-eval/recordings/prices-edit-first-older-file-keeps-price.model-a.json	29438328126968c42559caa21a75a3e80f38d81aa95cd41ae289ffa6b6a01a01
-eval/recordings/prices-edit-first-older-file-keeps-price.model-b.json	b2195f591bdcf5b649e580e77d2c191eea679bbad29a17f4ee5a005b7f70b3b9
-eval/recordings/prices-edit-first-pptx-list-spots.model-a.json	83e7a1387b663d6e3e68cb6b15db0f3f3dff4aa3d817e71a2ba7c684e9344175
-eval/recordings/prices-edit-first-pptx-list-spots.model-b.json	0f76104a2189845749644721dd1471484315f57c3bc8ff66834b6f2e278b5dc0
+eval/recordings/prices-edit-first-older-file-keeps-price.model-a.json	1f06cc1d2da77f3c7c59ebd38977894ea6b8b228a548952c9ba8c2146b0ec105
+eval/recordings/prices-edit-first-older-file-keeps-price.model-b.json	8bf884c10a238701b2496e69cdc2d390f16ac2d09d4294c0eea54b446c286905
+eval/recordings/prices-edit-first-pptx-list-spots.model-a.json	a819ede7dd7f62e60ddda3966a06b955b6b3c9e62fe33a827916199b4d08cc06
+eval/recordings/prices-edit-first-pptx-list-spots.model-b.json	6f310d6a552938aa2a0b6e188d4279bdcd6d8abafef9fcb940aad351c84e2deb
 eval/recordings/prices-edit-first-pptx-no-supplier.model-a.json	3c1d23c98eb242faefe33b4e8bfa1bb3ce03d4bf95ab55cb285651a24d600183
 eval/recordings/prices-edit-first-pptx-no-supplier.model-b.json	29bdcd257614e97c20ebf52de3c6858a4f38f0c9e761006e9e0eee7ad41fef75
 eval/recordings/prices-edit-first-pptx-text-block.model-a.json	4cdde3ea67f454b42dfb5e23a1fe7bc5db1c632e4d79404a4ce204a1d5d73a9c
