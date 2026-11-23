@@ -59,6 +59,7 @@ PROJECT_SPECS = {
     ("src/application/agents/prices/deps.ts", "../../price-spots-client"),
     ("src/application/agents/prices/read-price-file.ts", "../../price-table-places"),
     ("src/application/agents/documents/employee-messages.ts", "../../turn-captions"),
+    ("src/application/agents/documents/own-signatory.ts", "../../signatory-nominative"),
 }
 # Пути-литералы относительно файла теста: `join(import.meta.dir, '../x')` и
 # `new URL('../x', import.meta.url)`. Цель - файл или каталог в любом месте дерева.

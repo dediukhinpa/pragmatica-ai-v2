@@ -4,6 +4,7 @@ import { OwnSignatoryRefusedError, type OwnSignatoryRefusal } from '../../kit/do
 import type { OwnSignatoryForms } from '../../kit/ports/contract-amender';
 import type { DealDocument } from '../../kit/domain/models';
 import type { DocumentsDeps } from './deps';
+import { resolveNominativeSignatory } from '../../signatory-nominative';
 import type { OwnEntity } from '../../kit/ports/own-requisites';
 import type { AllowedTemplate } from './template-access';
 import { contractTemplateByPath } from './template-registry';
@@ -17,7 +18,9 @@ import { contractTemplateByPath } from './template-registry';
  * самому шаблону (преамбула «в лице <должность> <ФИО>, действующего», строка подписи «Генеральный
  * директор Фамилия И.О.»), поэтому смена подписанта в шаблоне на шаре ничего не ломает. Формы
  * нового подписанта строит код: инициалы из записи, родительный падеж даёт сервис склонения
- * (`deps.signatoryInflector`), пол и падеж здесь не угадываются.
+ * (`deps.signatoryInflector`). ФИО ждём в именительном падеже; названное в косвенном (сервис
+ * отвечает `null`) приводится к именительному по однозначным правилам с обратной проверкой
+ * сервисом (`signatory-nominative`), иначе отказ.
  *
  * Fail closed (только при источнике БД `deps.ownRequisites`): нет уверенного склонения, подписант
  * в шаблоне не найден или назван неоднозначно, прежний остался после замены - документ не
@@ -105,12 +108,27 @@ export async function ownSignatoryForms(
   if (words.length !== FULL_NAME_WORDS || !words.every((word) => CYRILLIC_WORD.test(word))) {
     return { reason: 'name_format' };
   }
-  const [surname = '', firstName = '', patronymic = ''] = words;
+  let [surname = '', firstName = '', patronymic = ''] = words;
   if (signalAborted()) throw new CancelledError('Подстановка подписанта отменена.');
   let inflected: string | null;
   try {
     inflected = await inflector.signatoryGenitive(record.signatoryPosition, record.signatoryName);
-  } catch {
+    if (inflected === null) {
+      // Сотрудники пишут «замени на Кого»: ФИО в косвенном падеже сервис не склоняет. Приводим
+      // его к именительному осторожно: любое сомнение оставляет прежний отказ ниже.
+      const resolved = await resolveNominativeSignatory(
+        (position, fullName) => inflector.signatoryGenitive(position, fullName),
+        record.signatoryPosition,
+        words,
+        signalAborted,
+      );
+      if (resolved !== null) {
+        inflected = resolved.inflected;
+        [surname, firstName, patronymic] = resolved.nominative;
+      }
+    }
+  } catch (error) {
+    if (error instanceof CancelledError) throw error;
     return { reason: 'inflector_failed' };
   }
   if (inflected === null) return { reason: 'inflection_uncertain' };
