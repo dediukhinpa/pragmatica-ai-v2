@@ -52,6 +52,7 @@ const TEXT = [
 ].join('\n');
 
 const PROMO: PriceSpot = {
+  kind: 'pptx',
   slide: 2,
   shape: '7',
   paragraph: 0,
@@ -60,6 +61,7 @@ const PROMO: PriceSpot = {
   context: 'Акция: 450 ₽ за штуку',
 };
 const SET: PriceSpot = {
+  kind: 'pptx',
   slide: 2,
   shape: '8',
   paragraph: 1,
