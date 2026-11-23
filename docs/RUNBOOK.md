@@ -312,6 +312,26 @@ trivy), затем новый `images.lock`, пакет и репетиция (`
 
 Прежние образы на хосте не удалять (`docker image prune` не запускать) до конца срока отката.
 
+**Патч G9r (этап 9r)** ставится строго после G9q3 (порядок G8 → G8w → G8x → G8y → G8z → G9p → G9q →
+G9q2 → G9q3 → G9r): платформа боя переходит с 1.1.6 на 1.1.10, меняются ДВА образа проекта
+(`documents` и `app`, оба `1.1.10-pragmatika.1`), а из файлов дерева заменяются `images.lock`,
+копия платформы `deploy/platform/{compose.base.yml,PLATFORM-VERSION}` и (если отличается от
+боевого) `compose.project.yml`. Миграций БД нет. Подробно - `OWNER-RUNBOOK.md` пакета.
+
+- **Что меняется.** Агент прайсов правит число в PDF вне таблиц с линиями (цена в тексте, колонки
+  без линий) по `page` и `spot` из `locations` сервиса documents; те же проверки, что у ячеек
+  (число старое совпало, глифы, помещается, фон), иначе отказ с причиной и предложение копии xlsx.
+  Включается тем же `PRICE_EDIT_TEXT_BLOCKS_ENABLED`, что и текстовые блоки pptx, и платформенным
+  `DOCUMENTS_EDIT_PDF_TEXT` (по умолчанию включён, нужен `DOCUMENTS_EDIT_PDF`). Платформа 1.1.10
+  заодно чинит сканы PDF из загрузки в память (`/parse extract_images=true`) и правку числа в
+  ячейке со словом-единицей («800 рублей»); временный обход сканов из G9q2 снят.
+- **Выключатели.** `DOCUMENTS_EDIT_PDF_TEXT=0` и/или `PRICE_EDIT_TEXT_BLOCKS_ENABLED=false` в
+  `.env` и перезапуск сервиса: `sudo bash enable-flags.sh --pdf-text false --text-blocks false`
+  из пакета.
+- **Как откатить.** Автоматически при сбое: файлы из бэкапа и `up -d --no-deps` documents и app
+  на образы G9q3 (app `1.1.6-pragmatika.7`, documents `1.1.6-pragmatika.6`); вручную позже:
+  `sudo bash patch.sh --rollback`. Откатные образы должны остаться на хосте.
+
 ## 5. Проверка здоровья
 
 ```bash
