@@ -22,7 +22,6 @@ from documents.config import Settings, load_settings
 from documents.convert_cache import start_cache_sweeper
 from documents.office_convert import purge_stale_convert_dirs
 from documents.priority_gate import PriorityGate
-from pragmatika_documents import pdf_images_fix
 from pragmatika_documents.routes import FileRoute, register_docx_routes
 
 logger = logging.getLogger(__name__)
@@ -59,8 +58,6 @@ def _build_platform_app(cfg: Settings) -> tuple[FastAPI, FileRoute]:
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Создаёт приложение: все платформенные маршруты и проектные `/docx/*`."""
     cfg = settings or load_settings()
-    # Временный обход до платформы 1.1.10 (этап 9r): сканы PDF из памяти без картинок страниц
-    pdf_images_fix.apply()
     app, file_route = _build_platform_app(cfg)
     if not cfg.office_convert_endpoints:
         # Платформа чистит спул и запускает сметальщик кэша конвертации только при включённой

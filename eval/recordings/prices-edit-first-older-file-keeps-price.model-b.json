@@ -22,7 +22,7 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 8169,
+        "inputTokens": 8274,
         "outputTokens": 38
       },
       "latencyMs": 650,
@@ -47,7 +47,7 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 8355,
+        "inputTokens": 8460,
         "outputTokens": 57
       },
       "latencyMs": 650,
@@ -58,7 +58,7 @@
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 8471,
+        "inputTokens": 8577,
         "outputTokens": 38
       },
       "latencyMs": 650,
