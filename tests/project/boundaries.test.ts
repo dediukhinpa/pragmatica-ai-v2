@@ -49,6 +49,13 @@ const OWNED_ROOT_FILES = [
   'price-edit-turn.ts',
   'price-last-file.ts',
   'turn-file-buffer.ts',
+  // Этап 9v: сканы прайсов (копия с новыми ценами, импорт, охрана итога для менеджера).
+  'scan-price-copy.ts',
+  'scan-price-edits.ts',
+  'scan-price-flow.ts',
+  'scan-price-guard.ts',
+  'scan-price-lines.ts',
+  'scan-price-parser.ts',
   'project.ts',
   'runtime.ts',
   'schedules.ts',

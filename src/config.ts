@@ -330,6 +330,14 @@ export const pragmatikaConfigSchema = z.object({
    * инструмента, в черновике шаги разделены пустой строкой. Включено, false - выключатель.
    */
   STEP_TEXT_SEPARATE_ENABLED: flagOn(),
+  /**
+   * Сканы и фото счетов и прайсов читаются и обрабатываются, а не пропускаются (этап 9v): копия
+   * скана с новыми ценами и пересчитанными кодом суммами (`createScanPriceCopy`), позиции скан-
+   * прайса идут в базу тем же путём, что текстовые файлы (спорные строки - на проверку), а
+   * `reportToManager` scan_skipped отклоняется для прочитанного скана. Нужна опция разборщика
+   * `keepScanText` (текст скана остаётся в документе). Включено, false - выключатель (9u).
+   */
+  PRICES_SCAN_FLOW_ENABLED: flagOn(),
   /** Файл xlsx-шаблона для кнопки «Шаблон». */
   SUPPLIER_TEMPLATE_PATH: emptyAsUnset(z.string().min(1).default(DEFAULT_SUPPLIER_TEMPLATE_PATH)),
   /** Синхронизация цен с диска (диск - источник правды). */
