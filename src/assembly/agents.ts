@@ -62,6 +62,7 @@ import {
   type MailProposalsRuntime,
   type SupplierCardsRuntime,
 } from '../runtime';
+import { wireChatAttachments } from './chat-attachments';
 import { buildDocumentParsers } from './document-parsers';
 import { attachModelAdapters } from './model-adapters';
 import { supplierTemplateLoader } from './supplier-template-loader';
@@ -122,6 +123,8 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     pricesAgentId: PRICES_AGENT_ID,
     log: services.log,
   });
+  // Архив файлов, присланных сотрудниками ботам (этап 9s): перехват файловых событий канала.
+  const chatAttachments = wireChatAttachments(ctx);
   const own = pragmatikaPortsOf(external.extra);
   const files = buildFiles(ctx);
   const { clock, state } = services;
@@ -276,6 +279,7 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     priceDiskSyncEnabled: project.PRICE_DISK_SYNC_ENABLED === 'true',
     priceDiskInitialImportEnabled: project.PRICE_DISK_INITIAL_IMPORT_ENABLED === 'true',
     conversationHistory: ctx.services.conversationHistory,
+    chatAttachments,
     supplierCards,
     mailProposals: proposals,
     // Разовые команды владельца (проход по ящику, обследование, CRM); модель - при вызове.

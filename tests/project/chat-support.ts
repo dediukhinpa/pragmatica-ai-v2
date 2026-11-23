@@ -16,6 +16,7 @@ import type {
   ChatEventHandler,
   ChatFile,
   ChatMessage,
+  IntakeStore,
   ThreadState,
   WorkflowStateStore,
 } from '@business-ai/core';
@@ -124,6 +125,8 @@ export function buildPump(options: {
   onIncoming?: ChatIncomingHook;
   /** Журнал службы; по умолчанию молчит. */
   log?: ServiceLog;
+  /** Хранилище приёма файлов; без него файлы насос не принимает. */
+  intake?: IntakeStore;
 }): ChatPump {
   const pump = new ChatPump({
     channel: options.channel,
@@ -145,6 +148,7 @@ export function buildPump(options: {
     idempotency: new MemoryIdempotencyStore(),
     ...(options.buttons === undefined ? {} : { buttonHandlers: options.buttons }),
     ...(options.onIncoming === undefined ? {} : { onIncoming: options.onIncoming }),
+    ...(options.intake === undefined ? {} : { intake: options.intake }),
   });
   pump.attach();
   return pump;
