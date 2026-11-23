@@ -45,6 +45,7 @@ const OWNED_ROOT_FILES = [
   'main.ts',
   'ports.ts',
   'price-edit-refusal.ts',
+  'price-edit-turn.ts',
   'project.ts',
   'runtime.ts',
   'schedules.ts',
