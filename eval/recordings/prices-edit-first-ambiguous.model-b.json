@@ -15,11 +15,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7470,
+        "inputTokens": 7813,
         "outputTokens": 15
       },
       "latencyMs": 650,
-      "requestHash": "001f4f11d5ff08408404b2e021bebee7d8c0e87938300f4c3e2673f20fcfc60b"
+      "requestHash": "262cf691dc1b52d60e5cc789d3cc4ae1aa9ed154b13ae79bd98765b517518714"
     },
     {
       "content": "",
@@ -40,22 +40,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7562,
+        "inputTokens": 7905,
         "outputTokens": 45
       },
       "latencyMs": 650,
-      "requestHash": "e713f02ca2f8737694fce7c8d0b9d5e34956c974ee393b0911ee51768eb43156"
+      "requestHash": "495c9ae1029c3f8db1a223af3f883ac39494dc1b609e1e029cbf8c59a0b99460"
     },
     {
       "content": "Цена 680 есть на двух слайдах: слайд 2 (строка «Болт М8») и слайд 11 (строка «Саморез»). Какую из них поменять?",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 7791,
+        "inputTokens": 8134,
         "outputTokens": 29
       },
       "latencyMs": 650,
-      "requestHash": "bd713a0a6f2eaf16860f9d785ff83c02b829996152171c1131a4fbd1eb9d3020"
+      "requestHash": "25206ee59a33239aeeeb641f0a776041ff9a3ea5bda0efa2e12ca7131bf8aa3d"
     }
   ],
   "synthetic": true

@@ -18,6 +18,8 @@
       }
     ],
     "priceEditFirst": true,
+    "priceEditDbWrite": true,
+    "priceTextBlocks": true,
     "chatFiles": [
       {
         "path": "Прайс_акция.pptx",

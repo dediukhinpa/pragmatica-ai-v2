@@ -1,0 +1,112 @@
+--- eval/environments/prices.ts
++++ eval/environments/prices.ts
+@@ -13,6 +13,11 @@
+   MemorySupplierRepository,
+ } from '../../src/kit/adapters/memory/repositories.owned';
+ import { createPricesAgent } from '../../src/agents/prices/declaration';
++import {
++  employeeEditKey,
++  saveEmployeeFileEdits,
++  type EmployeeFileEdit,
++} from '../../src/employee-file-edits';
+ import { type PricesDeps } from '../../src/agents/prices/deps';
+ import type { PricesCase } from '../cases';
+ import { MANAGER_THREAD } from '../constants';
+@@ -21,6 +26,7 @@
+ import {
+   DeckMarkdownParser,
+   DeckPriceEditor,
++  StubPriceSpotReader,
+   chatFileBytes,
+   priceEditProbes,
+ } from './price-edit-first';
+@@ -29,9 +35,48 @@
+ 
+ /** Тестовый секрет идентификаторов файлов: в прогоне оценки перезапусков нет. */
+ const EVAL_FILE_REF_SECRET = 'eval-file-ref-secret';
++/** Тред чата сотрудника в реестре правок: автор записи (в eval отдельного треда у записи нет). */
++const EVAL_EMPLOYEE_AUTHOR = 'eval-employee-thread';
+ /** Условный сотрудник, чей ход начал чат (правка файла идёт только в чате сотрудника). */
+ const EVAL_EMPLOYEE_USER = 'eval-employee';
+ 
++/**
++ * Записать в состояние реестр правок сотрудника из кейса (этап 9q). Цену берёт из строки `prices`
++ * той же позиции; дата строки должна совпадать с `editedAt`, иначе защита от старого файла не
++ * сработает (запись реестра считалась бы устаревшей), и кейс сообщает об этом сразу.
++ */
++async function seedEmployeeFileEdits(
++  state: MemoryWorkflowStateStore,
++  testCase: PricesCase,
++  now: Date,
++): Promise<void> {
++  const bySupplier = new Map<string, Record<string, EmployeeFileEdit>>();
++  for (const edit of testCase.state.employeeFileEdits) {
++    const row = testCase.state.prices.find(
++      (candidate) =>
++        candidate.supplierId === edit.supplierId &&
++        candidate.productName === edit.productName &&
++        candidate.sku === edit.sku,
++    );
++    if (row === undefined || Date.parse(row.date) !== Date.parse(edit.editedAt)) {
++      throw new Error(
++        `Кейс ${testCase.id}: для «${edit.productName}» нужна строка prices с date = editedAt`,
++      );
++    }
++    const entries = bySupplier.get(edit.supplierId) ?? {};
++    entries[employeeEditKey(edit)] = {
++      editedAt: edit.editedAt,
++      fileName: edit.fileName,
++      author: EVAL_EMPLOYEE_AUTHOR,
++      price: row.price,
++    };
++    bySupplier.set(edit.supplierId, entries);
++  }
++  for (const [supplierId, entries] of bySupplier) {
++    await saveEmployeeFileEdits(state, supplierId, entries, now);
++  }
++}
++
+ /** Окружение агента «Актуализация прайса (ИИ агент)» из начального состояния кейса. */
+ export async function buildPricesEnvironment(
+   testCase: PricesCase,
+@@ -51,11 +96,13 @@
+   // Файлы чата и правка файла сразу (этап 9p): состояние сценариев, приём файлов, парсер
+   // презентаций и редактор-заглушка - только у кейсов с флагом или файлами чата; у остальных
+   // зависимости прежние.
+-  const { chatFiles, priceEditFirst } = testCase.state;
++  const { chatFiles, priceEditFirst, priceEditDbWrite, priceTextBlocks, priceSpots } =
++    testCase.state;
+   const withChat = priceEditFirst || chatFiles.length > 0;
+   const state = new MemoryWorkflowStateStore();
+   const intake = new MemoryIntakeStore(clock);
+-  const editor = new DeckPriceEditor();
++  const editor = new DeckPriceEditor(priceSpots);
++  await seedEmployeeFileEdits(state, testCase, clock.now());
+   const deps: PricesDeps = {
+     files,
+     fileRefSecret: EVAL_FILE_REF_SECRET,
+@@ -69,6 +116,10 @@
+     ...(withChat
+       ? { state, intake, tableExporter: new MemoryTableExporter(), priceFileEditor: editor }
+       : {}),
++    // Числа вне таблиц слайдов (этап 9q): порт карты мест, как при PRICE_EDIT_TEXT_BLOCKS_ENABLED.
++    ...(priceEditFirst && priceTextBlocks
++      ? { priceSpots: new StubPriceSpotReader(priceSpots) }
++      : {}),
+   };
+   const supplierIds = [
+     ...new Set([
+@@ -98,7 +149,12 @@
+     ...(priceEditFirst ? priceEditProbes(chat, editor, state) : {}),
+   };
+   return {
+-    declaration: createPricesAgent({ model, ...(priceEditFirst ? { priceEditFirst: true } : {}) }),
++    declaration: createPricesAgent({
++      model,
++      ...(priceEditFirst ? { priceEditFirst: true } : {}),
++      ...(priceEditFirst && priceEditDbWrite ? { priceEditDbWrite: true } : {}),
++      ...(priceEditFirst && priceTextBlocks ? { priceTextBlocks: true } : {}),
++    }),
+     toolDeps: deps,
+     probe: (name, arg) => runProbe('prices', probes, name, arg),
+     ...(withChat

@@ -1,0 +1,86 @@
+{
+  "id": "prices-edit-first-older-file-keeps-price",
+  "agent": "prices",
+  "description": "Этап 9q (более старый файл не затирает): сотрудник по своему «да» записал в базу цену Самореза 700 (23.11.2026, запись в реестре правок), а на диске лежит прайс МеталлТорг_10.11.2026 с ценой 680 для той же позиции. Агент проводит прежний путь импорта с диска (normalizePriceTable, savePriceImport): цена Самореза остаётся 700, Болт обновляется до 45, а в ответе сказано, что цена сотрудника оставлена (warnings записи).",
+  "request": "Обработай прайс МеталлТорг с сетевого диска: Прайсы/МеталлТорг_10.11.2026.csv.",
+  "state": {
+    "now": "2026-11-24T08:00:00Z",
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Болт",
+        "price": 40,
+        "date": "2026-11-01T00:00:00.000Z"
+      },
+      {
+        "supplierId": "s1",
+        "productName": "Саморез",
+        "price": 700,
+        "date": "2026-11-23T10:00:00.000Z"
+      }
+    ],
+    "files": [
+      {
+        "path": "Прайсы/МеталлТорг_10.11.2026.csv",
+        "text": "Наименование,Цена\nБолт,45\nСаморез,680"
+      }
+    ],
+    "priceEditFirst": true,
+    "priceEditDbWrite": true,
+    "priceTextBlocks": true,
+    "employeeFileEdits": [
+      {
+        "supplierId": "s1",
+        "productName": "Саморез",
+        "editedAt": "2026-11-23T10:00:00.000Z",
+        "fileName": "Спецпредложение.pptx"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 5,
+    "requiredTools": [
+      "normalizePriceTable",
+      "savePriceImport"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "writeEditedPricesToDb",
+      "editPriceInFile",
+      "recordEmployeePriceUpdates"
+    ],
+    "outputContains": [
+      "Саморез",
+      "700",
+      "оставил"
+    ],
+    "stateChecks": [
+      {
+        "probe": "storedPrice",
+        "arg": "s1:Саморез",
+        "value": 700
+      },
+      {
+        "probe": "storedPrice",
+        "arg": "s1:Болт",
+        "value": 45
+      },
+      {
+        "probe": "storedPriceCount",
+        "value": 2
+      },
+      {
+        "probe": "employeeFileEditCount",
+        "arg": "s1",
+        "value": 1
+      }
+    ]
+  },
+  "pii": {}
+}

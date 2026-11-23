@@ -15,11 +15,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7472,
+        "inputTokens": 7815,
         "outputTokens": 15
       },
       "latencyMs": 650,
-      "requestHash": "64a6b0186902d768292badcfe867a720c67dfc821eb95f901a669744f3b72b66"
+      "requestHash": "1b0486059185dd3c628b8fd7259d56737f027268f2a0121194647c26a62ce77d"
     },
     {
       "content": "",
@@ -41,22 +41,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7561,
+        "inputTokens": 7904,
         "outputTokens": 46
       },
       "latencyMs": 650,
-      "requestHash": "05f6444d73c81d45aab168206c5bd665cca9ea22ace1028d4dfbe49bb7614ab3"
+      "requestHash": "4a3d790ef32dc000237268350f57d12c392dff7035212a9e68eccb4b6bef95c3"
     },
     {
       "content": "Готово, файл отправил вам. Что изменено: слайд 4, строка «Саморез»: было 680, стало 720. Слайды 2 и 7 не тронуты. Как называется поставщик? Обновить цены этих позиций в базе?",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 7835,
+        "inputTokens": 8178,
         "outputTokens": 44
       },
       "latencyMs": 650,
-      "requestHash": "13be64631f589b8f12231d18d87d684c229c51ae3227ea50745fe647428b39cc"
+      "requestHash": "643311f95ae323ac440d1d0fe66bad6fc938bbe77a50ac14160b8fa16a1e2026"
     }
   ],
   "synthetic": true

@@ -1,0 +1,11 @@
+--- eval/cases/prices/prices-edit-first-slide-n.json
++++ eval/cases/prices/prices-edit-first-slide-n.json
+@@ -18,6 +18,8 @@
+       }
+     ],
+     "priceEditFirst": true,
++    "priceEditDbWrite": true,
++    "priceTextBlocks": true,
+     "chatFiles": [
+       {
+         "path": "Прайс_акция.pptx",

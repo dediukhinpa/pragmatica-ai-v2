@@ -1,0 +1,65 @@
+--- eval/state.ts
++++ eval/state.ts
+@@ -16,6 +16,31 @@
+     date: z.string().default(SEED_DATE),
+   })
+   .strict();
++/** Число вне таблицы слайда pptx: то, что отдаёт карта мест сервиса документов (этап 9q). */
++export const priceSpotSchema = z
++  .object({
++    slide: z.number().int().min(1),
++    /** Путь фигуры: id через «/» (для группы «7/12»). */
++    shape: z.string().min(1),
++    paragraph: z.number().int().min(0),
++    start: z.number().int().min(0),
++    /** Само число как в тексте («680 ₽»). */
++    text: z.string().min(1),
++    /** Текст абзаца вокруг числа. */
++    context: z.string().min(1),
++  })
++  .strict();
++/** Запись реестра правок сотрудника: позиция базы, момент записи и файл (этап 9q). */
++export const employeeFileEditSchema = z
++  .object({
++    supplierId: z.string().min(1),
++    productName: z.string().min(1),
++    sku: z.string().min(1).optional(),
++    /** Когда сотрудник записал цену (ISO); совпадает с датой строки в `prices`. */
++    editedAt: z.string().datetime(),
++    fileName: z.string().min(1).default('Спецпредложение.pptx'),
++  })
++  .strict();
+ const webHitSchema = z
+   .object({ title: z.string(), url: z.string().min(1), snippet: z.string() })
+   .strict();
+@@ -52,6 +77,30 @@
+      * файлов треда кейса до первого хода; путь для инструментов даёт listIntakeFiles.
+      */
+     chatFiles: z.array(fileSchema).default([]),
++    /**
++     * «Да» после правки файла пишет изменённые цены в базу (как `PRICE_EDIT_DB_WRITE_ENABLED`,
++     * этап 9q): инструмент writeEditedPricesToDb и пункт 5 промпта с прямой записью. Работает
++     * вместе с `priceEditFirst`. По умолчанию выключено: «да» ведёт прежним путём.
++     */
++    priceEditDbWrite: z.boolean().default(false),
++    /**
++     * Числа вне таблиц слайдов pptx (как `PRICE_EDIT_TEXT_BLOCKS_ENABLED`, этап 9q): инструмент
++     * listPriceSpots, поиск мест в editPriceInFile и абзац промпта; карту мест отдаёт заглушка
++     * из `priceSpots`. Работает вместе с `priceEditFirst`. По умолчанию выключено.
++     */
++    priceTextBlocks: z.boolean().default(false),
++    /**
++     * Числа вне таблиц презентаций, которые видит заглушка сервиса документов (локатор слайд,
++     * фигура, абзац, смещение и текст вокруг). Строка `context` должна стоять отдельной строкой
++     * в markdown слайда файла из `chatFiles`: по ней заглушка-редактор находит число.
++     */
++    priceSpots: z.array(priceSpotSchema).default([]),
++    /**
++     * Цены, записанные в базу сотрудником по правке файла (реестр 9q): позиция берётся из
++     * `prices` (цена и дата строки должны совпасть с записью, иначе защита не действует).
++     * Нужна, чтобы проверить правило «более старый файл с диска не затирает».
++     */
++    employeeFileEdits: z.array(employeeFileEditSchema).default([]),
+   })
+   .strict();
+ /** Начальное состояние агента «Подготовка документов (ИИ агент)». */

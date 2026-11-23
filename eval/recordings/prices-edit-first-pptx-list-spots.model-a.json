@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-pptx-list-spots",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7800,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "616b318e76cd13bcb141a353ef07b8bea07262583390971cc71062b9c6fda252"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-spots",
+          "name": "listPriceSpots",
+          "arguments": {
+            "path": "zzrnygyzyzpsrhxh/wmqwkmmxxwgtjmprnqzmykytspmhtmgv_Акции_осень.pptx",
+            "slide": 4
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7889,
+        "outputTokens": 36
+      },
+      "latencyMs": 400,
+      "requestHash": "262bff7bd787d270d9e62bd0fa42567f06a9d868728ead3d87f54d139acdcfd0"
+    },
+    {
+      "content": "Слайд 4, числа вне таблиц: 680 ₽ (текст «Акция: 680 ₽ на саморез») и 1 200,50 руб. (текст «Набор 1 200,50 руб. при заказе от 10 шт»). Что-то из этого поменять?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8081,
+        "outputTokens": 41
+      },
+      "latencyMs": 400,
+      "requestHash": "9ed6b4643cad02c6017d36c6d75814f35f870ea5c0ff4cc2f9c2f5c07ae6d754"
+    }
+  ],
+  "synthetic": true
+}

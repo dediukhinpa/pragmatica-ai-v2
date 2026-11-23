@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-older-file-keeps-price",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-norm",
+          "name": "normalizePriceTable",
+          "arguments": {
+            "path": "Прайсы/МеталлТорг_10.11.2026.csv",
+            "supplierId": "s1",
+            "columns": {
+              "name": 0,
+              "price": 1
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7804,
+        "outputTokens": 38
+      },
+      "latencyMs": 650,
+      "requestHash": "e6087f7acdca2d452c2a79e95d237e85555a502772354aa1b75f4e31f70bce29"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-save",
+          "name": "savePriceImport",
+          "arguments": {
+            "path": "Прайсы/МеталлТорг_10.11.2026.csv",
+            "supplierId": "s1",
+            "fileHash": "gthhhxwjrgtgwvtrnwyvzwrxmpwqqvwyyygrmnnwvtwjgjmrsztymsxmxynzztwx",
+            "columns": {
+              "name": 0,
+              "price": 1
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7990,
+        "outputTokens": 57
+      },
+      "latencyMs": 650,
+      "requestHash": "81fbbb2b7e5852ad9476f90173e1bcc29e8b0e42f43a3731431c5c132e810cbc"
+    },
+    {
+      "content": "Прайс МеталлТорг обновлён: Болт теперь 45. Цену Самореза 700 оставил: её записал сотрудник позже даты файла (10.11.2026), а в файле старая цена 680.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8106,
+        "outputTokens": 38
+      },
+      "latencyMs": 650,
+      "requestHash": "7f227558f2a92de97963a88adbd65ef7570992df1b2f230a437339ac1cdbd92e"
+    }
+  ],
+  "synthetic": true
+}

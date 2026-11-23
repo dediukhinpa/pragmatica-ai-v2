@@ -1,0 +1,11 @@
+--- eval/cases/prices/prices-edit-first-ambiguous.json
++++ eval/cases/prices/prices-edit-first-ambiguous.json
+@@ -18,6 +18,8 @@
+       }
+     ],
+     "priceEditFirst": true,
++    "priceEditDbWrite": true,
++    "priceTextBlocks": true,
+     "chatFiles": [
+       {
+         "path": "Спецпредложение.pptx",

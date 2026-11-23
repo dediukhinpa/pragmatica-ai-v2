@@ -1,0 +1,113 @@
+--- /dev/null
++++ eval/cases/prices/prices-edit-first-pptx-text-block.json
+@@ -0,0 +1,110 @@
++{
++  "id": "prices-edit-first-pptx-text-block",
++  "agent": "prices",
++  "description": "Этап 9q (числа вне таблиц): цена стоит не в таблице, а в тексте слайда 4 («Акция: 680 ₽ на саморез»). Сотрудник просит «на слайде 4 цену 680 замени на 700». Агент видит в таблицах, что такой цены нет, вызывает listPriceSpots, затем editPriceInFile со слайдом и словами из текста (rowText): правка уходит с локатором текстового блока (слайд, фигура, абзац, смещение) и старой ценой в expected, исправленный файл уходит в чат. В ответе - слайд, было и стало и вопрос про базу; в базу ничего не записано.",
++  "request": "Прислала презентацию Акции_осень.pptx. На слайде 4 цену 680 замени на 700. Ответственная — Вера Конева, +7 (916) 450-27-81.",
++  "state": {
++    "suppliers": [],
++    "prices": [],
++    "priceEditFirst": true,
++    "priceEditDbWrite": true,
++    "priceTextBlocks": true,
++    "chatFiles": [
++      {
++        "path": "Акции_осень.pptx",
++        "text": "# Акции осень\n\n## Слайд 2: Крепёж\n\n| Позиция | Цена |\n| --- | --- |\n| Болт М8 | 45 |\n| Гайка М8 | 12 |\n\n## Слайд 4: Акция\n\nАкция: 680 ₽ на саморез\n\nНабор 1 200,50 руб. при заказе от 10 шт"
++      }
++    ],
++    "priceSpots": [
++      {
++        "slide": 4,
++        "shape": "5",
++        "paragraph": 0,
++        "start": 7,
++        "text": "680 ₽",
++        "context": "Акция: 680 ₽ на саморез"
++      },
++      {
++        "slide": 4,
++        "shape": "7/12",
++        "paragraph": 0,
++        "start": 6,
++        "text": "1 200,50 руб.",
++        "context": "Набор 1 200,50 руб. при заказе от 10 шт"
++      }
++    ]
++  },
++  "expect": {
++    "maxSteps": 7,
++    "requiredTools": [
++      "listIntakeFiles",
++      "listPriceSpots",
++      "editPriceInFile"
++    ],
++    "toolOrder": "ordered",
++    "forbiddenTools": [
++      "searchSuppliers",
++      "stagePriceRows",
++      "normalizePriceTable",
++      "savePriceImport",
++      "editPricesInSourceFile",
++      "writeEditedPricesToDb",
++      "recordEmployeePriceUpdates",
++      "previewPriceChanges",
++      "commitPriceImport"
++    ],
++    "outputContains": [
++      "слайд 4",
++      "680",
++      "700",
++      "обновить цены этих позиций в базе"
++    ],
++    "stateChecks": [
++      {
++        "probe": "chatFiles",
++        "value": 1
++      },
++      {
++        "probe": "editedCellCount",
++        "value": 1
++      },
++      {
++        "probe": "editedTextBlockCount",
++        "value": 1
++      },
++      {
++        "probe": "chatFileContains",
++        "arg": "Акция: 700 ₽ на саморез",
++        "value": 1
++      },
++      {
++        "probe": "chatFileContains",
++        "arg": "680 ₽",
++        "value": 0
++      },
++      {
++        "probe": "chatFileContains",
++        "arg": "1 200,50 руб.",
++        "value": 1
++      },
++      {
++        "probe": "pendingPriceEdit",
++        "value": 1
++      },
++      {
++        "probe": "storedPriceCount",
++        "value": 0
++      }
++    ],
++    "noPiiInRequests": true
++  },
++  "pii": {
++    "names": [
++      "Конева",
++      "Вера"
++    ],
++    "phones": [
++      "+7 (916) 450-27-81"
++    ]
++  }
++}

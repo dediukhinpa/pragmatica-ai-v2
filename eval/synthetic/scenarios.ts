@@ -699,22 +699,6 @@ function firstIntakePath(request: ModelRequest): string {
 const editInChatFile = (edit: Record<string, unknown>) => (request: ModelRequest) =>
   callTool('c-edit', 'editPriceInFile', { path: firstIntakePath(request), edits: [edit] });
 
-/** Результат последнего инструмента, в котором есть поле `key` (не только предыдущего шага). */
-function toolResultWith(request: ModelRequest, key: string): Record<string, unknown> {
-  for (const message of [...request.messages].reverse()) {
-    if (message.role !== 'tool') continue;
-    try {
-      const parsed: unknown = JSON.parse(message.content);
-      if (typeof parsed === 'object' && parsed !== null && key in parsed) {
-        return parsed as Record<string, unknown>;
-      }
-    } catch {
-      // не JSON: не результат инструмента
-    }
-  }
-  return {};
-}
-
 const SLIDE_11_EDIT = { oldPrice: 680, newPrice: 700, slide: 11 };
 const SENT_ANSWER = say(
   'Готово, исправленный файл отправил вам. Что изменено: слайд 11, строка «Саморез»: ' +
@@ -726,29 +710,22 @@ const EDIT_FIRST_TURN: StepOrBuilder[] = [LIST_INTAKE, editInChatFile(SLIDE_11_E
 /** «На слайде 11 цену 680 замени на 700», поставщик не назван: правка и вопросы после неё. */
 const priceEditFirstNoSupplier: Script = sequence(EDIT_FIRST_TURN);
 
-/** «Да, это МеталлТорг»: ожидание, поставщик, прежний путь записи, закрытие как saved. */
+/**
+ * «Да, это МеталлТорг» (этап 9q): ожидание, поставщик, прямая запись в базу инструментом
+ * writeEditedPricesToDb. Цену код берёт из ожидания, модель называет только позицию; после записи
+ * ожидание закрывается само, поэтому closePendingPriceEdit не вызывается.
+ */
 const priceEditFirstConfirmYes: Script = sequence([
   ...EDIT_FIRST_TURN,
   callTool('c-pending', 'getPendingPriceEdit', {}),
   callTool('c-find', 'searchSuppliers', { query: 'МеталлТорг' }),
-  callTool('c-record', 'recordEmployeePriceUpdates', {
+  callTool('c-write', 'writeEditedPricesToDb', {
     supplierId: 's1',
-    updates: [{ productName: 'Саморез', price: 700 }],
+    matches: [{ change: 0, productName: 'Саморез' }],
   }),
-  (request) =>
-    callTool('c-preview', 'previewPriceChanges', {
-      supplierId: 's1',
-      fileHash: toolResultWith(request, 'fileHash')['fileHash'],
-    }),
-  (request) =>
-    callTool('c-commit', 'commitPriceImport', {
-      supplierId: 's1',
-      fileHash: toolResultWith(request, 'fileHash')['fileHash'],
-    }),
-  callTool('c-close', 'closePendingPriceEdit', { decision: 'saved' }),
   say(
-    'Принял: поставщик МеталлТорг, Саморез теперь 700 вместо 680. Цена записана предложением, ' +
-      'на диск её вносит человек, цена на диске прежняя.',
+    'Принял: поставщик МеталлТорг. Цены записаны в базу: Саморез был 680, стал 700 ' +
+      '(источник «сотрудник, правка файла»). Остальной прайс не менялся.',
   ),
 ]);
 
@@ -776,6 +753,78 @@ const priceEditFirstAmbiguous: Script = sequence([
   say(
     'Цена 680 есть на двух слайдах: слайд 2 (строка «Болт М8») и слайд 11 (строка ' +
       '«Саморез»). Какую из них поменять?',
+  ),
+]);
+
+/** Путь первого файла чата из любого прежнего ответа listIntakeFiles (не только последнего). */
+function intakePathOf(request: ModelRequest): string {
+  for (const message of request.messages) {
+    if (message.role !== 'tool') continue;
+    try {
+      const parsed: unknown = JSON.parse(message.content);
+      const files = (parsed as { files?: Array<{ path?: string }> }).files;
+      const path = files?.[0]?.path;
+      if (typeof path === 'string' && path !== '') return path;
+    } catch {
+      // не JSON: не результат инструмента
+    }
+  }
+  return '';
+}
+
+/**
+ * Этап 9q: число вне таблицы (плашка «Акция: 680 ₽» в тексте слайда 4). В таблицах такой цены нет,
+ * поэтому агент смотрит числа слайда через listPriceSpots и правит editPriceInFile со слайдом и
+ * словами из текста вокруг числа (rowText).
+ */
+const priceEditTextBlock: Script = sequence([
+  LIST_INTAKE,
+  (request) => callTool('c-read', 'readPriceFile', { path: intakePathOf(request) }),
+  (request) => callTool('c-spots', 'listPriceSpots', { path: intakePathOf(request), slide: 4 }),
+  (request) =>
+    callTool('c-edit', 'editPriceInFile', {
+      path: intakePathOf(request),
+      edits: [{ oldPrice: 680, newPrice: 700, slide: 4, rowText: 'Акция' }],
+    }),
+  say(
+    'Готово, файл отправил вам. Что изменено: слайд 4, текст «Акция: 680 ₽ на саморез»: было ' +
+      '680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?',
+  ),
+]);
+
+/** «Какие цены на слайде 4?»: только список чисел вне таблиц, ничего не правится. */
+const priceEditListSpots: Script = sequence([
+  LIST_INTAKE,
+  (request) => callTool('c-spots', 'listPriceSpots', { path: intakePathOf(request), slide: 4 }),
+  say(
+    'Слайд 4, числа вне таблиц: 680 ₽ (текст «Акция: 680 ₽ на саморез») и 1 200,50 руб. ' +
+      '(текст «Набор 1 200,50 руб. при заказе от 10 шт»). Что-то из этого поменять?',
+  ),
+]);
+
+/**
+ * Этап 9q: цену в базе записал сотрудник (700), а на диске более старый прайс с ценой 680. Агент
+ * ведёт прежний путь импорта с диска; код оставляет цену сотрудника и говорит об этом в warnings,
+ * агент передаёт это сотруднику.
+ */
+const OLDER_FILE = 'Прайсы/МеталлТорг_10.11.2026.csv';
+const OLDER_FILE_COLUMNS = { name: 0, price: 1 };
+const priceEditOlderFile: Script = sequence([
+  callTool('c-norm', 'normalizePriceTable', {
+    path: OLDER_FILE,
+    supplierId: 's1',
+    columns: OLDER_FILE_COLUMNS,
+  }),
+  (request) =>
+    callTool('c-save', 'savePriceImport', {
+      path: OLDER_FILE,
+      supplierId: lastToolResult(request)['supplierId'],
+      fileHash: lastToolResult(request)['fileHash'],
+      columns: OLDER_FILE_COLUMNS,
+    }),
+  say(
+    'Прайс МеталлТорг обновлён: Болт теперь 45. Цену Самореза 700 оставил: её записал ' +
+      'сотрудник позже даты файла (10.11.2026), а в файле старая цена 680.',
   ),
 ]);
 
@@ -896,4 +945,7 @@ export const SCENARIOS: Readonly<Record<string, Readonly<Record<SyntheticModel, 
   'prices-edit-first-confirm-no': pair(priceEditFirstConfirmNo),
   'prices-edit-first-slide-n': pair(priceEditFirstSlideN),
   'prices-edit-first-ambiguous': pair(priceEditFirstAmbiguous),
+  'prices-edit-first-pptx-text-block': pair(priceEditTextBlock),
+  'prices-edit-first-pptx-list-spots': pair(priceEditListSpots),
+  'prices-edit-first-older-file-keeps-price': pair(priceEditOlderFile),
 };

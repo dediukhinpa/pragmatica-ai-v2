@@ -1,0 +1,80 @@
+--- eval/cases/prices/prices-edit-first-confirm-yes.json
++++ eval/cases/prices/prices-edit-first-confirm-yes.json
+@@ -1,7 +1,7 @@
+ {
+   "id": "prices-edit-first-confirm-yes",
+   "agent": "prices",
+-  "description": "Этап 9p (правка файла сразу): после правки файла сотрудник отвечает «Да, это МеталлТорг». Агент читает ожидание (getPendingPriceEdit), находит поставщика, ведёт прежний путь записи цен со слов сотрудника (recordEmployeePriceUpdates, previewPriceChanges, commitPriceImport) и закрывает ожидание как saved. Диск остаётся источником правды, поэтому цена из чата попадает в базу предложением (proposedPrice 700), а цена в базе с диска прежняя (680).",
++  "description": "Этап 9q («да» пишет в базу): после правки файла сотрудник отвечает «Да, это МеталлТорг». Агент читает ожидание (getPendingPriceEdit), находит поставщика и вызывает writeEditedPricesToDb (supplierId и позиция «Саморез» из ячеек строки; цену 700 берёт код из ожидания). Цена записана в базу сразу (источник «сотрудник, правка файла», запись в реестре правок), ожидание закрыто самим инструментом, предложения цен нет. Прежний путь (recordEmployeePriceUpdates, commitPriceImport, stagePriceRows) не нужен.",
+   "request": "Прислала презентацию Спецпредложение.pptx. На слайде 11 цену 680 замени на 700. Ответственный — Игорь Платов, +7 (905) 320-18-74.",
+   "followUps": [
+     "Да, это МеталлТорг."
+@@ -21,6 +21,8 @@
+       }
+     ],
+     "priceEditFirst": true,
++    "priceEditDbWrite": true,
++    "priceTextBlocks": true,
+     "chatFiles": [
+       {
+         "path": "Спецпредложение.pptx",
+@@ -29,16 +31,17 @@
+     ]
+   },
+   "expect": {
+-    "maxSteps": 10,
++    "maxSteps": 8,
+     "requiredTools": [
+       "editPriceInFile",
+       "getPendingPriceEdit",
+-      "recordEmployeePriceUpdates",
+-      "commitPriceImport",
+-      "closePendingPriceEdit"
++      "writeEditedPricesToDb"
+     ],
+     "toolOrder": "ordered",
+     "forbiddenTools": [
++      "recordEmployeePriceUpdates",
++      "previewPriceChanges",
++      "commitPriceImport",
+       "stagePriceRows",
+       "normalizePriceTable",
+       "savePriceImport",
+@@ -47,7 +50,8 @@
+     "outputContains": [
+       "МеталлТорг",
+       "Саморез",
+-      "700"
++      "700",
++      "записаны в базу"
+     ],
+     "stateChecks": [
+       {
+@@ -60,18 +64,23 @@
+         "value": 0
+       },
+       {
+-        "probe": "proposedPrice",
+-        "arg": "s1:Саморез",
+-        "value": 700
++        "probe": "proposalCount",
++        "arg": "s1",
++        "value": 0
+       },
+       {
+         "probe": "storedPrice",
+         "arg": "s1:Саморез",
+-        "value": 680
++        "value": 700
+       },
+       {
+         "probe": "storedPriceCount",
+         "value": 1
++      },
++      {
++        "probe": "employeeFileEditCount",
++        "arg": "s1",
++        "value": 1
+       }
+     ],
+     "noPiiInRequests": true

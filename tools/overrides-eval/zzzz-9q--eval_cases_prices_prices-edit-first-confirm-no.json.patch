@@ -1,0 +1,47 @@
+--- eval/cases/prices/prices-edit-first-confirm-no.json
++++ eval/cases/prices/prices-edit-first-confirm-no.json
+@@ -1,7 +1,7 @@
+ {
+   "id": "prices-edit-first-confirm-no",
+   "agent": "prices",
+-  "description": "Этап 9p (правка файла сразу): после правки файла сотрудник отвечает «Нет, в базу не надо». Агент закрывает ожидание как declined, запись цен (recordEmployeePriceUpdates, previewPriceChanges, commitPriceImport) не вызывается, цена в базе прежняя, предложения цен нет.",
++  "description": "Этап 9p/9q (правка файла сразу): после правки файла сотрудник отвечает «Нет, в базу не надо». Агент закрывает ожидание как declined; запись в базу (writeEditedPricesToDb, recordEmployeePriceUpdates, previewPriceChanges, commitPriceImport) не вызывается, цена в базе прежняя, предложения цен и записи реестра правок нет.",
+   "request": "Прислала презентацию Спецпредложение.pptx. На слайде 11 цену 680 замени на 700. Ответственная — Марина Ершова, +7 (926) 540-33-12.",
+   "followUps": [
+     "Нет, в базу не надо."
+@@ -21,6 +21,8 @@
+       }
+     ],
+     "priceEditFirst": true,
++    "priceEditDbWrite": true,
++    "priceTextBlocks": true,
+     "chatFiles": [
+       {
+         "path": "Спецпредложение.pptx",
+@@ -36,6 +38,7 @@
+     ],
+     "toolOrder": "ordered",
+     "forbiddenTools": [
++      "writeEditedPricesToDb",
+       "stagePriceRows",
+       "normalizePriceTable",
+       "savePriceImport",
+@@ -64,8 +67,18 @@
+         "value": 680
+       },
+       {
++        "probe": "proposalCount",
++        "arg": "s1",
++        "value": 0
++      },
++      {
+         "probe": "storedPriceCount",
+         "value": 1
++      },
++      {
++        "probe": "employeeFileEditCount",
++        "arg": "s1",
++        "value": 0
+       }
+     ],
+     "noPiiInRequests": true
