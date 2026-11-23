@@ -1,10 +1,10 @@
 # Закреплённая копия платформы, нужная compose. Править файлы этого каталога нельзя: обновление
 # версии — заменой копии целиком (git show <коммит>:<путь>) и пересчётом строк ниже вместе с
 # версией пакетов в package.json. Проверяет tests/deploy/test_platform_pin.py.
-PLATFORM_PACKAGES_VERSION=1.1.9
-PLATFORM_COMMIT=1ab45d711e6ed1d9750057ad79e30d4d5caffaca
-PLATFORM_TAG=v1.1.9
-# Репозиторий-источник: business-ai, выпуск 1.1.9 (тег v1.1.9; 1.1.4 в git есть, но проект на нём
+PLATFORM_PACKAGES_VERSION=1.1.10
+PLATFORM_COMMIT=c253357dbe66c31ae0c70ff626022454535b5fe0
+PLATFORM_TAG=v1.1.10
+# Репозиторий-источник: business-ai, выпуск 1.1.10 (тег v1.1.10; 1.1.4 в git есть, но проект на нём
 # не работал; 1.1.7 не публиковался). Относительно 1.1.6 изменился только compose.base.yml: у documents
 # новая переменная DOCUMENTS_EDIT_PDF_TEXT (правка чисел PDF вне таблиц с линиями; действует вместе с
 # DOCUMENTS_EDIT_PDF), у speech mem_limit 1152m -> 1664m и переменные диаризации SPEECH_DIARIZATION_*
