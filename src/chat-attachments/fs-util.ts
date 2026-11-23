@@ -6,6 +6,8 @@ import { DIR_MODE, FILE_MODE } from './constants';
 import type { ChatAttachmentDiskFile } from './types';
 
 const UNKNOWN_CODE = 'unknown';
+/** Биты прав группы и прочих: у каталога архива их быть не должно. */
+const GROUP_OTHER_BITS = 0o077;
 /** Коды, при которых жёсткая ссылка невозможна и файл копируется потоком. */
 const LINK_FALLBACK_CODES: readonly string[] = ['EXDEV', 'EPERM', 'EMLINK'];
 
@@ -57,6 +59,10 @@ export async function ensureDir(path: string, create: boolean): Promise<boolean>
     info = await lstat(path);
   }
   if (info.isSymbolicLink() || !info.isDirectory()) throw new ArchiveError('unsafe_path');
+  // Каталог мог создать другой код (проба патча) с широкими правами: файлы читает только сервис.
+  if (create && (info.mode & GROUP_OTHER_BITS) !== 0) {
+    await chmod(path, DIR_MODE).catch(() => undefined);
+  }
   return true;
 }
 

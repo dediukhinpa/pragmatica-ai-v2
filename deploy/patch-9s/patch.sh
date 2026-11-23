@@ -196,7 +196,7 @@ INTAKE_JS="try {
   if (!isDir) reply('fail no_root');
   try { fs.accessSync(root, fs.constants.W_OK); } catch (e) { reply('fail root_not_writable'); }
   if (process.env.PATCH_INTAKE_CREATE !== '1') reply('ok 0');
-  try { fs.mkdirSync(sub, { recursive: true }); } catch (e) { reply('fail mkdir'); }
+  try { fs.mkdirSync(sub, { recursive: true, mode: 0o700 }); } catch (e) { reply('fail mkdir'); }
   try { fs.accessSync(sub, fs.constants.W_OK | fs.constants.X_OK); }
   catch (e) { reply('fail sub_not_writable'); }
   const uid = process.getuid();
