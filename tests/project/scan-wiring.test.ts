@@ -1,10 +1,15 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { removeTempDirs } from '@business-ai/testing';
+import { resetTurnFileBufferForTests } from '../../src/turn-file-buffer';
 import { IMAGE_WARNINGS_PROMPT } from '../../src/image-warnings-prompt';
 import { PRICES_SCAN_FLOW_PROMPT, SCAN_FLOW_FLAG } from '../../src/scan-price-flow';
 import { buildPragmatika } from './support';
 
-afterAll(removeTempDirs);
+afterAll(() => {
+  removeTempDirs();
+  // Сборка включает буфер файлов хода (9u) на весь процесс: следующим файлам он не нужен.
+  resetTurnFileBufferForTests();
+});
 
 /** Агент из собранного приложения при заданном окружении. */
 function agentOf(env: Record<string, string>, id: string) {
