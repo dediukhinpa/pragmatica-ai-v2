@@ -81,6 +81,10 @@ const PROJECT_ENV_DEFAULTS: ReadonlyArray<readonly [string, unknown]> = [
   // Этап 9u: один файл правки прайса за ход и разделение текста шагов; включено по умолчанию.
   ['PRICE_FILE_ONCE_PER_TURN_ENABLED', 'true'],
   ['STEP_TEXT_SEPARATE_ENABLED', 'true'],
+  // Этап 9s: архив файлов чатов ботов; хранение включено по умолчанию (false - выключатель).
+  ['CHAT_ATTACHMENTS_STORE_ENABLED', 'true'],
+  ['CHAT_ATTACHMENTS_RETENTION_DAYS', 30],
+  ['CHAT_ATTACHMENTS_MAX_BYTES', 3221225472],
   ['SUPPLIER_TEMPLATE_PATH', '/app/templates/supplier-template.xlsx'],
   ['PRICE_DISK_SYNC_ENABLED', 'false'],
   ['PRICE_DISK_INITIAL_IMPORT_ENABLED', 'false'],
