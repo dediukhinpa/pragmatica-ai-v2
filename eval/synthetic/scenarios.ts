@@ -355,6 +355,18 @@ const documentsAmendNumberAppend = sequence([
   say('Готово: реквизиты вписаны, номер дополнен: было «103/11-26», стало «103/11-26 / 17/10».'),
 ]);
 
+/**
+ * Этап 9q (п. 4): запрос пришёл подписью к файлу. Модель так же дописывает 17/10 к номеру; номер
+ * принят потому, что код прочитал подпись из истории треда, а не потому что хук её записал.
+ */
+const documentsAmendNumberCaption = sequence([
+  callTool('c1', 'amendCounterpartyContract', {
+    numberOnly: true,
+    numberEdit: { mode: 'append', text: '17/10' },
+  }),
+  say('Готово: номер дополнен, было «103/11-26», стало «103/11-26 / 17/10». Реквизиты не менял.'),
+]);
+
 /** Этап 8y: «выложи шаблон» - пустой шаблон из разрешённого списка уходит файлом. */
 const documentsSendBlankTemplate = sequence([
   callTool('c1', 'findTemplate', { query: 'Договор поставки МГ' }),
@@ -913,6 +925,7 @@ export const SCENARIOS: Readonly<Record<string, Readonly<Record<SyntheticModel, 
   'documents-contract-own-requisites-not-written': pair(documentsContractOwnRequisites),
   'documents-contract-amend-counterparty': pair(documentsContractAmend),
   'documents-amend-number-append': pair(documentsAmendNumberAppend),
+  'documents-amend-number-caption-with-file': pair(documentsAmendNumberCaption),
   'documents-send-blank-template': pair(documentsSendBlankTemplate),
   'order-calc-shortlist-pick': { 'model-a': orderShortlistA, 'model-b': orderShortlistB },
   'order-calc-prepare-text': { 'model-a': orderPrepareText, 'model-b': orderPrepareText },

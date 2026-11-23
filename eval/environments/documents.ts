@@ -19,12 +19,19 @@ import {
   recordWebConfirmation,
 } from '../../src/agents/documents/web-confirmation';
 import { type DocumentsDeps } from '../../src/agents/documents/deps';
+import {
+  clearPragmatikaRuntime,
+  pragmatikaRuntime,
+  setPragmatikaRuntime,
+  type PragmatikaRuntime,
+} from '../../src/runtime';
 import { ACTION_CONFIRM_SUPPLIER_CARD } from '../../src/kit/domain/access.owned';
 import type { DocumentsCase } from '../cases';
 import { chatFileContainsCount, seedFiles, seedSuppliers } from './common';
 import { chatFileCount, chatMessageCount } from '@business-ai/eval';
 import { runProbe, splitArg, type ProbeFn } from '@business-ai/eval';
 import type { EvalEnvironment } from '@business-ai/eval';
+import type { ConversationHistoryQuery, HistoryMessage } from '@business-ai/core';
 
 /** Условный сотрудник, «нажавший» кнопку подтверждения данных из интернета. */
 const EVAL_EMPLOYEE_USER = 'eval-employee';
@@ -34,6 +41,8 @@ export async function buildDocumentsEnvironment(
   testCase: DocumentsCase,
   model: string,
 ): Promise<EvalEnvironment> {
+  // Кейсы идут параллельно: подмену рантайма снимает только окружение, которое её поставило.
+  const owner: CaptionRuntimeOwner = {};
   const suppliers = new MemorySupplierRepository();
   const files = new MemoryFileSource();
   const chat = new MemoryChatChannel();
@@ -118,7 +127,11 @@ export async function buildDocumentsEnvironment(
         : {}),
     }),
     toolDeps: deps,
-    probe: (name, arg) => runProbe('documents', probes, name, arg),
+    probe: (name, arg) => {
+      // Замеры снимаются после прогона: подмену рантайма подписи возвращаем здесь.
+      releaseCaptionRuntime(owner);
+      return runProbe('documents', probes, name, arg);
+    },
     // Ход начат сотрудником в чате: ответ «подтверждаю» модель записывает
     // recordWebFieldsDecision (только в таком ходе), реплика - новый ход после вопроса.
     runContext: { initiator: { kind: 'user' as const, userId: EVAL_EMPLOYEE_USER } },
@@ -127,7 +140,17 @@ export async function buildDocumentsEnvironment(
     // подтверждение кодом до запуска агента.
     // Как обработчик входящих сообщений чата: текст сотрудника запоминается для сверки
     // реквизитов (отметка источника от модели доверия не имеет).
-    beforeRun: (threadId, request) => noteEmployeeMessage(state, threadId, request),
+    // Запрос-подпись к файлу (этап 9q) хук не получает: его видит только история треда.
+    beforeRun: (threadId, request) =>
+      testCase.state.captionWithFile
+        ? installCaptionRuntime(
+            owner,
+            threadId,
+            request,
+            chatFiles[0]?.path ?? DEFAULT_CAPTION_FILE,
+            clock,
+          )
+        : noteEmployeeMessage(state, threadId, request),
     beforeFollowUp: async (threadId, followUp) => {
       await noteEmployeeMessage(state, threadId, followUp);
       // Вопрос этого треда: запрос подтверждения записан под токеном (тред + отпечаток).
@@ -142,6 +165,53 @@ export async function buildDocumentsEnvironment(
       });
     },
   };
+}
+
+/** Имя файла в служебной строке, если у кейса нет файлов чата. */
+const DEFAULT_CAPTION_FILE = 'Договор.docx';
+
+/** Рантайм приложения до подмены кейсом «подпись к файлу»; нет подмены - `undefined`. */
+let captionRuntimeSwap:
+  | { owner: CaptionRuntimeOwner; previous: PragmatikaRuntime | undefined }
+  | undefined;
+
+/** Владелец подмены рантайма: окружение одного кейса. */
+type CaptionRuntimeOwner = Record<string, never>;
+
+/**
+ * Поставить в рантайм проекта историю треда с запросом сотрудника как репликой хода с файлом
+ * (так запрос формирует насос чата: подпись, пустая строка, служебная строка о файле) и часы
+ * кейса. Хук входящих сообщений для такого запроса не вызывается, текст сверки берётся из истории.
+ */
+async function installCaptionRuntime(
+  owner: CaptionRuntimeOwner,
+  threadId: string,
+  caption: string,
+  fileName: string,
+  clock: FixedClock,
+): Promise<void> {
+  const message: HistoryMessage = {
+    role: 'user',
+    text: `${caption}\n\nСотрудник прислал файл «${fileName}», путь intake/${fileName}`,
+    at: clock.now(),
+  };
+  const history = {
+    async search(query: ConversationHistoryQuery) {
+      if (query.threadId !== threadId) return [];
+      return [{ message, before: [], after: [], score: 1 }];
+    },
+  };
+  captionRuntimeSwap = { owner, previous: pragmatikaRuntime() };
+  setPragmatikaRuntime({ clock, conversationHistory: history } as unknown as PragmatikaRuntime);
+}
+
+/** Вернуть рантайм, каким он был до подмены кейса «подпись к файлу». */
+function releaseCaptionRuntime(owner: CaptionRuntimeOwner): void {
+  const swap = captionRuntimeSwap;
+  if (swap === undefined || swap.owner !== owner) return;
+  captionRuntimeSwap = undefined;
+  if (swap.previous === undefined) clearPragmatikaRuntime();
+  else setPragmatikaRuntime(swap.previous);
 }
 
 /** Сколько запросов подтверждения просматриваем в поисках вопроса треда. */
