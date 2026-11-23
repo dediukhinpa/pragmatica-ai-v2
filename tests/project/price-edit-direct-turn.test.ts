@@ -1,7 +1,15 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type { DocumentParser, ParsedDocument, ToolContext } from '@business-ai/core';
 import { loadFollowup } from '../../src/price-edit-followup';
 import { editPriceInFile } from '../../src/price-edit-direct';
+import {
+  configureTurnFileBuffer,
+  createTurnFileStore,
+  flushTurnFiles,
+  resetTurnFileBufferForTests,
+  runInTurnFileStore,
+  turnFileChat,
+} from '../../src/turn-file-buffer';
 import { MemoryPriceFileEditor } from '../../src/kit/adapters/memory/price-file-editor';
 import type { EditPricesRequest, EditedPriceFile } from '../../src/kit/ports/price-file-editor';
 import {
@@ -218,5 +226,73 @@ describe('одна правка и другие случаи остаются п
     const out = await editPriceInFile.execute({ path: other.path, edits: [EDIT_19] }, deps, ctx);
     expect(editor.requests[1]?.edits).toHaveLength(1);
     expect(out.fileName).not.toContain(UPDATED_MARK);
+  });
+});
+
+describe('отправка одним файлом в конце хода (этап 9u)', () => {
+  /** Прежние имена не нужны: файл один, имя без пометки версии. */
+  const BASE_NAME = 'Прайс_спецпредложение_новые_цены_01.01.2026.pptx';
+  /** Слова, которых нет в ответе инструмента: файл ещё не отправлен, «заново» не было. */
+  const FORBIDDEN_WORDS = ['заново', 'ОБНОВЛЁННАЯ', 'копию', 'отправлен без подписи'];
+
+  beforeEach(() => {
+    configureTurnFileBuffer({ enabled: true });
+  });
+
+  afterEach(() => {
+    resetTurnFileBufferForTests();
+  });
+
+  test('две правки хода: одно имя без пометки, второй вызов несёт все правки', async () => {
+    const first = await editPriceInFile.execute({ path, edits: [EDIT_2, EDIT_11] }, deps, ctx);
+    const second = await editPriceInFile.execute({ path, edits: [EDIT_19] }, deps, ctx);
+    expect(sentNames()).toEqual([BASE_NAME, BASE_NAME]);
+    expect(first.fileName).toBe(BASE_NAME);
+    expect(second.fileName).toBe(BASE_NAME);
+    expect(second.changes).toHaveLength(FULL_EDITS);
+    expect(editor.requests[1]?.edits).toHaveLength(FULL_EDITS);
+    expect(second.status).toBe('sent');
+    expect(second.delivered).toBe(true);
+  });
+
+  test('ответ инструмента: файл уйдёт одним в конце хода, без «заново» и имён файлов', async () => {
+    const out = await editPriceInFile.execute({ path, edits: [EDIT_2] }, deps, ctx);
+    const again = await editPriceInFile.execute({ path, edits: [EDIT_11] }, deps, ctx);
+    for (const message of [out.message, again.message]) {
+      expect(message).toContain('ОДНИМ файлом в конце хода');
+      for (const word of FORBIDDEN_WORDS) expect(message).not.toContain(word);
+      expect(message).not.toContain('.pptx');
+    }
+  });
+
+  test('через настоящую обёртку канала: за ход уходит один файл со всеми правками', async () => {
+    const memoryChat = deps.chat;
+    const buffered = { ...deps, chat: turnFileChat(memoryChat) };
+    const store = createTurnFileStore();
+    await runInTurnFileStore(store, async () => {
+      await editPriceInFile.execute({ path, edits: [EDIT_2, EDIT_11] }, buffered, ctx);
+      await editPriceInFile.execute({ path, edits: [EDIT_19] }, buffered, ctx);
+      expect(memoryChat.outbox.filter((item) => item.file !== undefined)).toHaveLength(0);
+    });
+    await flushTurnFiles(store, 'ok');
+    const files = memoryChat.outbox.flatMap((item) => (item.file === undefined ? [] : [item.file]));
+    expect(files.map((file) => file.name)).toEqual([BASE_NAME]);
+  });
+
+  test('повтор того же вызова: то же имя, правки хода не дублируются', async () => {
+    await editPriceInFile.execute({ path, edits: [EDIT_2] }, deps, ctx);
+    const again = await editPriceInFile.execute({ path, edits: [EDIT_2] }, deps, ctx);
+    expect(again.fileName).toBe(BASE_NAME);
+    expect(editor.requests[1]?.edits).toHaveLength(1);
+  });
+});
+
+describe('при выключенной отправке одним файлом имена прежние', () => {
+  test('вторая отправка хода по-прежнему с пометкой версии', async () => {
+    resetTurnFileBufferForTests();
+    await editPriceInFile.execute({ path, edits: [EDIT_2] }, deps, ctx);
+    const second = await editPriceInFile.execute({ path, edits: [EDIT_11] }, deps, ctx);
+    expect(second.fileName).toContain(UPDATED_MARK);
+    expect(second.message).toContain('ОБНОВЛЁННАЯ ВЕРСИЯ');
   });
 });

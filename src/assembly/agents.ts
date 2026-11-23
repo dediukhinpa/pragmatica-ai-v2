@@ -45,6 +45,9 @@ import {
 } from '../docx-pages-client';
 import { configureEmptyReplyGuard } from './empty-reply-guard';
 import { withPriceCopyTools } from './price-copy-tools';
+import { configureTurnRuntimeWrap } from './turn-runtime-wrap';
+import { PRICE_FILE_ONCE_PROMPT } from '../price-edit-prompt';
+import { turnFileChat } from '../turn-file-buffer';
 import { HttpPriceSpotReader, type PriceSpotReader } from '../price-spots-client';
 import { DOCX_PAGES_PROMPT } from '../docx-pages-prompt';
 import {
@@ -111,6 +114,14 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     enabled: project.EMPTY_REPLY_GUARD_ENABLED === 'true',
     log: services.log,
   });
+  // Один файл правки прайса за ход и разделение текста шагов (этап 9u): обёртки рантайма ставятся
+  // здесь по той же причине, что и защита выше; флаги читаются при каждом вызове.
+  configureTurnRuntimeWrap({
+    enabled: project.PRICE_FILE_ONCE_PER_TURN_ENABLED === 'true',
+    stepTextEnabled: project.STEP_TEXT_SEPARATE_ENABLED === 'true',
+    pricesAgentId: PRICES_AGENT_ID,
+    log: services.log,
+  });
   const own = pragmatikaPortsOf(external.extra);
   const files = buildFiles(ctx);
   const { clock, state } = services;
@@ -146,7 +157,9 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     prices: own.prices,
     staging: own.staging,
     suppliers: own.suppliers,
-    chat,
+    // Файлы агента прайсов в ходе сотрудника копятся и уходят одним разом в конце хода (этап 9u);
+    // проверка исходящих файлов стоит снаружи: отказ виден инструменту сразу, а не при отправке.
+    chat: guardedChat(turnFileChat(services.chat), services.log),
     clock,
     managerThreadId,
     state,
@@ -754,11 +767,21 @@ function declarationsOf(
     project.DOCX_PAGES_ENABLED === 'true' && ports.attachments !== undefined
       ? DOCX_PAGES_PROMPT
       : '';
+  // Один файл правки за ход (этап 9u): правила промпта и инструмент повторной отправки нужны
+  // только вместе с правкой цены в файле сразу.
+  const onceFile =
+    project.PRICE_FILE_ONCE_PER_TURN_ENABLED === 'true' &&
+    project.PRICE_EDIT_FIRST_ENABLED === 'true';
   return restored.map((declaration) => ({
     // Этап 9t: xlsx-копия прайса собирается кодом, скрипт получает совет при большом выводе
-    ...withPriceCopyTools(declaration, { copy: project.PRICE_EDIT_FIRST_ENABLED === 'true' }),
+    ...withPriceCopyTools(declaration, {
+      copy: project.PRICE_EDIT_FIRST_ENABLED === 'true',
+      // Этап 9u: повторная отправка последнего файла правки («вышли файл»)
+      resend: onceFile,
+    }),
     prompt:
       `${declaration.prompt}${declaration.id === DOCUMENTS_AGENT_ID ? pagesPrompt : ''}` +
+      `${declaration.id === PRICES_AGENT_ID && onceFile ? PRICE_FILE_ONCE_PROMPT : ''}` +
       `\n${REPLY_LANGUAGE_PROMPT_RULE}\n`,
   }));
 }

@@ -78,6 +78,9 @@ const PROJECT_ENV_DEFAULTS: ReadonlyArray<readonly [string, unknown]> = [
   ['PRICE_EDIT_DB_WRITE_ENABLED', 'true'],
   // Этап 9t: защита от пустого ответа сотруднику; включено по умолчанию.
   ['EMPTY_REPLY_GUARD_ENABLED', 'true'],
+  // Этап 9u: один файл правки прайса за ход и разделение текста шагов; включено по умолчанию.
+  ['PRICE_FILE_ONCE_PER_TURN_ENABLED', 'true'],
+  ['STEP_TEXT_SEPARATE_ENABLED', 'true'],
   ['SUPPLIER_TEMPLATE_PATH', '/app/templates/supplier-template.xlsx'],
   ['PRICE_DISK_SYNC_ENABLED', 'false'],
   ['PRICE_DISK_INITIAL_IMPORT_ENABLED', 'false'],
