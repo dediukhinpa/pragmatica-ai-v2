@@ -246,6 +246,7 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     monitoringEnabled: config.agents.monitoringEnabled,
     priceDiskSyncEnabled: project.PRICE_DISK_SYNC_ENABLED === 'true',
     priceDiskInitialImportEnabled: project.PRICE_DISK_INITIAL_IMPORT_ENABLED === 'true',
+    conversationHistory: ctx.services.conversationHistory,
     supplierCards,
     mailProposals: proposals,
     // Разовые команды владельца (проход по ящику, обследование, CRM); модель - при вызове.

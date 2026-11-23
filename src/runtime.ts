@@ -1,4 +1,4 @@
-import type { Clock, WorkflowStateStore } from '@business-ai/core';
+import type { Clock, ConversationHistorySearch, WorkflowStateStore } from '@business-ai/core';
 import type { BackgroundCommands } from './background-wiring';
 import type { OrderCalcDeps } from './agents/order-calc';
 import type { PricesDeps } from './agents/prices';
@@ -39,6 +39,8 @@ export interface PragmatikaRuntime {
   monitoringEnabled: boolean;
   priceDiskSyncEnabled: boolean;
   priceDiskInitialImportEnabled: boolean;
+  /** Поиск по истории треда: подписи к файлам для сверки слов сотрудника (этап 9q). */
+  conversationHistory?: ConversationHistorySearch | undefined;
   supplierCards?: SupplierCardsRuntime | undefined;
   mailProposals?: MailProposalsRuntime | undefined;
   /** Зависимости разовых команд владельца (`src/background-cli.ts`); службе не нужны. */

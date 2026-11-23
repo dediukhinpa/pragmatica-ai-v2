@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { appendEmployeeText } from '../../kit/domain/employee-text';
+import { appendEmployeeText, normalizeEmployeeText } from '../../kit/domain/employee-text';
+import { recordTurnCaptions, turnCaptionSource } from '../../turn-captions';
 import type { WorkflowStateStore } from '@business-ai/core';
 import { readState, writeState } from '@business-ai/core';
 
@@ -51,6 +52,17 @@ export async function readEmployeeText(
   threadId: string | undefined,
 ): Promise<string> {
   if (state === undefined || threadId === undefined) return '';
+  // Этап 9q: подпись к файлу платформа в хук входящих не отдаёт; дописываем её из истории треда.
+  await recordTurnCaptions(turnCaptionSource(), threadId, {
+    readKnown: () => readStoredText(state, threadId),
+    note: (text) => noteEmployeeMessage(state, threadId, text),
+    normalize: normalizeEmployeeText,
+  });
+  return readStoredText(state, threadId);
+}
+
+/** Накопленный текст сообщений треда как записан (без дополнения подписями). */
+async function readStoredText(state: WorkflowStateStore, threadId: string): Promise<string> {
   const stored = await readState(state, EMPLOYEE_TEXT_NAMESPACE, threadId, employeeTextSchema);
   return stored?.text ?? '';
 }
