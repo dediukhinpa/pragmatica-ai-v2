@@ -49,6 +49,8 @@ const LEGACY_JSON_MAX_FILE_BYTES = 5 * BYTES_PER_MIB;
 const UNSUPPORTED_FORMAT_CODE = 'unsupported_format';
 /** Из скольких частей состоит локатор числа в текстовом блоке: слайд, фигура, абзац, смещение. */
 const LOCATOR_PARTS = 4;
+/** Из скольких частей состоит локатор числа в тексте PDF: страница и номер места. */
+const PDF_LOCATOR_PARTS = 2;
 /** Код отказа сервиса: строгие проверки правки не прошли, файл не выдан (причины в теле). */
 const EDIT_REFUSED_CODE = 'edit_refused';
 
@@ -63,6 +65,9 @@ const skippedResponse = z.object({
   shape: z.string().nullish(),
   paragraph: z.number().int().nullish(),
   start: z.number().int().nullish(),
+  // Локатор числа в тексте PDF (этап 9r).
+  page: z.number().int().nullish(),
+  spot: z.number().int().nullish(),
 });
 
 /** Ответ сервиса без самого файла: имя, тип, число правок и пропуски. */
@@ -93,6 +98,9 @@ const refusalReason = z.object({
   table: z.number().int().nullish(),
   row: z.number().int().nullish(),
   col: z.number().int().nullish(),
+  // Есть только у числа в тексте PDF (этап 9r): у ячеек таблиц сервис этих полей не отдаёт.
+  page: z.number().int().nullish(),
+  spot: z.number().int().nullish(),
 });
 
 const errorBody = z.object({
@@ -120,6 +128,8 @@ function refusalReasons(body: unknown): PriceEditRefusal[] {
     ...(item.table == null ? {} : { table: item.table }),
     ...(item.row == null ? {} : { row: item.row }),
     ...(item.col == null ? {} : { col: item.col }),
+    ...(item.page == null ? {} : { page: item.page }),
+    ...(item.spot == null ? {} : { spot: item.spot }),
   }));
 }
 
@@ -229,6 +239,8 @@ function skippedOf(item: z.output<typeof skippedResponse>): SkippedPriceEdit {
     ...(item.shape == null ? {} : { shape: item.shape }),
     ...(item.paragraph == null ? {} : { paragraph: item.paragraph }),
     ...(item.start == null ? {} : { start: item.start }),
+    ...(item.page == null ? {} : { page: item.page }),
+    ...(item.spot == null ? {} : { spot: item.spot }),
   };
 }
 
@@ -261,14 +273,32 @@ function legacyBody(
 }
 
 /**
- * Локатор числа в текстовом блоке pptx в форме тела сервиса: все четыре поля или ничего. Часть
- * полей сервис отклонил бы целиком (422 на весь запрос), поэтому неполный локатор - отказ до
- * запроса. У правок таблиц локатора нет, и тело остаётся прежним (полей `slide` и т. п. нет).
+ * Локатор числа вне таблицы в форме тела сервиса. Текстовый блок pptx - все четыре поля (слайд,
+ * фигура, абзац, смещение), текст PDF - оба (страница, номер места), иначе ничего. Часть полей
+ * сервис отклонил бы целиком (422 на весь запрос), поэтому неполный или смешанный локатор - отказ
+ * до запроса. У правок таблиц локатора нет, и тело остаётся прежним (полей `slide`, `page` и
+ * т. п. нет).
  */
 function locatorOf(edit: EditPricesRequest['edits'][number]): Record<string, unknown> {
-  const { slide, shape, paragraph, start } = edit;
+  const { slide, shape, paragraph, start, page, spot } = edit;
   const given = [slide, shape, paragraph, start].filter((part) => part !== undefined).length;
-  if (given === 0) return {};
+  const pdfGiven = [page, spot].filter((part) => part !== undefined).length;
+  if (given === 0 && pdfGiven === 0) return {};
+  if (given > 0 && pdfGiven > 0) {
+    throw new DomainError(
+      'invalid_input',
+      'Место числа задано и слайдом, и страницей: нужен один вид адреса.',
+    );
+  }
+  if (pdfGiven > 0) {
+    if (pdfGiven !== PDF_LOCATOR_PARTS) {
+      throw new DomainError(
+        'invalid_input',
+        'Место числа в тексте PDF задано не полностью: нужны страница и номер места.',
+      );
+    }
+    return { page, spot };
+  }
   if (given !== LOCATOR_PARTS) {
     throw new DomainError(
       'invalid_input',

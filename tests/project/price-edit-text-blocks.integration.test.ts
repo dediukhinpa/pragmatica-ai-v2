@@ -6,7 +6,11 @@ import { HttpDocumentParser } from '@business-ai/adapters';
 import { removeTempDirs, tempDir } from '@business-ai/testing';
 import { editPriceInFile } from '../../src/price-edit-direct';
 import { resetSpotCache } from '../../src/price-spots';
-import { HttpPriceSpotReader, type PriceSpotMap } from '../../src/price-spots-client';
+import {
+  HttpPriceSpotReader,
+  type PptxPriceSpot,
+  type PriceSpotMap,
+} from '../../src/price-spots-client';
 import { listPriceSpots } from '../../src/price-spots-tool';
 import { HttpPriceFileEditor } from '../../src/kit/adapters/http/http-price-file-editor';
 import {
@@ -116,6 +120,13 @@ async function waitForService(): Promise<void> {
   throw new Error('сервис документов не поднялся за отведённый срок');
 }
 
+/** Место презентации по тексту числа; нет такого - ошибка (в карте только места pptx). */
+function pptxSpot(map: PriceSpotMap, text: string): PptxPriceSpot {
+  const found = map.spots.find((item) => item.text === text);
+  if (found?.kind !== 'pptx') throw new Error('число не найдено');
+  return found;
+}
+
 /** Тексты презентации из байтов (через python-pptx). */
 function deckTexts(bytes: Uint8Array): string[][] {
   const path = join(tempDir(), 'check.pptx');
@@ -203,9 +214,9 @@ describe.skipIf(!ENABLED)('цепочка на настоящем сервисе
     expect(texts).toContain('680 ₽');
     expect(texts).toContain('2 400 руб.');
     expect(texts).toContain('1 500 ₽');
-    expect(map.spots.find((spot) => spot.text === '1 500 ₽')?.shape).toContain('/');
-    expect(map.spots.find((spot) => spot.text === '1 500 ₽')?.slide).toBe(3);
-    expect(map.spots.some((spot) => spot.slide === 1)).toBe(false);
+    expect(pptxSpot(map, '1 500 ₽').shape).toContain('/');
+    expect(pptxSpot(map, '1 500 ₽').slide).toBe(3);
+    expect(map.spots.some((spot) => spot.kind === 'pptx' && spot.slide === 1)).toBe(false);
   });
 
   test('listPriceSpots показывает числа с номером слайда', async () => {
@@ -291,8 +302,7 @@ describe.skipIf(!ENABLED)('цепочка на настоящем сервисе
   test('пропуск сервиса с локатором: чужое старое значение не пишется', async () => {
     const reader = new HttpPriceSpotReader({ baseUrl: BASE_URL, timeoutMs: REQUEST_TIMEOUT_MS });
     const map = (await reader.read({ name: 'a.pptx', bytes: deckBytes })) as PriceSpotMap;
-    const spot = map.spots.find((item) => item.text === '1 500 ₽');
-    if (spot === undefined) throw new Error('число не найдено');
+    const spot = pptxSpot(map, '1 500 ₽');
     const editor = new HttpPriceFileEditor({ baseUrl: BASE_URL, timeoutMs: REQUEST_TIMEOUT_MS });
     const edited = await editor.editPrices({
       fileName: 'a.pptx',

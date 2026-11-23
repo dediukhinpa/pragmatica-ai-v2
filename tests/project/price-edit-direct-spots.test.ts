@@ -7,7 +7,12 @@ import {
   priceEditFollowupSchema,
 } from '../../src/price-edit-followup';
 import { resetSpotCache } from '../../src/price-spots';
-import type { PriceSpot, PriceSpotMap, PriceSpotReader } from '../../src/price-spots-client';
+import type {
+  PptxPriceSpot,
+  PriceSpot,
+  PriceSpotMap,
+  PriceSpotReader,
+} from '../../src/price-spots-client';
 import { MemoryPriceFileEditor } from '../../src/kit/adapters/memory/price-file-editor';
 import type {
   EditPricesRequest,
@@ -48,7 +53,8 @@ const TABLES = [
   ],
 ];
 
-const PROMO: PriceSpot = {
+const PROMO: PptxPriceSpot = {
+  kind: 'pptx',
   slide: 3,
   shape: '7/12',
   paragraph: 0,
@@ -56,7 +62,8 @@ const PROMO: PriceSpot = {
   text: '680 ₽',
   context: 'Акция недели: 680 ₽ за штуку',
 };
-const SET: PriceSpot = {
+const SET: PptxPriceSpot = {
+  kind: 'pptx',
   slide: 3,
   shape: '8',
   paragraph: 2,
@@ -274,7 +281,7 @@ describe('неоднозначность считается по сумме та
   });
 
   test('два одинаковых числа в тексте одного слайда: тоже вопрос', async () => {
-    const twin: PriceSpot = { ...PROMO, shape: '9', paragraph: 1 };
+    const twin: PptxPriceSpot = { ...PROMO, shape: '9', paragraph: 1 };
     await setup(new StubSpotReader(mapOf([PROMO, twin])));
     const out = await editPriceInFile.execute(
       { path, edits: [{ oldPrice: 680, newPrice: 700, slide: 3 }] },

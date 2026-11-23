@@ -1,13 +1,22 @@
 import type { PricesDeps } from './agents/prices/deps';
 import type { PriceSource } from './agents/prices/price-sources';
 import { parsePriceCell } from './agents/prices/table-rows';
-import { supportsPriceSpots, type PriceSpot, type PriceSpotMap } from './price-spots-client';
+import {
+  isPdfSpot,
+  isPptxSpot,
+  supportsPriceSpots,
+  type PdfPriceSpot,
+  type PptxPriceSpot,
+  type PriceSpot,
+  type PriceSpotMap,
+} from './price-spots-client';
 
 /**
- * Цены в текстовых блоках и группах слайдов pptx (этап 9q): поиск места по числу из карты мест
- * сервиса документов. Число разбирается тем же `parsePriceCell`, что и ячейка таблицы, поэтому
- * «680», «680 ₽» и «1 200,50 руб.» считаются одной ценой с её числовым значением; сравнение со
- * старой ценой и фильтры места (слайд, слова из строки) те же, что у таблиц.
+ * Цены в текстовых блоках и группах слайдов pptx (этап 9q) и в тексте PDF вне таблиц с линиями
+ * (этап 9r): поиск места по числу из карты мест сервиса документов. Число разбирается тем же
+ * `parsePriceCell`, что и ячейка таблицы, поэтому «680», «680 ₽» и «1 200,50 руб.» считаются одной
+ * ценой с её числовым значением; сравнение со старой ценой и фильтры места (слайд или страница,
+ * слова из строки) те же, что у таблиц.
  */
 
 /** Допуск сравнения цен: разбор округляет цену до долей копейки. */
@@ -16,6 +25,8 @@ const PRICE_EPSILON = 1e-6;
 const SPOT_CACHE_MAX = 8;
 /** Метка места числа в тексте слайда: та же, что у таблицы слайда. */
 export const SLIDE_PLACE_PREFIX = 'Слайд';
+/** Метка места числа в тексте страницы PDF: та же, что у таблицы страницы. */
+export const PAGE_PLACE_PREFIX = 'Страница';
 
 /** Условия поиска числа: подмножество указаний сотрудника (см. `editSpecSchema`). */
 export interface SpotQuery {
@@ -49,6 +60,16 @@ export function slidePlace(slide: number): string {
   return `${SLIDE_PLACE_PREFIX} ${slide}`;
 }
 
+/** Метка места: «Страница 3». */
+export function pagePlace(page: number): string {
+  return `${PAGE_PLACE_PREFIX} ${page}`;
+}
+
+/** Метка места числа для сотрудника: «Слайд 11» или «Страница 3». */
+export function spotPlace(spot: PriceSpot): string {
+  return isPdfSpot(spot) ? pagePlace(spot.page) : slidePlace(spot.slide);
+}
+
 /** Ключ числа по локатору: связывает правку, пропуск сервиса и строку для сотрудника. */
 export function spotKey(locator: {
   slide: number;
@@ -59,11 +80,21 @@ export function spotKey(locator: {
   return `${locator.slide}:${locator.shape}:${locator.paragraph}:${locator.start}`;
 }
 
+/** Ключ числа PDF по адресу «страница + номер места»; не совпадает с ключом слайда. */
+export function pdfSpotKey(locator: { page: number; spot: number }): string {
+  return `pdf:${locator.page}:${locator.spot}`;
+}
+
+/** Ключ числа любого вида: слайда pptx или страницы PDF. */
+export function keyOfSpot(spot: PriceSpot): string {
+  return isPdfSpot(spot) ? pdfSpotKey(spot) : spotKey(spot);
+}
+
 /**
  * Отрывок контекста вокруг числа не длиннее `max` знаков: число остаётся в отрывке, обрезка
  * с краёв помечается «…». Контекст сервиса до 200 знаков, а сотруднику нужна подсказка места.
  */
-export function spotExcerpt(spot: PriceSpot, max: number): string {
+export function spotExcerpt(spot: Pick<PriceSpot, 'text' | 'context'>, max: number): string {
   const context = spot.context.trim();
   if (context.length <= max) return context;
   const at = Math.max(0, context.indexOf(spot.text));
@@ -85,7 +116,7 @@ const RANGE_AFTER = /^\s*[-–—]\s*\d/u;
  * правит (текстовая цена), текстовый блок - тоже. Если число встречается в окне несколько раз,
  * положение неизвестно, и число не исключается: сервис всё равно сверит его с `expected`.
  */
-export function isQualifiedInContext(spot: PriceSpot): boolean {
+export function isQualifiedInContext(spot: Pick<PriceSpot, 'text' | 'context'>): boolean {
   const first = spot.context.indexOf(spot.text);
   if (first < 0 || spot.context.indexOf(spot.text, first + 1) >= 0) return false;
   const before = spot.context.slice(0, first);
@@ -104,25 +135,43 @@ export function isEditableSpot(spot: PriceSpot): boolean {
   );
 }
 
+/** Подходит ли место pptx под указание: слайд и слова из текста блока. */
+function pptxMatches(spot: PptxPriceSpot, query: SpotQuery, wanted: string | null): boolean {
+  if (query.page !== undefined) return false;
+  if (query.slide !== undefined && spot.slide !== query.slide) return false;
+  return wanted === null || normalizeText(spot.context).includes(wanted);
+}
+
 /**
- * Числа текстовых блоков, подходящие под указание сотрудника. Указание, которое относится
- * только к таблицам (номер таблицы, строка, лист, страница), текстовые блоки исключает: «строка
- * 3 таблицы 2» не может быть числом в подписи.
+ * Подходит ли место PDF под указание: страница и слова из строки вокруг числа или из заголовка
+ * его столбца (таблица без линий). Слайд к PDF не относится.
+ */
+function pdfMatches(spot: PdfPriceSpot, query: SpotQuery, wanted: string | null): boolean {
+  if (query.slide !== undefined) return false;
+  if (query.page !== undefined && spot.page !== query.page) return false;
+  if (wanted === null) return true;
+  return (
+    normalizeText(spot.context).includes(wanted) ||
+    (spot.header !== null && normalizeText(spot.header).includes(wanted))
+  );
+}
+
+/**
+ * Числа вне таблиц, подходящие под указание сотрудника. Указание, которое относится только к
+ * ячейкам таблиц (номер таблицы, строка, лист), эти числа исключает: «строка 3 таблицы 2» не
+ * может быть числом в подписи или в предложении. Слайд подходит только местам pptx, страница -
+ * только местам PDF (у pptx страниц нет).
  */
 export function findSpotCandidates(spots: readonly PriceSpot[], query: SpotQuery): PriceSpot[] {
-  if (
-    query.table !== undefined ||
-    query.row !== undefined ||
-    query.sheet !== undefined ||
-    query.page !== undefined
-  ) {
+  if (query.table !== undefined || query.row !== undefined || query.sheet !== undefined) {
     return [];
   }
   const wanted = query.rowText === undefined ? null : normalizeText(query.rowText);
   return spots.filter((spot) => {
-    if (query.slide !== undefined && spot.slide !== query.slide) return false;
-    if (wanted !== null && !normalizeText(spot.context).includes(wanted)) return false;
-    return isPlainPrice(spot.text, query.oldPrice) && !isQualifiedInContext(spot);
+    const matches = isPdfSpot(spot)
+      ? pdfMatches(spot, query, wanted)
+      : isPptxSpot(spot) && pptxMatches(spot, query, wanted);
+    return matches && isPlainPrice(spot.text, query.oldPrice) && !isQualifiedInContext(spot);
   });
 }
 

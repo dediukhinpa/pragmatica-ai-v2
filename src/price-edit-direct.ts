@@ -11,16 +11,19 @@ import type { ParsedDocument } from '@business-ai/core';
 import { isPriceFileTooLargeError, isUnsupportedPriceFormatError } from './kit/domain/errors.owned';
 import type { PriceCellEdit, SkippedPriceEdit } from './kit/ports/price-file-editor';
 import { isPriceEditRefusedError } from './price-edit-refusal';
+import {
+  refusalTextOf,
+  refusedMessageForSpots,
+  spotRefusalKey,
+} from './price-edit-spot-refusal';
 import type { PricesDeps } from './agents/prices/deps';
 import { parseSource } from './agents/prices/parse-cache';
 import {
   EMPTY_BYTES,
   CONVERTED_PPT_NOTE,
-  REFUSAL_TEXTS,
   TOO_LARGE_MESSAGES,
   UNSUPPORTED_MESSAGE,
   editSource,
-  refusedMessage,
   skippedFromService,
   sourceFileName,
   type EditedFile,
@@ -40,11 +43,15 @@ import {
   isPlainPrice,
   loadSpotMap,
   normalizeText as normalize,
+  pagePlace,
+  pdfSpotKey,
+  keyOfSpot,
   slidePlace,
   spotExcerpt,
   spotKey,
+  spotPlace,
 } from './price-spots';
-import type { PriceSpot } from './price-spots-client';
+import { isPdfSpot, type PriceSpot } from './price-spots-client';
 
 /**
  * Правка цены в файле сотрудника СРАЗУ, без поставщика и без черновика импорта (этап 9p).
@@ -66,7 +73,7 @@ export const VARIANTS_MAX = 10;
 const MAX_SKIPPED_LISTED = 50;
 /** Длина строки-подсказки о месте (ячейки строки через « | »). */
 const ROW_PREVIEW_MAX_CHARS = 90;
-/** Длина отрывка текста вокруг числа в текстовом блоке слайда (вместо строки таблицы). */
+/** Длина отрывка текста вокруг числа в тексте слайда или страницы (вместо строки таблицы). */
 const SPOT_EXCERPT_MAX_CHARS = 90;
 /** Длина основы имени файла результата. */
 const STEM_MAX_CHARS = 100;
@@ -120,27 +127,27 @@ const STATUSES = [
 const changeOutputSchema = z.object({
   place: z.string().nullable(),
   header: z.string().optional(),
-  /** Строка таблицы; для числа в текстовом блоке слайда - отрывок текста вокруг числа. */
+  /** Строка таблицы; для числа в тексте слайда или страницы - отрывок текста вокруг числа. */
   row: z.string(),
-  /** Правка числа в текстовом блоке слайда (вне таблицы): `row` - текст вокруг числа. */
+  /** Правка числа в тексте слайда или страницы (вне таблицы): `row` - текст вокруг числа. */
   textBlock: z.boolean().optional(),
   oldPrice: z.number(),
   newPrice: z.number(),
 });
 const variantSchema = z.object({
   place: z.string().nullable(),
-  /** Таблица и строка с нуля; у числа в текстовом блоке слайда их нет (`textBlock`). */
+  /** Таблица и строка с нуля; у числа в тексте слайда или страницы их нет (`textBlock`). */
   table: z.number().int().optional(),
   row: z.number().int().optional(),
   header: z.string().optional(),
-  /** Строка таблицы или, у текстового блока, отрывок текста вокруг числа. */
+  /** Строка таблицы или, у числа в тексте, отрывок текста вокруг него. */
   rowPreview: z.string(),
-  /** Число в текстовом блоке слайда (вне таблицы). */
+  /** Число в тексте слайда или страницы (вне таблицы). */
   textBlock: z.boolean().optional(),
 });
 const skippedSchema = z.object({
   position: z.string(),
-  /** Строка таблицы; у числа в текстовом блоке слайда не задаётся. */
+  /** Строка таблицы; у числа в тексте слайда или страницы не задаётся. */
   row: z.number().int().optional(),
   reason: z.string(),
 });
@@ -171,8 +178,9 @@ interface Candidate {
   rowCells: string[];
   rowPreview: string;
   /**
-   * Число в текстовом блоке слайда (вне таблицы): правка уходит с локатором, а `table`, `row` и
-   * `col` равны 0 только как заглушка состояния ожидания (сервис видит row=0, col=0 без table).
+   * Число вне таблицы (текстовый блок слайда, текст страницы PDF): правка уходит с локатором, а
+   * `table`, `row` и `col` равны 0 только как заглушка состояния ожидания (сервис видит
+   * row=0, col=0 без table).
    */
   spot?: PriceSpot | undefined;
 }
@@ -238,14 +246,20 @@ function findCandidates(
       });
     });
   });
-  // Числа вне таблиц (текстовые блоки, группы слайдов): тот же поиск по цене, слайду и словам
+  // Числа вне таблиц (текстовые блоки слайдов, текст страниц PDF): тот же поиск по цене,
+  // слайду или странице и словам
   for (const spot of findSpotCandidates(spots, spec)) {
     const excerpt = spotExcerpt(spot, SPOT_EXCERPT_MAX_CHARS);
+    // Заголовок столбца таблицы без линий (PDF) - подсказка о месте, как у ячейки таблицы
+    const header = isPdfSpot(spot) ? (spot.header?.trim() ?? '') : '';
     found.push({
       table: 0,
       row: 0,
       col: 0,
-      label: { kind: 'slide', number: spot.slide, text: slidePlace(spot.slide) },
+      label: isPdfSpot(spot)
+        ? { kind: 'page', number: spot.page, text: spotPlace(spot) }
+        : { kind: 'slide', number: spot.slide, text: spotPlace(spot) },
+      ...(header === '' ? {} : { header }),
       rowCells: [clip(excerpt, FOLLOWUP_CELL_MAX_CHARS)],
       rowPreview: excerpt,
       spot,
@@ -322,11 +336,14 @@ function dottedExtension(name: string): string {
 function placeKey(item: Candidate): string {
   return item.spot === undefined
     ? `${item.table}:${item.row}:${item.col}`
-    : `spot:${spotKey(item.spot)}`;
+    : `spot:${keyOfSpot(item.spot)}`;
 }
 
 /** Ключ места пропуска, который вернул сервис: тот же вид, что у {@link placeKey}. */
 function skippedPlaceKey(item: SkippedPriceEdit): string {
+  if (item.page !== undefined && item.spot !== undefined) {
+    return `spot:${pdfSpotKey({ page: item.page, spot: item.spot })}`;
+  }
   if (item.slide !== undefined && item.shape !== undefined) {
     return `spot:${spotKey({
       slide: item.slide,
@@ -338,27 +355,34 @@ function skippedPlaceKey(item: SkippedPriceEdit): string {
   return `${item.table ?? ''}:${item.row}:${item.col}`;
 }
 
-/** Пропущенная правка для агента: число в текстовом блоке слайда называется слайдом и текстом. */
+/**
+ * Пропущенная правка для агента: число в тексте называется слайдом или страницей и текстом
+ * вокруг. Причина пропуска у таких чисел приходит строкой сервиса (`mismatch`), как у ячеек.
+ */
 function skippedOf(
   item: SkippedPriceEdit,
   keyAt: ReadonlyMap<string, string>,
   spotAt: ReadonlyMap<string, string>,
 ): z.infer<typeof skippedSchema> {
+  const key = skippedPlaceKey(item).slice('spot:'.length);
+  if (item.page !== undefined && item.spot !== undefined) {
+    return { position: spotAt.get(key) ?? pagePlace(item.page), reason: item.reason };
+  }
   if (item.slide === undefined || item.shape === undefined) {
     return skippedFromService(item, keyAt);
   }
-  const key = skippedPlaceKey(item).slice('spot:'.length);
   return { position: spotAt.get(key) ?? slidePlace(item.slide), reason: item.reason };
 }
 
-/** Адрес правки для сервиса: ячейка таблицы или локатор числа в текстовом блоке слайда. */
+/** Адрес правки для сервиса: ячейка таблицы или локатор числа в тексте слайда либо страницы. */
 function locationOf(item: Candidate): Pick<
   PriceCellEdit,
-  'sheet' | 'table' | 'row' | 'col' | 'slide' | 'shape' | 'paragraph' | 'start'
+  'sheet' | 'table' | 'row' | 'col' | 'slide' | 'shape' | 'paragraph' | 'start' | 'page' | 'spot'
 > {
   if (item.spot !== undefined) {
-    const { slide, shape, paragraph, start } = item.spot;
     // Сервис: у числа в тексте row=0, col=0, table не задаётся
+    if (isPdfSpot(item.spot)) return { row: 0, col: 0, page: item.spot.page, spot: item.spot.spot };
+    const { slide, shape, paragraph, start } = item.spot;
     return { row: 0, col: 0, slide, shape, paragraph, start };
   }
   return {
@@ -371,11 +395,15 @@ function locationOf(item: Candidate): Pick<
   };
 }
 
-/** Поля ожидания ответа для числа в текстовом блоке слайда: локатор и отрывок текста. */
+/** Поля ожидания ответа для числа в тексте слайда или страницы: локатор и отрывок текста. */
 function followupLocator(
   spot: PriceSpot,
   excerpt: string,
-): Pick<FollowupChange, 'slide' | 'shape' | 'paragraph' | 'start' | 'context'> {
+): Pick<
+  FollowupChange,
+  'slide' | 'shape' | 'paragraph' | 'start' | 'page' | 'spot' | 'context'
+> {
+  if (isPdfSpot(spot)) return { page: spot.page, spot: spot.spot, context: excerpt };
   const { slide, shape, paragraph, start } = spot;
   return { slide, shape, paragraph, start, context: excerpt };
 }
@@ -450,8 +478,11 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
       }
       const found = findCandidates(parsed, labels, spec, spots);
       if (found.length === 0) {
+        // Номера страниц известны по меткам таблиц или по карте чисел в тексте PDF
         const noPageNumbers =
-          spec.page !== undefined && !labels.some((label) => label.kind === 'page');
+          spec.page !== undefined &&
+          !labels.some((label) => label.kind === 'page') &&
+          !spots.some(isPdfSpot);
         return {
           ...none,
           status: 'not_found' as const,
@@ -501,7 +532,7 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
       if (item.spot === undefined) {
         keyAt.set(`${item.table}:${item.row}`, `${place}строка «${item.rowPreview}»`);
       } else {
-        spotAt.set(spotKey(item.spot), `${place}текст «${item.rowPreview}»`);
+        spotAt.set(keyOfSpot(item.spot), `${place}текст «${item.rowPreview}»`);
       }
     }
     const day = deps.clock.now().toISOString().slice(0, ISO_DATE_LENGTH);
@@ -517,20 +548,30 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
         };
       }
       if (isPriceEditRefusedError(error)) {
-        const skipped = error.reasons.map((reason) => ({
-          position:
-            reason.row === undefined
-              ? 'файл'
-              : (keyAt.get(`${reason.table ?? ''}:${reason.row}`) ?? `строка ${reason.row}`),
-          ...(reason.row === undefined ? {} : { row: reason.row }),
-          reason: REFUSAL_TEXTS[reason.code] ?? reason.code,
-        }));
+        const skipped = error.reasons.map((reason) => {
+          // Число в тексте PDF называется страницей и текстом вокруг, а не строкой таблицы
+          const spotKeyOfReason = spotRefusalKey(reason);
+          if (spotKeyOfReason !== null) {
+            return {
+              position: spotAt.get(spotKeyOfReason) ?? pagePlace(reason.page ?? 0),
+              reason: refusalTextOf(reason),
+            };
+          }
+          return {
+            position:
+              reason.row === undefined
+                ? 'файл'
+                : (keyAt.get(`${reason.table ?? ''}:${reason.row}`) ?? `строка ${reason.row}`),
+            ...(reason.row === undefined ? {} : { row: reason.row }),
+            reason: refusalTextOf(reason),
+          };
+        });
         return {
           ...none,
           status: 'unsupported_format' as const,
           skippedCount: skipped.length,
           skipped: skipped.slice(0, MAX_SKIPPED_LISTED),
-          message: refusedMessage(error.reasons, keyAt),
+          message: refusedMessageForSpots(error.reasons, keyAt, spotAt),
         };
       }
       if (!isUnsupportedPriceFormatError(error)) throw error;

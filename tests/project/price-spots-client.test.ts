@@ -21,6 +21,8 @@ const SPOT = {
   text: '680 ₽',
   context: 'Акция: 680 ₽ за штуку',
 };
+/** Место в разобранном виде: клиент добавляет вид места (`kind`). */
+const PARSED_SPOT = { kind: 'pptx' as const, ...SPOT };
 const LOCATIONS = {
   tables: [{ slide: 1, shape: '4', table: 0, rows: 3, cols: 2 }],
   spots: [SPOT],
@@ -74,7 +76,7 @@ describe('запрос карты мест', () => {
     expect(seen.fields).toEqual({ locations: 'true' });
     expect(seen.fileName).toBe('Прайс.pptx');
     expect(map).toEqual({
-      spots: [SPOT],
+      spots: [PARSED_SPOT],
       unreachable: [{ slide: 3, shape: '9', kind: 'picture' }],
       truncated: false,
     });
@@ -94,7 +96,7 @@ describe('запрос карты мест', () => {
   test('без списка фигур и признака обрезки: значения по умолчанию', async () => {
     const reader = readerWith(() => Response.json({ locations: { spots: [SPOT] } }));
     const map = await reader.read({ name: 'a.pptx', bytes: BYTES });
-    expect(map).toEqual({ spots: [SPOT], unreachable: [], truncated: false });
+    expect(map).toEqual({ spots: [PARSED_SPOT], unreachable: [], truncated: false });
   });
 
   test('не презентация: запроса нет, карты нет', async () => {
@@ -107,7 +109,9 @@ describe('запрос карты мест', () => {
     expect(called).toBe(false);
     expect(supportsPriceSpots('A.PPTX')).toBe(true);
     expect(supportsPriceSpots('a.ppt')).toBe(true);
-    expect(supportsPriceSpots('a.pdf')).toBe(false);
+    // С этапа 9r карту мест отдаёт и pdf; прочие форматы - нет
+    expect(supportsPriceSpots('a.pdf')).toBe(true);
+    expect(supportsPriceSpots('a.docx')).toBe(false);
   });
 });
 

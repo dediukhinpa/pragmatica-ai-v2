@@ -10,16 +10,31 @@ import {
   spotExcerpt,
   spotKey,
 } from '../../src/price-spots';
-import type { PriceSpot, PriceSpotFile, PriceSpotReader } from '../../src/price-spots-client';
+import type {
+  PriceSpot,
+  PriceSpotFile,
+  PriceSpotReader,
+  PptxPriceSpot,
+} from '../../src/price-spots-client';
 import type { PriceSource } from '../../src/agents/prices/price-sources';
 
 /** Поиск цены среди чисел вне таблиц слайдов (этап 9q). Данные синтетические. */
 
-function spot(over: Partial<PriceSpot> & Pick<PriceSpot, 'text' | 'context'>): PriceSpot {
-  return { slide: 1, shape: '5', paragraph: 0, start: 0, ...over };
+function spot(
+  over: Partial<PptxPriceSpot> & Pick<PptxPriceSpot, 'text' | 'context'>,
+): PptxPriceSpot {
+  return { kind: 'pptx', slide: 1, shape: '5', paragraph: 0, start: 0, ...over };
 }
 
-const SPOTS: PriceSpot[] = [
+/** Слайд и фигура места pptx (у места другого вида - undefined). */
+function slideOf(item: PriceSpot): number | undefined {
+  return item.kind === 'pptx' ? item.slide : undefined;
+}
+function shapeOf(item: PriceSpot | undefined): string | undefined {
+  return item?.kind === 'pptx' ? item.shape : undefined;
+}
+
+const SPOTS: PptxPriceSpot[] = [
   spot({ slide: 1, text: '680', context: 'Болт М8: 680' }),
   spot({ slide: 2, shape: '7/12', text: '680 ₽', context: 'Акция недели: 680 ₽ за штуку' }),
   spot({ slide: 2, shape: '7/13', text: '1 200,50 руб.', context: 'Набор 1 200,50 руб.' }),
@@ -38,18 +53,18 @@ describe('цена как число', () => {
 describe('поиск числа среди текстовых блоков', () => {
   test('находит по старой цене во всех слайдах', () => {
     const found = findSpotCandidates(SPOTS, { oldPrice: 680 });
-    expect(found.map((item) => item.slide)).toEqual([1, 2]);
+    expect(found.map(slideOf)).toEqual([1, 2]);
   });
 
   test('слайд сужает поиск', () => {
     const found = findSpotCandidates(SPOTS, { oldPrice: 680, slide: 2 });
     expect(found).toHaveLength(1);
-    expect(found[0]?.shape).toBe('7/12');
+    expect(shapeOf(found[0])).toBe('7/12');
   });
 
   test('слова из строки ищутся в контексте, регистр не важен', () => {
     const found = findSpotCandidates(SPOTS, { oldPrice: 680, rowText: 'АКЦИЯ  недели' });
-    expect(found.map((item) => item.slide)).toEqual([2]);
+    expect(found.map(slideOf)).toEqual([2]);
   });
 
   test('цена с пробелами в тысячах и запятой находится числом', () => {

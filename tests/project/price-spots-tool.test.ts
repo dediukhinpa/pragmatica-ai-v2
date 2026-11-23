@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import type { ToolContext } from '@business-ai/core';
 import { resetSpotCache } from '../../src/price-spots';
-import type { PriceSpot, PriceSpotMap, PriceSpotReader } from '../../src/price-spots-client';
+import type {
+  PptxPriceSpot,
+  PriceSpotMap,
+  PriceSpotReader,
+} from '../../src/price-spots-client';
 import { SPOTS_LIST_MAX, listPriceSpots } from '../../src/price-spots-tool';
 import {
   EMPLOYEE_THREAD,
@@ -12,8 +16,9 @@ import {
 
 /** Инструмент listPriceSpots: числа вне таблиц слайдов для выбора места (этап 9q). */
 
-function spot(over: Partial<PriceSpot>): PriceSpot {
+function spot(over: Partial<PptxPriceSpot>): PptxPriceSpot {
   return {
+    kind: 'pptx',
     slide: 1,
     shape: '5',
     paragraph: 0,

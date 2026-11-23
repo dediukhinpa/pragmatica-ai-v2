@@ -7,6 +7,9 @@ export interface PriceEditRefusal {
   table?: number | undefined;
   row?: number | undefined;
   col?: number | undefined;
+  /** Число в тексте PDF вне таблицы (этап 9r): страница с 1 и номер места на ней с 0. */
+  page?: number | undefined;
+  spot?: number | undefined;
 }
 
 /**

@@ -29,6 +29,14 @@ export interface PriceCellEdit {
   shape?: string | undefined;
   paragraph?: number | undefined;
   start?: number | undefined;
+  /**
+   * Число в тексте PDF вне таблиц с линиями (этап 9r): страница с 1 и номер места на странице с
+   * 0, как их отдаёт `/parse` с `locations=true`. Либо оба, либо ни одного; вместе с локатором
+   * слайда нельзя. С локатором `row` и `col` равны 0, `table` не задаётся, а `expected`
+   * обязателен: без старого значения сервис адресу не верит.
+   */
+  page?: number | undefined;
+  spot?: number | undefined;
 }
 
 /** Ячейка, которую сервис не изменил, и причина. */
@@ -43,6 +51,9 @@ export interface SkippedPriceEdit {
   shape?: string | undefined;
   paragraph?: number | undefined;
   start?: number | undefined;
+  /** Локатор числа в тексте PDF из правки, которую сервис не тронул (см. PriceCellEdit). */
+  page?: number | undefined;
+  spot?: number | undefined;
 }
 
 /** Запрос правки цен в копии исходного файла. */

@@ -49,6 +49,12 @@ export const followupChangeSchema = z.object({
   shape: z.string().min(1).optional(),
   paragraph: z.number().int().nonnegative().optional(),
   start: z.number().int().nonnegative().optional(),
+  /**
+   * Число в тексте PDF вне таблиц с линиями (этап 9r): страница с 1 и номер места на ней с 0 (у
+   * такой правки тоже нули-заглушки `table`, `row`, `col`) и отрывок текста в `context`.
+   */
+  page: z.number().int().positive().optional(),
+  spot: z.number().int().nonnegative().optional(),
   context: z.string().optional(),
   oldPrice: z.number(),
   newPrice: z.number(),
