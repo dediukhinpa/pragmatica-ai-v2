@@ -2,8 +2,6 @@ import {
   FileShareGuard,
   LocalFileSource,
   StaffEmployeeIdentity,
-  VisionTableDocumentParser,
-  HttpDocumentParser,
   HttpTemplateWorkbook,
   turnScope,
 } from '@business-ai/adapters';
@@ -55,6 +53,7 @@ import {
   type MailProposalsRuntime,
   type SupplierCardsRuntime,
 } from '../runtime';
+import { buildDocumentParsers } from './document-parsers';
 import { attachModelAdapters } from './model-adapters';
 import { supplierTemplateLoader } from './supplier-template-loader';
 
@@ -116,11 +115,12 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     userMaxPerWindow: config.agents.webSearchUserMaxPerWindow,
     userWindowMs: config.agents.webSearchUserWindowMinutes * MS_PER_MINUTE,
   });
-  // Прайсы-картинки и сканы читает зрение (режим table), дальше обычный разбор таблиц.
-  const parser =
-    services.parser instanceof HttpDocumentParser
-      ? new VisionTableDocumentParser(services.parser, services.imageReader)
-      : services.parser;
+  // Прайсы-картинки и сканы читает зрение (режим table), дальше обычный разбор таблиц. Агенту
+  // «Документы» скан нужен текстом целиком (реквизиты счёта), поэтому у него свой разборщик.
+  const { table: parser, text: documentsParser } = buildDocumentParsers(
+    services.parser,
+    services.imageReader,
+  );
   const shared = { tableExporter: services.tableExporter, intake: services.intake };
   const docxLayout = docxLayoutOf(ctx);
   const priceSpots = priceSpotsOf(ctx);
@@ -232,6 +232,9 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
   const proposals = wireMailProposals(ctx, orderCalc, mailConnected);
   wireAccessAndHandoff(ctx, { prices, documents, orderCalc }, supplierCards?.deps, proposals);
   wireCommon(ctx, [prices, documents, orderCalc, siteExport], parser);
+  // Только «Документы»: у заявок и прайсов сканы остаются табличными
+  // (см. `ScanTextDocumentParser`).
+  documents.parser = documentsParser;
   if (supplierCards !== undefined) {
     // Дополнение карточки из документа: общие значения читает тот же разбор.
     supplierCards.deps.parser = parser;
