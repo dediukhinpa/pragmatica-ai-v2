@@ -1,5 +1,7 @@
 import type { AgentDeclaration, AnyToolDefinition } from '@business-ai/core';
 import { PRICES_AGENT_ID } from '../agents/prices/deps';
+import { PRICE_EDIT_DIRECT_TOOL, PRICE_ROUNDING_NOTE } from '../price-edit-direct';
+import { resendLastPriceFile } from '../price-last-file';
 import { createPriceFileCopy } from './price-file-copy';
 
 /**
@@ -14,6 +16,8 @@ const RUN_DATA_SCRIPT_NAME = 'runDataScript';
 const RESULT_TOO_LARGE_CODE = 'result_too_large';
 /** Название инструмента, которым собирается копия большого прайса. */
 export const COPY_TOOL_NAME = createPriceFileCopy.name;
+/** Название инструмента повторной отправки последнего файла правки (этап 9u). */
+export const RESEND_TOOL_NAME = resendLastPriceFile.name;
 
 /**
  * Совет модели, когда вывод скрипта не поместился в ответ. Платформа говорит лишь «верни
@@ -67,10 +71,21 @@ function adviseScriptTool(tool: AnyToolDefinition): AnyToolDefinition {
   };
 }
 
+/** Описание правки цены с правилом округления; повторное применение фразу не удваивает. */
+function withRoundingNote(tool: AnyToolDefinition): AnyToolDefinition {
+  if (tool.description.endsWith(PRICE_ROUNDING_NOTE)) return tool;
+  return { ...tool, description: `${tool.description}${PRICE_ROUNDING_NOTE}` };
+}
+
 /** Параметры подключения. */
 export interface PriceCopyToolsOptions {
   /** Добавлять ли `createPriceFileCopy`: вместе с `PRICE_EDIT_FIRST_ENABLED`. */
   copy: boolean;
+  /**
+   * Добавлять ли `resendLastPriceFile` (этап 9u, `PRICE_FILE_ONCE_PER_TURN_ENABLED`) и дописывать
+   * к описанию правки цены правило округления. Нет поля или false - набор прежний.
+   */
+  resend?: boolean;
 }
 
 /**
@@ -82,10 +97,17 @@ export function withPriceCopyTools(
   options: PriceCopyToolsOptions,
 ): AgentDeclaration {
   if (declaration.id !== PRICES_AGENT_ID) return declaration;
-  const tools = declaration.tools.map((tool) =>
-    tool.name === RUN_DATA_SCRIPT_NAME ? adviseScriptTool(tool) : tool,
-  );
+  const tools = declaration.tools.map((tool) => {
+    if (tool.name === RUN_DATA_SCRIPT_NAME) return adviseScriptTool(tool);
+    return options.resend === true && tool.name === PRICE_EDIT_DIRECT_TOOL
+      ? withRoundingNote(tool)
+      : tool;
+  });
   const present = tools.some((tool) => tool.name === COPY_TOOL_NAME);
   if (options.copy && !present) tools.push(createPriceFileCopy as unknown as AnyToolDefinition);
+  const resendPresent = tools.some((tool) => tool.name === RESEND_TOOL_NAME);
+  if (options.resend === true && !resendPresent) {
+    tools.push(resendLastPriceFile as unknown as AnyToolDefinition);
+  }
   return { ...declaration, tools };
 }

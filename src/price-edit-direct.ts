@@ -52,7 +52,10 @@ import {
   spotPlace,
 } from './price-spots';
 import { isPdfSpot, type PriceSpot } from './price-spots-client';
+import { isTurnFileBufferEnabled } from './turn-file-buffer';
 import {
+  ONCE_AT_END_NOTE,
+  ONCE_AT_END_PREFIX,
   UPDATED_VERSION_NOTE,
   UPDATED_VERSION_PREFIX,
   isReplay,
@@ -93,6 +96,24 @@ const STEM_MAX_CHARS = 100;
 const FORBIDDEN_FILE_NAME_CHARS = /[\\/:*?"<>|\u0000-\u001f]/gu;
 /** Длина ISO-даты (гггг-мм-дд). */
 const ISO_DATE_LENGTH = 10;
+/** Больше знаков после запятой у цены не бывает (как у разбора цены ячейки). */
+export const PRICE_DECIMALS_MAX = 4;
+/** Основание десятичной системы для округления. */
+const DECIMAL_BASE = 10;
+/** Число в тексте ячейки: цифры с пробелами-разрядами и одним или несколькими разделителями. */
+const NUMBER_IN_TEXT = /\d(?:[\d\s\u00a0\u202f.,]*\d)?/u;
+/** Разделитель дробной части в записи числа. */
+const DECIMAL_SEPARATOR = /[.,]/gu;
+/** Пробелы и разделители разрядов. */
+const DIGIT_SPACES = /[\s\u00a0\u202f]/gu;
+
+/**
+ * Дописывается к описанию инструмента при отправке одним файлом в конце хода (этап 9u): без
+ * флага код не округляет, и такая фраза ввела бы модель в заблуждение.
+ */
+export const PRICE_ROUNDING_NOTE =
+  ' newPrice передавай с полной точностью, не округляй сам: код округлит до знаков исходной ' +
+  'ячейки; другое число знаков - только если сотрудник просил (decimals, целое 0..4).';
 
 const editSpecSchema = z.object({
   /** Цена, которая сейчас в файле (её называет сотрудник). */
@@ -111,6 +132,12 @@ const editSpecSchema = z.object({
   row: z.number().int().nonnegative().optional(),
   /** Слова из строки: название позиции или артикул (регистр не важен). */
   rowText: z.string().min(1).optional(),
+  /**
+   * Знаков после запятой у новой цены (0..4). Нужен только если сотрудник просил другое число
+   * знаков: по умолчанию код округляет до знаков исходной ячейки (при включённой отправке одним
+   * файлом в конце хода).
+   */
+  decimals: z.number().int().min(0).max(PRICE_DECIMALS_MAX).optional(),
 });
 type EditSpec = z.infer<typeof editSpecSchema>;
 
@@ -180,7 +207,7 @@ const outputSchema = z.object({
 type DirectOutput = z.infer<typeof outputSchema>;
 
 /** Найденная ячейка цены. */
-interface Candidate {
+export interface Candidate {
   table: number;
   row: number;
   col: number;
@@ -195,6 +222,8 @@ interface Candidate {
    * row=0, col=0 без table).
    */
   spot?: PriceSpot | undefined;
+  /** Текст цены в исходной ячейке (у числа в тексте слайда - число как в тексте): знаки. */
+  priceText: string;
 }
 
 /** Ячейки строки без пустых: подсказка о месте и узнавание позиции. */
@@ -250,6 +279,7 @@ function findCandidates(
           col,
           label,
           ...(header === undefined || header === '' ? {} : { header }),
+          priceText: raw,
           rowCells: cells
             .slice(0, FOLLOWUP_ROW_CELLS_MAX)
             .map((cell) => clip(cell, FOLLOWUP_CELL_MAX_CHARS)),
@@ -274,6 +304,7 @@ function findCandidates(
       ...(header === '' ? {} : { header }),
       rowCells: [clip(excerpt, FOLLOWUP_CELL_MAX_CHARS)],
       rowPreview: excerpt,
+      priceText: spot.text,
       spot,
     });
   }
@@ -342,6 +373,58 @@ function directKey(input: DirectInput): string {
 function dottedExtension(name: string): string {
   const extension = extensionOf(name);
   return extension === '' || extension.startsWith('.') ? extension : `.${extension}`;
+}
+
+/**
+ * Знаков после запятой в записи цены: «680» - 0, «680,50» - 2, «1 250,5» - 1, «1.234.567» - 0.
+ * Число берётся из текста целиком: пробелы-разряды и валюта вокруг не мешают. Если разделитель
+ * один - после него дробная часть; если несколько одинаковых - это разряды. Не больше
+ * {@link PRICE_DECIMALS_MAX}. Нет числа в тексте - null.
+ */
+export function decimalsOfText(text: string): number | null {
+  const token = NUMBER_IN_TEXT.exec(text)?.[0];
+  if (token === undefined) return null;
+  const compact = token.replace(DIGIT_SPACES, '');
+  const separators = compact.match(DECIMAL_SEPARATOR) ?? [];
+  const last = Math.max(compact.lastIndexOf('.'), compact.lastIndexOf(','));
+  const hasBoth = compact.includes('.') && compact.includes(',');
+  // Несколько одинаковых разделителей без другого - разряды, дробной части нет
+  if (separators.length > 1 && !hasBoth) return 0;
+  if (last < 0) return 0;
+  return Math.min(compact.length - last - 1, PRICE_DECIMALS_MAX);
+}
+
+/** Знаков после запятой у числа как оно напечатано в JS (для цены без текста). */
+function decimalsOfNumber(value: number): number {
+  return Math.min((String(value).split('.')[1] ?? '').length, PRICE_DECIMALS_MAX);
+}
+
+/**
+ * Округление «половина вверх» до `decimals` знаков без погрешностей двоичной дроби: сдвиг
+ * запятой идёт через запись числа («1.005e2»), а не умножением (1.005 * 100 = 100.49999...).
+ */
+export function roundHalfUp(value: number, decimals: number): number {
+  const plain = String(value);
+  if (plain.includes('e')) {
+    const factor = DECIMAL_BASE ** decimals;
+    return Math.round(value * factor) / factor;
+  }
+  return Number(`${Math.round(Number(`${plain}e${decimals}`))}e-${decimals}`);
+}
+
+/**
+ * Значение, которое пойдёт в ячейку. Пока отправка одним файлом в конце хода выключена, это
+ * `newPrice` как есть (прежнее поведение). Включена - код округляет сам до `decimals` из
+ * указания или до знаков исходной ячейки: модель считает цепочку процентов сама, и без этого
+ * итог то с копейками, то целый.
+ */
+export function valueToWrite(item: Candidate, spec: EditSpec): number {
+  if (!isTurnFileBufferEnabled()) return spec.newPrice;
+  const decimals =
+    spec.decimals ??
+    decimalsOfText(item.priceText) ??
+    (Number.isInteger(spec.oldPrice) ? 0 : decimalsOfNumber(spec.oldPrice));
+  return roundHalfUp(spec.newPrice, decimals);
 }
 
 /** Ключ места правки: ячейка таблицы или число в текстовом блоке слайда. */
@@ -531,6 +614,23 @@ export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectO
       if (taken.has(cellKey)) {
         throw new DomainError('invalid_input', 'Две правки указывают на одну и ту же ячейку.');
       }
+      // Округление не должно обнулить цену или вернуть прежнюю: модель увидит причину и
+      // передаст decimals (включено только вместе с отправкой одним файлом в конце хода)
+      const rounded = valueToWrite(only, spec);
+      if (rounded <= 0) {
+        throw new DomainError(
+          'invalid_input',
+          `После округления до знаков исходной цены новая цена равна нулю (${spec.newPrice}). ` +
+            'Передай decimals, если сотрудник просил больше знаков.',
+        );
+      }
+      if (rounded === spec.oldPrice) {
+        throw new DomainError(
+          'invalid_input',
+          `После округления до знаков исходной цены новая цена (${spec.newPrice}) равна ` +
+            'старой: править нечего. Передай decimals, если сотрудник просил больше знаков.',
+        );
+      }
       taken.add(cellKey);
       planned.push(only);
       specs.push(spec);
@@ -552,13 +652,16 @@ export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectO
     }
     planned.unshift(...carriedPlanned);
     specs.unshift(...carriedSpecs);
-    const edits: PriceCellEdit[] = planned.map((item, index) => ({
-      ...locationOf(item),
-      value: specs[index]?.newPrice ?? 0,
+    const edits: PriceCellEdit[] = planned.map((item, index) => {
+      const spec = specs[index];
+      return {
+        ...locationOf(item),
+        value: spec === undefined ? 0 : valueToWrite(item, spec),
       // Старая цена из файла: сервис не запишет, если в ячейке сейчас другое значение
       // (у числа в текстовом блоке слайда без неё не верит и координатам)
-      expected: specs[index]?.oldPrice ?? 0,
-    }));
+        expected: spec?.oldPrice ?? 0,
+      };
+    });
     const keyAt = new Map<string, string>();
     const spotAt = new Map<string, string>();
     for (const item of planned) {
@@ -629,7 +732,7 @@ export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectO
       const applied = planned.flatMap((item, index) => {
         if (skippedCells.has(placeKey(item))) return [];
         const spec = specs[index];
-        return spec === undefined ? [] : [{ item, spec }];
+        return spec === undefined ? [] : [{ item, spec, value: valueToWrite(item, spec) }];
       });
       const threadId = deps.state === undefined ? null : await chatThreadOf(deps.state, context);
       if (threadId === null) {
@@ -650,8 +753,10 @@ export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectO
               day,
               edited.convertedFrom === undefined ? source.name : edited.fileName,
             );
-      // Повторная отправка в этом ходе: другое имя с пометкой «обновлённая версия»
-      const sendName = versionedFileName(baseName, turnRecord, sendKey);
+      // Файл уходит один раз в конце хода (канал заменяет файл с тем же именем), поэтому имя
+      // всегда одно; без этого повторная отправка идёт с пометкой «обновлённая версия»
+      const onceAtEnd = isTurnFileBufferEnabled();
+      const sendName = onceAtEnd ? baseName : versionedFileName(baseName, turnRecord, sendKey);
       try {
         await deps.chat.sendFile(
           threadId,
@@ -673,19 +778,19 @@ export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectO
           { retryable: true },
         );
       }
-      const changes = applied.map(({ item, spec }) => ({
+      const changes = applied.map(({ item, spec, value }) => ({
         place: item.label.text,
         ...(item.header === undefined ? {} : { header: item.header }),
         row: item.rowPreview,
         ...(item.spot === undefined ? {} : { textBlock: true }),
         oldPrice: spec.oldPrice,
-        newPrice: spec.newPrice,
+        newPrice: value,
       }));
       if (deps.state !== undefined) {
         const now = deps.clock.now();
         const followupChanges: FollowupChange[] = applied
           .slice(0, FOLLOWUP_CHANGES_MAX)
-          .map(({ item, spec }) => ({
+          .map(({ item, spec, value }) => ({
             place: item.label.text,
             table: item.table,
             row: item.row,
@@ -694,7 +799,7 @@ export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectO
             ...(item.spot === undefined ? {} : followupLocator(item.spot, item.rowPreview)),
             rowCells: item.rowCells,
             oldPrice: spec.oldPrice,
-            newPrice: spec.newPrice,
+            newPrice: value,
           }));
         await saveFollowup(deps.state, threadId, {
           createdAt: now.toISOString(),
@@ -719,6 +824,22 @@ export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectO
             'названию файла или тексту он очевиден, найди его через searchSuppliers) либо «как ' +
             'называется поставщик?». '
           : `Поставщик: ${supplier.name}; назови его и спроси, верно ли. `;
+      const closing =
+        'В ТОМ ЖЕ итоговом ответе: 1) перечисли изменения из changes (было → стало, место); ' +
+        `2) ${ask}3) спроси «обновить цены этих позиций в базе?». В базу пока ничего не ` +
+        'записано и не будет записано без явного «да» сотрудника; без ответа база остаётся ' +
+        'прежней.';
+      const converted = edited.convertedFrom === undefined ? '' : ` ${CONVERTED_PPT_NOTE}`;
+      const counts = `Изменено ячеек: ${edited.changed}, пропущено: ${skipped.length}.`;
+      const message = onceAtEnd
+        ? `${ONCE_AT_END_PREFIX} ${counts} Исходный файл не менялся. ${closing}${converted} ` +
+          ONCE_AT_END_NOTE
+        : `Файл отправлен без подписи. ${counts} Исходный файл не менялся. ${closing}` +
+          `${converted}` +
+          (updatedVersion
+            ? ` ${UPDATED_VERSION_PREFIX}${UPDATED_VERSION_NOTE} Все правки хода в нём ` +
+              'перечислены в changes.'
+            : '');
       return {
         ...none,
         ...summary,
@@ -726,17 +847,7 @@ export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectO
         delivered: true,
         fileName: sendName,
         changes,
-        message:
-          `Файл отправлен без подписи. Изменено ячеек: ${edited.changed}, пропущено: ` +
-          `${skipped.length}. Исходный файл не менялся. В ТОМ ЖЕ итоговом ответе: 1) перечисли ` +
-          `изменения из changes (было → стало, место); 2) ${ask}3) спроси «обновить цены ` +
-          'этих позиций в базе?». В базу пока ничего не записано и не будет записано без ' +
-          'явного «да» сотрудника; без ответа база остаётся прежней.' +
-          (edited.convertedFrom === undefined ? '' : ` ${CONVERTED_PPT_NOTE}`) +
-          (updatedVersion
-            ? ` ${UPDATED_VERSION_PREFIX}${UPDATED_VERSION_NOTE} Все правки хода в нём ` +
-              'перечислены в changes.'
-            : ''),
+        message,
       };
     } finally {
       await edited.disk?.dispose();
