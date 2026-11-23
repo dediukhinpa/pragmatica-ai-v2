@@ -41,6 +41,7 @@ import { restoreLegacyTools } from '../legacy-tools';
 import { HttpContractAmender } from '../kit/adapters/http/http-contract-amender';
 import { HttpPriceFileEditor } from '../kit/adapters/http/http-price-file-editor';
 import { HttpDocxLayoutClient, type DocxLayoutClient } from '../docx-pages-client';
+import { HttpPriceSpotReader, type PriceSpotReader } from '../price-spots-client';
 import { DOCX_PAGES_PROMPT } from '../docx-pages-prompt';
 import {
   ModelSupplierMailClassifier,
@@ -122,6 +123,7 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
       : services.parser;
   const shared = { tableExporter: services.tableExporter, intake: services.intake };
   const docxLayout = docxLayoutOf(ctx);
+  const priceSpots = priceSpotsOf(ctx);
   const prices: PricesDeps = {
     files: files.prices,
     fileRefSecret: secret,
@@ -150,6 +152,8 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
     }),
     // Номера страниц docx (этап 9p); без флага раскладки нет, страница «не определена».
     ...(docxLayout === undefined ? {} : { docxLayout }),
+    // Числа вне таблиц слайдов pptx (этап 9q); без флага карты нет, правка идёт по таблицам.
+    ...(priceSpots === undefined ? {} : { priceSpots }),
     ...shared,
   };
   const documents = buildDocumentsDeps(ctx, own, files, shared);
@@ -684,6 +688,8 @@ function declarationsOf(
       monitoring,
       // Этап 9p: правка цены в файле сразу, без вопроса о поставщике; false - выключатель.
       priceEditFirst: project.PRICE_EDIT_FIRST_ENABLED === 'true',
+      priceEditDbWrite: project.PRICE_EDIT_DB_WRITE_ENABLED === 'true',
+      priceTextBlocks: project.PRICE_EDIT_TEXT_BLOCKS_ENABLED === 'true',
       ...cardsOption,
     }),
     createDocumentsAgent({
@@ -746,6 +752,19 @@ function docxLayoutOf(ctx: Context): DocxLayoutClient | undefined {
     baseUrl: ctx.config.documents.baseUrl,
     // Причина без имени и содержимого файла: ПДн в журнал не попадают.
     onFailure: (reason) => ctx.services.log('docx_pages_unavailable', { reason }),
+  });
+}
+
+/** Чтение чисел вне таблиц pptx (этап 9q); нет при выключенном `PRICE_EDIT_TEXT_BLOCKS_ENABLED`. */
+function priceSpotsOf(ctx: Context): PriceSpotReader | undefined {
+  if (ctx.project.PRICE_EDIT_TEXT_BLOCKS_ENABLED !== 'true') return undefined;
+  return new HttpPriceSpotReader({
+    baseUrl: ctx.config.documents.baseUrl,
+    // Тот же срок, что у разбора файла: запрос идёт в ту же очередь сервиса
+    timeoutMs: ctx.config.documents.parseTimeoutMs,
+    telemetry: ctx.services.telemetry,
+    // Причина без имени и содержимого файла: ПДн в журнал не попадают.
+    onFailure: (reason) => ctx.services.log('price_spots_unavailable', { reason }),
   });
 }
 

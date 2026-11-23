@@ -73,6 +73,9 @@ const PROJECT_ENV_DEFAULTS: ReadonlyArray<readonly [string, unknown]> = [
   // Этап 9p: включены по умолчанию (false - выключатель).
   ['PRICE_EDIT_FIRST_ENABLED', 'true'],
   ['DOCX_PAGES_ENABLED', 'true'],
+  // Этап 9q: правка цен в текстовых блоках слайдов; включено по умолчанию (false - выключатель).
+  ['PRICE_EDIT_TEXT_BLOCKS_ENABLED', 'true'],
+  ['PRICE_EDIT_DB_WRITE_ENABLED', 'true'],
   ['SUPPLIER_TEMPLATE_PATH', '/app/templates/supplier-template.xlsx'],
   ['PRICE_DISK_SYNC_ENABLED', 'false'],
   ['PRICE_DISK_INITIAL_IMPORT_ENABLED', 'false'],

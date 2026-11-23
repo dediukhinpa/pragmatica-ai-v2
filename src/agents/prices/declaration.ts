@@ -22,8 +22,14 @@ import { listIntakeFiles, readIntakeFile } from './intake-tools';
 import { previewPriceChanges, sendPriceChangeFile } from './price-changes';
 import { editPricesInSourceFile } from './price-edit-source';
 import { editPriceInFile } from '../../price-edit-direct';
+import { writeEditedPricesToDb } from '../../price-edit-db-write';
+import { listPriceSpots } from '../../price-spots-tool';
 import { closePendingPriceEdit, getPendingPriceEdit } from '../../price-edit-followup';
-import { PRICE_EDIT_FIRST_PROMPT } from '../../price-edit-prompt';
+import {
+  PRICE_EDIT_DB_WRITE_PROMPT,
+  PRICE_EDIT_FIRST_PROMPT,
+  PRICE_EDIT_TEXT_BLOCKS_PROMPT,
+} from '../../price-edit-prompt';
 import { markPriceMailHandled, readPriceMail } from './price-mail';
 import { listStalePriceSuppliers } from './stale-price-suppliers';
 import { listStalePriceFiles } from './stale-price-files-tool';
@@ -71,6 +77,17 @@ export interface PricesAgentOptions {
    * Без опции декларация и промпт прежние.
    */
   priceEditFirst?: boolean;
+  /**
+   * «Да» после правки файла пишет изменённые цены в базу (`PRICE_EDIT_DB_WRITE_ENABLED`, этап
+   * 9q): инструмент writeEditedPricesToDb и пункт 5 промпта с прямой записью. Действует вместе с
+   * `priceEditFirst`; без опции «да» ведёт прежним путём (цены предложением).
+   */
+  priceEditDbWrite?: boolean;
+  /**
+   * Числа вне таблиц слайдов pptx (`PRICE_EDIT_TEXT_BLOCKS_ENABLED`, этап 9q): инструмент
+   * listPriceSpots и абзац промпта. Действует вместе с `priceEditFirst`.
+   */
+  priceTextBlocks?: boolean;
 }
 
 /**
@@ -89,7 +106,14 @@ export function createPricesAgent(options: PricesAgentOptions): AgentDeclaration
       (monitoring ? (mail ? PRICES_MONITORING_MAIL_PROMPT : PRICES_MONITORING_PROMPT) : '') +
       (supplierCards === undefined ? '' : SUPPLIER_CARDS_PROMPT) +
       (options.dataScript === true ? DATA_SCRIPT_PROMPT + PRICES_DATA_SCRIPT_PROMPT : '') +
-      (options.priceEditFirst === true ? PRICE_EDIT_FIRST_PROMPT : '') +
+      (options.priceEditFirst === true
+        ? options.priceEditDbWrite === true
+          ? PRICE_EDIT_DB_WRITE_PROMPT
+          : PRICE_EDIT_FIRST_PROMPT
+        : '') +
+      (options.priceEditFirst === true && options.priceTextBlocks === true
+        ? PRICE_EDIT_TEXT_BLOCKS_PROMPT
+        : '') +
       SESSION_SUMMARY_PROMPT +
       FILE_TOOL_PROMPT,
     model: options.model,
@@ -122,7 +146,13 @@ export function createPricesAgent(options: PricesAgentOptions): AgentDeclaration
       ...(options.dataScript === true ? [runDataScript] : []),
       ...(supplierCards === undefined ? [] : supplierCardsTools()),
       ...(options.priceEditFirst === true
-        ? [editPriceInFile, getPendingPriceEdit, closePendingPriceEdit]
+        ? [
+            editPriceInFile,
+            getPendingPriceEdit,
+            closePendingPriceEdit,
+            ...(options.priceEditDbWrite === true ? [writeEditedPricesToDb] : []),
+            ...(options.priceTextBlocks === true ? [listPriceSpots] : []),
+          ]
         : []),
     ],
     validators: [

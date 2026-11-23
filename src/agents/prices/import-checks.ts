@@ -12,6 +12,7 @@ import { type PriceItem } from '../../kit/domain/models';
 import { priceListHash } from './employee-updates';
 import { loadConfirmedPrices, saveConfirmedPrices } from './confirmed-prices';
 import { PRICE_DATE_FUTURE_TOLERANCE_MS, type PricesDeps } from './deps';
+import { loadEmployeeFileEdits, protectEmployeeEdits } from '../../employee-file-edits';
 import { closeProposalsBefore, isProposalSource, savePriceProposal } from './price-proposals';
 import {
   loadImportMeta,
@@ -392,12 +393,20 @@ export async function writeImport(
     const changed = await runPriceStepsYielding(countPriceUpdatesSteps(verdict.existing, items));
     return { status: 'proposed_not_written', changed, proposed, warnings };
   }
+  // Этап 9q: файл с диска, более старый по дате прайса, не затирает цены, которые сотрудник
+  // записал в базу по правке файла; более свежий или без даты в имени заменяет как обычно.
+  const guarded = protectEmployeeEdits(
+    items,
+    verdict.existing,
+    await loadEmployeeFileEdits(deps.state, candidate.supplierId),
+    candidate.sourceFile,
+  );
   // Ключ базы включает прайс до записи: возврат A -> B -> A - новая запись, а не повтор A,
   // повтор той же записи (тот же прайс до неё) по-прежнему отбрасывается.
   const dbKey = `${key}:base:${verdict.baseHash}`;
   // R9-A5-02: под блокировкой по поставщику база сверяется с той, от которой считались
   // проверки выше; параллельный импорт успел записать другой прайс - отказ без записи.
-  await deps.prices.saveImport(candidate.supplierId, items, dbKey, {
+  await deps.prices.saveImport(candidate.supplierId, guarded.items, dbKey, {
     isExpectedBase: (current) => priceListHash(current) === verdict.baseHash,
     sourceFile: candidate.sourceFile,
     fileHistory: verdict.history,
@@ -412,10 +421,16 @@ export async function writeImport(
   // Прайс с диска - источник правды: его скачки принимаются как подтверждённые цены.
   const approved = new Set(verdict.jumps.map((jump) => jump.key));
   const nextConfirmed = await runPriceStepsYielding(
-    nextConfirmedPricesSteps(verdict.confirmed, verdict.existing, items, approved),
+    nextConfirmedPricesSteps(verdict.confirmed, verdict.existing, guarded.items, approved),
   );
   await saveConfirmedPrices(deps, candidate.supplierId, verdict.confirmed, nextConfirmed);
   // Нужен только счётчик: полный diff (скачки, «на проверку», снятые) здесь не строится.
   const changed = await runPriceStepsYielding(countPriceUpdatesSteps(verdict.existing, items));
-  return { status: 'written', changed, proposed: 0, warnings: [] };
+  const keptWarnings =
+    guarded.kept === 0
+      ? []
+      : [
+          `Позиций оставлено с ценой сотрудника (записана позже даты этого файла): ${guarded.kept}.`,
+        ];
+  return { status: 'written', changed, proposed: 0, warnings: keptWarnings };
 }

@@ -52,7 +52,11 @@ PROJECT_SPECS = {
     ("src/application/agents/prices/declaration.ts", "../../price-edit-direct"),
     ("src/application/agents/prices/declaration.ts", "../../price-edit-followup"),
     ("src/application/agents/prices/declaration.ts", "../../price-edit-prompt"),
+    ("src/application/agents/prices/declaration.ts", "../../price-spots-tool"),
+    ("src/application/agents/prices/declaration.ts", "../../price-edit-db-write"),
+    ("src/application/agents/prices/import-checks.ts", "../../employee-file-edits"),
     ("src/application/agents/prices/deps.ts", "../../docx-pages-client"),
+    ("src/application/agents/prices/deps.ts", "../../price-spots-client"),
     ("src/application/agents/prices/read-price-file.ts", "../../price-table-places"),
 }
 # Пути-литералы относительно файла теста: `join(import.meta.dir, '../x')` и
