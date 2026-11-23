@@ -19,7 +19,7 @@
         "outputTokens": 15
       },
       "latencyMs": 400,
-      "requestHash": "7249c88c062da2cf0a34de4072e247d1d2a84f1d14eeba1d11cbf929a1d3fc87"
+      "requestHash": "7923a8bfc53281f1c9eaa014458665f7ebd75b1de02c915de45b2391e204fc00"
     },
     {
       "content": "",
@@ -38,7 +38,7 @@
         "outputTokens": 33
       },
       "latencyMs": 400,
-      "requestHash": "f50d5986160fbd894db96ec17bd72df3ca979e6ad9aaad3347339da1be3fcc76"
+      "requestHash": "df512ed4b4994eb835f93817d71c1d3d0548a8298334cf7cc4d9690efe80e51f"
     },
     {
       "content": "",
@@ -58,7 +58,7 @@
         "outputTokens": 36
       },
       "latencyMs": 400,
-      "requestHash": "606eecbda5aec2369bda829169b72c95b433a364540c1585f44cc3f33e2a0a54"
+      "requestHash": "2a784ca360e516902e1f2b4df4a4c3d4b29cebb8b2504f9e72c9901f1da3d608"
     },
     {
       "content": "",
@@ -85,7 +85,7 @@
         "outputTokens": 51
       },
       "latencyMs": 400,
-      "requestHash": "39c8984aa811f28b43c5096826095b41ae3de2b030d6970aca3648284006f713"
+      "requestHash": "cfd5221bcca8e67c74708a0dfc909b14b9b0b20dfdb70e6c962ff61177da15ee"
     },
     {
       "content": "Готово, файл отправил вам. Что изменено: слайд 4, текст «Акция: 680 ₽ на саморез»: было 680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?",
@@ -96,7 +96,7 @@
         "outputTokens": 42
       },
       "latencyMs": 400,
-      "requestHash": "95b9eef3aae6801ee058cc158eb8d1973b3a9e6bd4b5ff1be1f1c735366bb5af"
+      "requestHash": "2a3334aa5de9fb949644fb868400aa1c4c0b68515c2a914f61090f7dde4036cb"
     }
   ],
   "synthetic": true

@@ -19,7 +19,7 @@
         "outputTokens": 15
       },
       "latencyMs": 650,
-      "requestHash": "dc9a3fab82a65f714dd02e8c223370b3e43411b5114458e8f976a4b0c370b94b"
+      "requestHash": "dbc0010346f05df8843a84bfa5860dd72be95789faaf179faa548fff7912b863"
     },
     {
       "content": "",
@@ -45,7 +45,7 @@
         "outputTokens": 48
       },
       "latencyMs": 650,
-      "requestHash": "663e4b5e6e6afa3874a589f7136005b683288278e5b61bf01ed5ccff70e66354"
+      "requestHash": "0a6b169b4707b61bd7bb27a03b1e12401386c905549048b415e7648a87298383"
     },
     {
       "content": "Готово, исправленный файл отправил вам. Что изменено: слайд 11, строка «Саморез»: было 680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?",
@@ -56,7 +56,7 @@
         "outputTokens": 42
       },
       "latencyMs": 650,
-      "requestHash": "06c2791cb141144842a0f6d6d276e16edb22b39a6039b5963f5532c3f639bdd6"
+      "requestHash": "5031820ab80c8cfd1d435da356132739084c91a90a71a679d75315c8819a70a7"
     }
   ],
   "synthetic": true

@@ -19,7 +19,7 @@
         "outputTokens": 15
       },
       "latencyMs": 400,
-      "requestHash": "afe97b88ed6b2ec5d571076681bf26b161218345eb167797dc2f6ca58b10f470"
+      "requestHash": "0c262287eb0a2d8a6d0be704f866a360b7b9deaf9a57ef747b466d3142581651"
     },
     {
       "content": "",
@@ -39,7 +39,7 @@
         "outputTokens": 36
       },
       "latencyMs": 400,
-      "requestHash": "8002680ebddd3f06a80f41786180adcd6cfced33503681fc372ba420dfa142ec"
+      "requestHash": "33324b7c18f146d02a20b192f864860a6ab31ec3bde05f96079a89ac311677ae"
     },
     {
       "content": "",
@@ -66,7 +66,7 @@
         "outputTokens": 52
       },
       "latencyMs": 400,
-      "requestHash": "9501346c6a7fda36e7a6464c4dfcb8595425a90189890d003ba199d68f543cf8"
+      "requestHash": "482c9f938be8c4c4a46f9074fc62077fc6799c3f73c813b1898c19cd198f8f92"
     },
     {
       "content": "Файл не изменён и не отправлен: страница 1, текст «Итого за единицу: 1 250,00 USD» - новое число длиннее старого и не помещается на его месте. Могу подготовить xlsx-копию с новой ценой, если вы согласны.",
@@ -77,7 +77,7 @@
         "outputTokens": 52
       },
       "latencyMs": 400,
-      "requestHash": "18826a7641bc8a489f71f0aa6e7db0ad976102b5f1b16eb90e505e82d02ac6ac"
+      "requestHash": "1b5dbd1b6ba1b3eb118907575f9b184f83da86461e542678f193a048071bf7a0"
     }
   ],
   "synthetic": true

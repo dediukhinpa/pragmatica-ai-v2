@@ -19,7 +19,7 @@
         "outputTokens": 15
       },
       "latencyMs": 400,
-      "requestHash": "9f54d0ce4ab6f48f45daeeda9c0ea5db41b7bf372e0aae3c79fbacfc0932382b"
+      "requestHash": "94bd08db7fa591ebd18bfd112b86e8f47132fccb83e95bce65fbc7981206e513"
     },
     {
       "content": "",
@@ -39,7 +39,7 @@
         "outputTokens": 36
       },
       "latencyMs": 400,
-      "requestHash": "4308c3053d64dc64974b699bdc7a0f9f88a4babdb55dc1a195f06b04cb106644"
+      "requestHash": "9ed35cbf1fece9593debc7d23e83be5e33e31aeefa0b5a157d89387caf7dffa7"
     },
     {
       "content": "Слайд 4, числа вне таблиц: 680 ₽ (текст «Акция: 680 ₽ на саморез») и 1 200,50 руб. (текст «Набор 1 200,50 руб. при заказе от 10 шт»). Что-то из этого поменять?",
@@ -50,7 +50,7 @@
         "outputTokens": 41
       },
       "latencyMs": 400,
-      "requestHash": "39c8984aa811f28b43c5096826095b41ae3de2b030d6970aca3648284006f713"
+      "requestHash": "cfd5221bcca8e67c74708a0dfc909b14b9b0b20dfdb70e6c962ff61177da15ee"
     }
   ],
   "synthetic": true

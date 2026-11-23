@@ -19,7 +19,7 @@
         "outputTokens": 15
       },
       "latencyMs": 400,
-      "requestHash": "a2ed1e0198c2c0e3bc8f519dcb635c65114e828e6748d06a3c3b5aa1d3838c59"
+      "requestHash": "6a83e4bc188c978bab9aab09bd5675a38ab4e67465bc6c457c685863bf81c872"
     },
     {
       "content": "",
@@ -38,7 +38,7 @@
         "outputTokens": 33
       },
       "latencyMs": 400,
-      "requestHash": "b9d9f798858d66c85896aa39179a9c015a99a3ca8aa13cfb81de0933509bbdf2"
+      "requestHash": "b58aaff011ece9472419f3d7af90326ffe3ac29912f891271b331dc6ac5b883e"
     },
     {
       "content": "",
@@ -58,7 +58,7 @@
         "outputTokens": 36
       },
       "latencyMs": 400,
-      "requestHash": "a4b440f8226917d7281cf86c51dc66f89563f7e9bb906e739022dc03a0b0ea24"
+      "requestHash": "392f267efb06bc8dd567ad75e80999baca2dc096c23f8f3e75499c13d3a47784"
     },
     {
       "content": "",
@@ -85,7 +85,7 @@
         "outputTokens": 51
       },
       "latencyMs": 400,
-      "requestHash": "9501346c6a7fda36e7a6464c4dfcb8595425a90189890d003ba199d68f543cf8"
+      "requestHash": "482c9f938be8c4c4a46f9074fc62077fc6799c3f73c813b1898c19cd198f8f92"
     },
     {
       "content": "Готово, файл отправил вам. Что изменено: страница 1, текст «Итого за единицу: 1 250,00 USD»: было 1250, стало 1300. Как называется поставщик? Обновить цены этих позиций в базе?",
@@ -96,7 +96,7 @@
         "outputTokens": 45
       },
       "latencyMs": 400,
-      "requestHash": "c6c2332903b45e504515c22b83a22859ed5316844698918bbedc18e124f49895"
+      "requestHash": "3989fb95cd59b36bf0d94c606497a4b5bb13dace2d5ae6737419bf070f09d93a"
     }
   ],
   "synthetic": true
