@@ -1,0 +1,58 @@
+--- eval/state.ts
++++ eval/state.ts
+@@ -30,6 +30,23 @@
+     context: z.string().min(1),
+   })
+   .strict();
++/**
++ * Число в тексте PDF вне таблиц с линиями (этап 9r): то, что отдаёт карта мест сервиса документов
++ * для pdf. Адрес места - страница и номер на ней; `header` - заголовок столбца таблицы без линий.
++ */
++export const pricePdfSpotSchema = z
++  .object({
++    page: z.number().int().min(1),
++    spot: z.number().int().min(0),
++    /** Само число как напечатано («1 250,00»): валюта и слова в место не входят. */
++    text: z.string().min(1),
++    /** Строка вокруг числа (колонки разделены « | »). */
++    context: z.string().min(1),
++    header: z.string().min(1).optional(),
++  })
++  .strict();
++/** Число вне таблицы кейса: слайда pptx или страницы PDF. */
++export const priceAnySpotSchema = z.union([priceSpotSchema, pricePdfSpotSchema]);
+ /** Запись реестра правок сотрудника: позиция базы, момент записи и файл (этап 9q). */
+ export const employeeFileEditSchema = z
+   .object({
+@@ -84,17 +101,24 @@
+      */
+     priceEditDbWrite: z.boolean().default(false),
+     /**
+-     * Числа вне таблиц слайдов pptx (как `PRICE_EDIT_TEXT_BLOCKS_ENABLED`, этап 9q): инструмент
+-     * listPriceSpots, поиск мест в editPriceInFile и абзац промпта; карту мест отдаёт заглушка
+-     * из `priceSpots`. Работает вместе с `priceEditFirst`. По умолчанию выключено.
++     * Числа вне таблиц слайдов pptx и текста pdf (как `PRICE_EDIT_TEXT_BLOCKS_ENABLED`, этапы 9q
++     * и 9r): инструмент listPriceSpots, поиск мест в editPriceInFile и абзац промпта; карту мест
++     * отдаёт заглушка из `priceSpots`. Работает вместе с `priceEditFirst`. По умолчанию выключено.
+      */
+     priceTextBlocks: z.boolean().default(false),
+     /**
+-     * Числа вне таблиц презентаций, которые видит заглушка сервиса документов (локатор слайд,
+-     * фигура, абзац, смещение и текст вокруг). Строка `context` должна стоять отдельной строкой
+-     * в markdown слайда файла из `chatFiles`: по ней заглушка-редактор находит число.
++     * Числа вне таблиц, которые видит заглушка сервиса документов: у презентации - слайд, фигура,
++     * абзац, смещение и текст вокруг, у pdf - страница, номер места, число и строка вокруг.
++     * Строка `context` должна стоять отдельной строкой в markdown файла из `chatFiles`: по ней
++     * заглушка-редактор находит число.
++     */
++    priceSpots: z.array(priceAnySpotSchema).default([]),
++    /**
++     * Код отказа, которым заглушка сервиса отвечает на правку числа в тексте PDF (как 422
++     * `edit_refused` с причиной по месту, этап 9r): `no_fit`, `price_not_isolated` и т. п. Не
++     * задан - правка принимается. Файл при отказе не выдаётся.
+      */
+-    priceSpots: z.array(priceSpotSchema).default([]),
++    priceEditRefusal: z.string().min(1).optional(),
+     /**
+      * Цены, записанные в базу сотрудником по правке файла (реестр 9q): позиция берётся из
+      * `prices` (цена и дата строки должны совпасть с записью, иначе защита не действует).

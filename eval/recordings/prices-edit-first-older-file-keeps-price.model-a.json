@@ -22,11 +22,11 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 7818,
+        "inputTokens": 8169,
         "outputTokens": 38
       },
       "latencyMs": 400,
-      "requestHash": "d084dc77757597cee7751f7529bea32dcda2abe70deafbe713e3cc7d90076047"
+      "requestHash": "f58696034bfd663a07ba39ccbffdd1b466e9320ae11069630f3dcc3e7c6afb3b"
     },
     {
       "content": "",
@@ -47,22 +47,22 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 8004,
+        "inputTokens": 8355,
         "outputTokens": 57
       },
       "latencyMs": 400,
-      "requestHash": "81fbbb2b7e5852ad9476f90173e1bcc29e8b0e42f43a3731431c5c132e810cbc"
+      "requestHash": "3af4f2e27736216ef3b753e518e8b7238b97788b2f29d07cb03936e5b3004325"
     },
     {
       "content": "Прайс МеталлТорг обновлён: Болт теперь 45. Цену Самореза 700 оставил: её записал сотрудник позже даты файла (10.11.2026), а в файле старая цена 680.",
       "toolCalls": [],
       "stopReason": "end_turn",
       "usage": {
-        "inputTokens": 8120,
+        "inputTokens": 8471,
         "outputTokens": 38
       },
       "latencyMs": 400,
-      "requestHash": "7f227558f2a92de97963a88adbd65ef7570992df1b2f230a437339ac1cdbd92e"
+      "requestHash": "ca09681a4318fd007be422f758b17e98504719d3466f1388c005cf6de01c242c"
     }
   ],
   "synthetic": true

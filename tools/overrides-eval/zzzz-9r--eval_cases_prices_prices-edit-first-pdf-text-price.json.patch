@@ -1,0 +1,117 @@
+--- /dev/null
++++ eval/cases/prices/prices-edit-first-pdf-text-price.json
+@@ -0,0 +1,114 @@
++{
++  "id": "prices-edit-first-pdf-text-price",
++  "agent": "prices",
++  "description": "Этап 9r (цена в тексте pdf): цена стоит не в таблице, а в предложении страницы 1 («Итого за единицу: 1 250,00 USD»), та же сумма есть и в колонке без линий («Item A»). Сотрудница просит «на странице 1 в строке «Итого» цену 1250 замени на 1300». Агент смотрит числа страницы через listPriceSpots и вызывает editPriceInFile со страницей и словами из строки (rowText): правка уходит с адресом «страница + номер места» и старой ценой в expected, исправленный файл уходит в чат. В ответе - страница, было и стало и вопрос про базу; строка «Item A» не тронута, в базу ничего не записано.",
++  "request": "Прислала предложение Offer_autumn.pdf. На странице 1 в строке «Итого» цену 1250 замени на 1300. Ответственная — Ирина Фомина, +7 (916) 340-18-72.",
++  "state": {
++    "suppliers": [],
++    "prices": [],
++    "priceEditFirst": true,
++    "priceEditDbWrite": true,
++    "priceTextBlocks": true,
++    "chatFiles": [
++      {
++        "path": "Offer_autumn.pdf",
++        "text": "# Offer autumn\n\n## Страница 1\n\nКоммерческое предложение\n\nИтого за единицу: 1 250,00 USD при заказе партии.\n\nItem A | 1 250,00 | USD\n\nItem B | 980,50 | USD\n\n## Страница 2\n\n| Item | Price |\n| --- | --- |\n| Bolt | 400,00 |"
++      }
++    ],
++    "priceSpots": [
++      {
++        "page": 1,
++        "spot": 0,
++        "text": "1 250,00",
++        "context": "Итого за единицу: 1 250,00 USD при заказе партии."
++      },
++      {
++        "page": 1,
++        "spot": 1,
++        "text": "1 250,00",
++        "context": "Item A | 1 250,00 | USD",
++        "header": "Price"
++      },
++      {
++        "page": 1,
++        "spot": 2,
++        "text": "980,50",
++        "context": "Item B | 980,50 | USD",
++        "header": "Price"
++      }
++    ]
++  },
++  "expect": {
++    "maxSteps": 7,
++    "requiredTools": [
++      "listIntakeFiles",
++      "listPriceSpots",
++      "editPriceInFile"
++    ],
++    "toolOrder": "ordered",
++    "forbiddenTools": [
++      "searchSuppliers",
++      "stagePriceRows",
++      "normalizePriceTable",
++      "savePriceImport",
++      "editPricesInSourceFile",
++      "writeEditedPricesToDb",
++      "recordEmployeePriceUpdates",
++      "previewPriceChanges",
++      "commitPriceImport"
++    ],
++    "outputContains": [
++      "страница 1",
++      "1250",
++      "1300",
++      "обновить цены этих позиций в базе"
++    ],
++    "stateChecks": [
++      {
++        "probe": "chatFiles",
++        "value": 1
++      },
++      {
++        "probe": "editedCellCount",
++        "value": 1
++      },
++      {
++        "probe": "editedTextBlockCount",
++        "value": 1
++      },
++      {
++        "probe": "chatFileContains",
++        "arg": "Итого за единицу: 1 300,00 USD",
++        "value": 1
++      },
++      {
++        "probe": "chatFileContains",
++        "arg": "Итого за единицу: 1 250,00 USD",
++        "value": 0
++      },
++      {
++        "probe": "chatFileContains",
++        "arg": "Item A | 1 250,00 | USD",
++        "value": 1
++      },
++      {
++        "probe": "pendingPriceEdit",
++        "value": 1
++      },
++      {
++        "probe": "storedPriceCount",
++        "value": 0
++      }
++    ],
++    "noPiiInRequests": true
++  },
++  "pii": {
++    "names": [
++      "Фомина",
++      "Ирина"
++    ],
++    "phones": [
++      "+7 (916) 340-18-72"
++    ]
++  }
++}

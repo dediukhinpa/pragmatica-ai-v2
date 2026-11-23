@@ -1,0 +1,56 @@
+--- eval/synthetic/scenarios.ts
++++ eval/synthetic/scenarios.ts
+@@ -842,6 +842,45 @@
+ ]);
+ 
+ /**
++ * Этап 9r: цена в тексте pdf вне таблиц с линиями («Итого за единицу: 1 250,00 USD»). Такой цены
++ * нет в таблицах readPriceFile, поэтому агент смотрит числа страницы через listPriceSpots и
++ * правит editPriceInFile со страницей и словами из строки вокруг числа (rowText).
++ */
++const priceEditPdfText: Script = sequence([
++  LIST_INTAKE,
++  (request) => callTool('c-read', 'readPriceFile', { path: intakePathOf(request) }),
++  (request) => callTool('c-spots', 'listPriceSpots', { path: intakePathOf(request), page: 1 }),
++  (request) =>
++    callTool('c-edit', 'editPriceInFile', {
++      path: intakePathOf(request),
++      edits: [{ oldPrice: 1250, newPrice: 1300, page: 1, rowText: 'Итого' }],
++    }),
++  say(
++    'Готово, файл отправил вам. Что изменено: страница 1, текст «Итого за единицу: 1 250,00 ' +
++      'USD»: было 1250, стало 1300. Как называется поставщик? Обновить цены этих позиций в базе?',
++  ),
++]);
++
++/**
++ * Этап 9r: сервис отказал править число в тексте pdf (новое число не помещается): файл не
++ * отправлен, причина названа по месту, xlsx-копия предложена только с согласия сотрудника.
++ */
++const priceEditPdfTextRefused: Script = sequence([
++  LIST_INTAKE,
++  (request) => callTool('c-spots', 'listPriceSpots', { path: intakePathOf(request), page: 1 }),
++  (request) =>
++    callTool('c-edit', 'editPriceInFile', {
++      path: intakePathOf(request),
++      edits: [{ oldPrice: 1250, newPrice: 1250000, page: 1, rowText: 'Итого' }],
++    }),
++  say(
++    'Файл не изменён и не отправлен: страница 1, текст «Итого за единицу: 1 250,00 USD» - новое ' +
++      'число длиннее старого и не помещается на его месте. Могу подготовить xlsx-копию с новой ' +
++      'ценой, если вы согласны.',
++  ),
++]);
++
++/**
+  * Этап 9q: цену в базе записал сотрудник (700), а на диске более старый прайс с ценой 680. Агент
+  * ведёт прежний путь импорта с диска; код оставляет цену сотрудника и говорит об этом в warnings,
+  * агент передаёт это сотруднику.
+@@ -991,5 +1030,7 @@
+   'prices-edit-first-ambiguous': pair(priceEditFirstAmbiguous),
+   'prices-edit-first-pptx-text-block': pair(priceEditTextBlock),
+   'prices-edit-first-pptx-list-spots': pair(priceEditListSpots),
++  'prices-edit-first-pdf-text-price': pair(priceEditPdfText),
++  'prices-edit-first-pdf-text-refused': pair(priceEditPdfTextRefused),
+   'prices-edit-first-older-file-keeps-price': pair(priceEditOlderFile),
+ };
