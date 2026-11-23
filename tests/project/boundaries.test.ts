@@ -15,6 +15,7 @@ const OWNED_ROOT_FILES = [
   'background-mail-backfill.ts',
   'background-mail-survey.ts',
   'background-wiring.ts',
+  'chat-attachments-cli.ts',
   'lifecycle-disk-sync.ts',
   'documents-paged-reader.ts',
   'document-places.ts',
@@ -28,6 +29,7 @@ const OWNED_ROOT_FILES = [
   'price-edit-followup.ts',
   'price-edit-prompt.ts',
   'price-spots-client.ts',
+  'image-warnings-prompt.ts',
   'price-spots-tool.ts',
   'price-spots.ts',
   'price-table-places.ts',
@@ -49,6 +51,13 @@ const OWNED_ROOT_FILES = [
   'price-edit-turn.ts',
   'price-last-file.ts',
   'turn-file-buffer.ts',
+  // Этап 9v: сканы прайсов (копия с новыми ценами, импорт, охрана итога для менеджера).
+  'scan-price-copy.ts',
+  'scan-price-edits.ts',
+  'scan-price-flow.ts',
+  'scan-price-guard.ts',
+  'scan-price-lines.ts',
+  'scan-price-parser.ts',
   'project.ts',
   'runtime.ts',
   'schedules.ts',
@@ -85,7 +94,7 @@ describe('границы проекта и платформы', () => {
     const files = entries.filter((name) => statSync(join(SRC_ROOT, name)).isFile());
     expect(files).toEqual([...OWNED_ROOT_FILES].sort());
     const dirs = entries.filter((name) => statSync(join(SRC_ROOT, name)).isDirectory());
-    expect(dirs).toEqual(['adapters', 'agents', 'assembly', 'kit']);
+    expect(dirs).toEqual(['adapters', 'agents', 'assembly', 'chat-attachments', 'kit']);
   });
 
   test('копий платформенных файлов в src нет', () => {

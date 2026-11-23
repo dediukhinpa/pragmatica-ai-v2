@@ -18,6 +18,8 @@ const BASELINE_PROJECT_TESTS = 110;
 /** Сценарии, которых нет в эталоне: написаны в v2 (через канал чата), а не взяты из SRC. */
 const PROJECT_ONLY_FILES: ReadonlySet<string> = new Set([
   'tests/z-documents-employee-requisites-chat.test.ts',
+  // Этап 9s: архив файлов чатов в настоящей сборке (собственный сценарий проекта).
+  'tests/s-chat-attachments.test.ts',
 ]);
 
 describe('tools/e2e-test-names: разбор имён', () => {

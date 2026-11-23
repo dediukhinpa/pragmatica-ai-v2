@@ -32,11 +32,12 @@ describe('манифест Прагматики', () => {
     expect(pragmatikaProject.chat.fileHandlers).toHaveLength(1);
   });
 
-  test('плановые задачи: мониторинг, диск, обзор почты, снятая CRM-синхронизация', () => {
+  test('плановые задачи: мониторинг, диск, почта, архив файлов, снятая CRM-синхронизация', () => {
     expect(pragmatikaProject.schedules.map((schedule) => schedule.name)).toEqual([
       'monitoring.tick',
       'prices.disk-sync',
       'suppliers.mail-proposals',
+      'chat-attachments.purge',
       'suppliers.crm-sync',
     ]);
   });

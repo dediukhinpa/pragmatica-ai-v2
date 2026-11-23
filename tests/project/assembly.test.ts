@@ -144,6 +144,8 @@ describe('сборка агентов Прагматики', () => {
       SUPPLIER_DISCOVERY_ENABLED: 'false',
       PRICE_EDIT_FIRST_ENABLED: 'false',
       DOCX_PAGES_ENABLED: 'false',
+      // Сканы прайсов (этап 9v) включены по умолчанию и добавляют createScanPriceCopy.
+      PRICES_SCAN_FLOW_ENABLED: 'false',
     });
     for (const id of AGENT_IDS) {
       expect(toolsOf(app, id)).toEqual([...(BASELINE_MINIMAL_TOOLS[id] ?? [])].sort());
@@ -158,6 +160,8 @@ describe('сборка агентов Прагматики', () => {
       SUPPLIER_DISCOVERY_ENABLED: 'false',
       PRICE_EDIT_FIRST_ENABLED: 'false',
       DOCX_PAGES_ENABLED: 'false',
+      // Сканы прайсов (этап 9v) включены по умолчанию и добавляют createScanPriceCopy.
+      PRICES_SCAN_FLOW_ENABLED: 'false',
     });
     for (const id of AGENT_IDS) {
       const expected = [...(BASELINE_MINIMAL_TOOLS[id] ?? []), ...SUPPLIER_CARD_TOOLS].sort();

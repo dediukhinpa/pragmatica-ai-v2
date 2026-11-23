@@ -218,6 +218,13 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   telegram_source: 'info',
   telegram_source_unavailable: 'warning',
   telegram_source_failed: 'warning',
+  // Этап 9s: архив файлов чатов. Сбой записи не ломает ход сотрудника (файл просто не
+  // сохранён), вытеснение по пределу объёма - сигнал владельцу, остальное - штатные события.
+  chat_attachment_saved: 'info',
+  chat_attachment_skipped: 'info',
+  chat_attachment_failed: 'warning',
+  chat_attachments_evicted: 'warning',
+  chat_attachments_purged: 'info',
 };
 
 /**

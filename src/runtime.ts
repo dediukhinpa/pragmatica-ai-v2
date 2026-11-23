@@ -1,5 +1,6 @@
 import type { Clock, ConversationHistorySearch, WorkflowStateStore } from '@business-ai/core';
 import type { BackgroundCommands } from './background-wiring';
+import type { ChatAttachmentArchive } from './chat-attachments';
 import type { OrderCalcDeps } from './agents/order-calc';
 import type { PricesDeps } from './agents/prices';
 import type { SupplierCardButtons } from './agents/suppliers/card-approval';
@@ -45,6 +46,8 @@ export interface PragmatikaRuntime {
   mailProposals?: MailProposalsRuntime | undefined;
   /** Зависимости разовых команд владельца (`src/background-cli.ts`); службе не нужны. */
   background?: BackgroundCommands | undefined;
+  /** Архив файлов чатов (этап 9s): чистка по сроку и объёму ежедневной задачей. */
+  chatAttachments?: ChatAttachmentArchive | undefined;
 }
 
 /** Один процесс - одно приложение: последняя сборка и есть действующая. */
