@@ -19,7 +19,7 @@
         "outputTokens": 15
       },
       "latencyMs": 650,
-      "requestHash": "9f69cd67ddaed074270c7f3d661a2872215841b2efab76d4db55f74d956a4c95"
+      "requestHash": "cb82f6197ae005467b11788884c41b85d8b6222b6ca86b95e96a189fe2fd6c21"
     },
     {
       "content": "",
@@ -45,7 +45,7 @@
         "outputTokens": 48
       },
       "latencyMs": 650,
-      "requestHash": "bafa9d11b24afd48d93b42437b635f174bd791cf667da2419a6ce6e3e2322ee2"
+      "requestHash": "06b37247c412a898d2adb1ff2913287e38908ee0d080f3c392b51a17edbcf17e"
     },
     {
       "content": "Готово, исправленный файл отправил вам. Что изменено: слайд 11, строка «Саморез»: было 680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?",
@@ -56,7 +56,7 @@
         "outputTokens": 42
       },
       "latencyMs": 650,
-      "requestHash": "857dfe88c5b1d0eaf9b5461710d0e38c3d6a6b45725d36f30e3c4be80c665699"
+      "requestHash": "b0d5f8c6eccd338cbcd934af316d07487b6c6b8007c72c0e99ed39e2942a2f8c"
     },
     {
       "content": "",
@@ -73,7 +73,7 @@
         "outputTokens": 16
       },
       "latencyMs": 650,
-      "requestHash": "5e30699e0dcb386c3b5b7bfbeaf727676a81ba101962f81fe1a35e895e095982"
+      "requestHash": "9d9c163b01ec4c7529b67a32b9c2dd406ad116dc06bb73b681cee185de8472c6"
     },
     {
       "content": "",
@@ -92,7 +92,7 @@
         "outputTokens": 20
       },
       "latencyMs": 650,
-      "requestHash": "5578f4212866abaf3032c2ec4c6a400cd5d8c66e74eee9123f1d3b6b1231520f"
+      "requestHash": "6449d59a99f9644578fab718372571ecce6eb6184d1525340061ecfaf63e8886"
     },
     {
       "content": "",
@@ -117,7 +117,7 @@
         "outputTokens": 33
       },
       "latencyMs": 650,
-      "requestHash": "fbff5ed9a4458ce64096963c8726a4290223c855dd649adf63096ece4c5e85a2"
+      "requestHash": "9314c31a95133342dac57e5aa9f00106a81ad55c80427572136285072fc3bb61"
     },
     {
       "content": "Принял: поставщик МеталлТорг. Цены записаны в базу: Саморез был 680, стал 700 (источник «сотрудник, правка файла»). Остальной прайс не менялся.",
@@ -128,7 +128,7 @@
         "outputTokens": 37
       },
       "latencyMs": 650,
-      "requestHash": "0584edbeed7e1cf945603f60d1d0b0872151a7fccb3b5794b84e02253bf506fa"
+      "requestHash": "1513655873f1ae69284a92dddaa7e0e616336d6047b703362893cd0b0d17756b"
     }
   ],
   "synthetic": true
