@@ -266,10 +266,11 @@ describe('ожидание ответа про базу', () => {
 
   test('новая правка в том же треде заменяет прежнее ожидание', async () => {
     await sendEdit();
+    // следующая реплика сотрудника - другой ход: правки прошлого хода в файл не переносятся
     await editPriceInFile.execute(
       { path, edits: [{ oldPrice: 25, newPrice: 30, slide: 2 }] },
       deps,
-      ctx,
+      { ...ctx, turnNumber: ctx.turnNumber + 1 },
     );
     const pending = await getPendingPriceEdit.execute({}, deps, ctx);
     expect(pending.followup?.changes).toHaveLength(1);

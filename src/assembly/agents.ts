@@ -38,7 +38,13 @@ import { assertCrossChecks, type PragmatikaConfig } from '../config';
 import { restoreLegacyTools } from '../legacy-tools';
 import { HttpContractAmender } from '../kit/adapters/http/http-contract-amender';
 import { HttpPriceFileEditor } from '../kit/adapters/http/http-price-file-editor';
-import { HttpDocxLayoutClient, type DocxLayoutClient } from '../docx-pages-client';
+import {
+  HttpDocxLayoutClient,
+  docxPagesEventOf,
+  type DocxLayoutClient,
+} from '../docx-pages-client';
+import { configureEmptyReplyGuard } from './empty-reply-guard';
+import { withPriceCopyTools } from './price-copy-tools';
 import { HttpPriceSpotReader, type PriceSpotReader } from '../price-spots-client';
 import { DOCX_PAGES_PROMPT } from '../docx-pages-prompt';
 import {
@@ -98,6 +104,13 @@ export function managerThreadOf(ctx: Context): string {
 export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
   const { config, project, services, ports: external } = ctx;
   assertCrossChecks(project, { employeeMailboxEnabled: config.agents.employeeMailboxEnabled });
+  // Пустой итог хода сотрудника не уходит «Готово.»: сообщение об ошибке и событие в журнал
+  // (этап 9t). Обёртки рантайма ставятся здесь: до его создания сборка доходит именно через эту
+  // функцию, а флаг читается при каждом вызове (false - прежнее поведение платформы).
+  configureEmptyReplyGuard({
+    enabled: project.EMPTY_REPLY_GUARD_ENABLED === 'true',
+    log: services.log,
+  });
   const own = pragmatikaPortsOf(external.extra);
   const files = buildFiles(ctx);
   const { clock, state } = services;
@@ -742,7 +755,8 @@ function declarationsOf(
       ? DOCX_PAGES_PROMPT
       : '';
   return restored.map((declaration) => ({
-    ...declaration,
+    // Этап 9t: xlsx-копия прайса собирается кодом, скрипт получает совет при большом выводе
+    ...withPriceCopyTools(declaration, { copy: project.PRICE_EDIT_FIRST_ENABLED === 'true' }),
     prompt:
       `${declaration.prompt}${declaration.id === DOCUMENTS_AGENT_ID ? pagesPrompt : ''}` +
       `\n${REPLY_LANGUAGE_PROMPT_RULE}\n`,
@@ -755,7 +769,7 @@ function docxLayoutOf(ctx: Context): DocxLayoutClient | undefined {
   return new HttpDocxLayoutClient({
     baseUrl: ctx.config.documents.baseUrl,
     // Причина без имени и содержимого файла: ПДн в журнал не попадают.
-    onFailure: (reason) => ctx.services.log('docx_pages_unavailable', { reason }),
+    onFailure: (reason) => ctx.services.log(docxPagesEventOf(reason), { reason }),
   });
 }
 

@@ -1,7 +1,7 @@
 import type { ParsedDocument } from '@business-ai/core';
 import { extensionOf } from '@business-ai/core';
 import type { PricesDeps } from './agents/prices/deps';
-import type { PriceSource } from './agents/prices/price-sources';
+import { sourceSizeOf, type PriceSource } from './agents/prices/price-sources';
 import { describeTablePlaces } from './document-places';
 import { annotateTextWithPages, pageOfTables, type PageAnnotation } from './docx-pages';
 import type { DocxLayout, DocxLayoutClient } from './docx-pages-client';
@@ -58,6 +58,12 @@ async function layoutOf(
   const key = `${source.hash}|${source.name}`;
   const cached = layoutCache.get(key);
   if (cached !== undefined) return cached;
+  // Файл на диске крупнее предела сервиса: страницы не нужны настолько, чтобы читать его в память
+  // ради заведомого 413 (размер известен без чтения).
+  if (client.maxBytes !== undefined) {
+    const size = await sourceSizeOf(source)();
+    if (size !== undefined && size > client.maxBytes) return null;
+  }
   const pending = (async (): Promise<DocxLayout | null> => {
     try {
       return await client.pages({ name: source.name, bytes: await source.read() });

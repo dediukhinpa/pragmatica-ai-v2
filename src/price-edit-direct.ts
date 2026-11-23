@@ -52,6 +52,18 @@ import {
   spotPlace,
 } from './price-spots';
 import { isPdfSpot, type PriceSpot } from './price-spots-client';
+import {
+  UPDATED_VERSION_NOTE,
+  UPDATED_VERSION_PREFIX,
+  isReplay,
+  isUpdatedVersion,
+  loadTurnRecord,
+  saveTurnRecord,
+  serializedPerTurn,
+  turnRecordKey,
+  versionedFileName,
+  type CarriedEdit,
+} from './price-edit-turn';
 
 /**
  * Правка цены в файле сотрудника СРАЗУ, без поставщика и без черновика импорта (этап 9p).
@@ -419,7 +431,7 @@ const NO_NUMBERS_MESSAGE =
  * Изменить цену прямо в файле сотрудника и сразу отправить файл, не спрашивая поставщика.
  * Исходный файл не меняется: сервис правит копию.
  */
-export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>({
+export const editPriceInFile = serializedPerTurn(defineTool<DirectInput, DirectOutput, PricesDeps>({
   name: PRICE_EDIT_DIRECT_TOOL,
   readsFile: true,
   sideEffect: true,
@@ -472,6 +484,11 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
     const planned: Candidate[] = [];
     const specs: EditSpec[] = [];
     const taken = new Set<string>();
+    // Что уже отправлено в этом ходе по этому файлу (этап 9t): повтор правки собирает итоговый
+    // файл со всеми местами хода, а не второй неполный файл с тем же именем
+    const sendKey = directKey(input);
+    const turnKey = turnRecordKey(context, `file:${input.path}`);
+    const turnRecord = await loadTurnRecord(deps.state, turnKey);
     for (const spec of input.edits) {
       if (spec.oldPrice === spec.newPrice) {
         throw new DomainError('invalid_input', 'Новая цена равна старой: править нечего.');
@@ -518,6 +535,23 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
       planned.push(only);
       specs.push(spec);
     }
+    // Правки прежних отправок хода: место, названное заново, берёт новую цену, остальные
+    // остаются в файле. Повтор той же отправки (после сбоя) прежних правок не подмешивает.
+    const carriedPlanned: Candidate[] = [];
+    const carriedSpecs: EditSpec[] = [];
+    const earlier = isUpdatedVersion(turnRecord, sendKey) ? turnRecord.carried : [];
+    for (const entry of earlier) {
+      const parsedSpec = editSpecSchema.safeParse(entry.spec);
+      if (!parsedSpec.success) continue;
+      const found = findCandidates(parsed, labels, parsedSpec.data, spots);
+      const [only] = found;
+      if (found.length !== 1 || only === undefined || taken.has(placeKey(only))) continue;
+      taken.add(placeKey(only));
+      carriedPlanned.push(only);
+      carriedSpecs.push(parsedSpec.data);
+    }
+    planned.unshift(...carriedPlanned);
+    specs.unshift(...carriedSpecs);
     const edits: PriceCellEdit[] = planned.map((item, index) => ({
       ...locationOf(item),
       value: specs[index]?.newPrice ?? 0,
@@ -604,7 +638,7 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
           'Правка по просьбе сотрудника идёт только в его чате: плановый ход файл не отправляет.',
         );
       }
-      const sendName =
+      const baseName =
         supplier === null
           ? resultNameFromSource(
               source.name,
@@ -616,7 +650,8 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
               day,
               edited.convertedFrom === undefined ? source.name : edited.fileName,
             );
-      const sendKey = directKey(input);
+      // Повторная отправка в этом ходе: другое имя с пометкой «обновлённая версия»
+      const sendName = versionedFileName(baseName, turnRecord, sendKey);
       try {
         await deps.chat.sendFile(
           threadId,
@@ -670,6 +705,14 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
           changes: followupChanges,
         });
       }
+      const updatedVersion = isUpdatedVersion(turnRecord, sendKey);
+      if (!isReplay(turnRecord, sendKey)) {
+        // Запись хода: что уже отправлено и какие места несёт итоговый файл
+        await saveTurnRecord(deps.state, turnKey, {
+          sends: [...turnRecord.sends, { key: sendKey, name: sendName }],
+          carried: applied.map(({ item, spec }): CarriedEdit => ({ place: placeKey(item), spec })),
+        });
+      }
       const ask =
         supplier === null
           ? 'Поставщик не определён: в этом же ответе спроси «это поставщик X?» (если по ' +
@@ -689,10 +732,14 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
           `изменения из changes (было → стало, место); 2) ${ask}3) спроси «обновить цены ` +
           'этих позиций в базе?». В базу пока ничего не записано и не будет записано без ' +
           'явного «да» сотрудника; без ответа база остаётся прежней.' +
-          (edited.convertedFrom === undefined ? '' : ` ${CONVERTED_PPT_NOTE}`),
+          (edited.convertedFrom === undefined ? '' : ` ${CONVERTED_PPT_NOTE}`) +
+          (updatedVersion
+            ? ` ${UPDATED_VERSION_PREFIX}${UPDATED_VERSION_NOTE} Все правки хода в нём ` +
+              'перечислены в changes.'
+            : ''),
       };
     } finally {
       await edited.disk?.dispose();
     }
   },
-});
+}));

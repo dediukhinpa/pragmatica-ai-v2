@@ -451,7 +451,10 @@ describe('промпт агента прайсов: краткость и сто
     expect(PRICES_PROMPT).not.toContain('не больше трёх, нумерованно');
     expect(PRICES_PROMPT).not.toContain('Жду ответа');
     expect(PRICES_PROMPT).not.toContain('максимум пять строк');
-    expect(PRICES_PROMPT).toContain('Цены в базу не попали, на диск внесите сами');
+    // Этап 9t (B6): фраза про ручной ввод на диск противоречила вопросу «обновить в базе?».
+    expect(PRICES_PROMPT).not.toContain('на диск внесите сами');
+    expect(PRICES_PROMPT).not.toContain('на диск вносите сами');
+    expect(PRICES_PROMPT.replace(/\s+/g, ' ')).toContain('не говори, что цены не попали в базу');
     expect(PRICES_PROMPT).toContain('вызывай инструмент ОДИН раз');
     expect(PRICES_PROMPT).toContain('priceColumns');
     expect(PRICES_PROMPT).toContain('status=unknown_column');
