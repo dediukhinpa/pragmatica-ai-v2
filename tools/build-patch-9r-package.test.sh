@@ -54,7 +54,7 @@ done
 # Переменные app от G8z, G9p и G9q (уже на бою) с умолчанием true: только в compose.project.yml.
 for v in SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED PRICE_EDIT_FIRST_ENABLED \
   DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED \
-  EMPTY_REPLY_GUARD_ENABLED; do
+  EMPTY_REPLY_GUARD_ENABLED PRICE_FILE_ONCE_PER_TURN_ENABLED STEP_TEXT_SEPARATE_ENABLED; do
   printf '  %s: ${%s:-true}\n' "$v" "$v" >>"$REPO/deploy/compose.project.yml"
 done
 # Новые переменные платформы 1.1.10: только в копии платформы.
@@ -196,7 +196,7 @@ done
 # переменную (пакет заменяет файл целиком, флаги G8z, G9p и G9q обязаны остаться).
 for var in SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED PRICE_EDIT_FIRST_ENABLED \
   DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED \
-  EMPTY_REPLY_GUARD_ENABLED; do
+  EMPTY_REPLY_GUARD_ENABLED PRICE_FILE_ONCE_PER_TURN_ENABLED STEP_TEXT_SEPARATE_ENABLED; do
   sed -i "/$var:/d" "$REPO/deploy/compose.project.yml"
   commit "без переменной $var"
   rc=0

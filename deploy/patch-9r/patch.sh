@@ -151,18 +151,20 @@ B24_TIMEOUT_MAX_MS=3600000
 PDF_TEXT_KEY="DOCUMENTS_EDIT_PDF_TEXT"
 PDF_TEXT_TRUE_WORDS="1 true on yes"
 PDF_TEXT_FALSE_WORDS="0 false off no"
-# Переменные app от патчей G9q2, G9q, G9p, G8z и G8w: признак, что они применены, и то, что
+# Переменные app от патчей G9q3, G9q2, G9q, G9p, G8z и G8w: признак, что они применены, и то, что
 # при замене app не должно потеряться и измениться (значения читаются у ЭТИХ ключей: флаги и
 # числа, не секреты). Значение до замены запоминается с запущенного app, после замены оно
 # обязано совпасть.
-KEEP_APP_KEYS=(EMPTY_REPLY_GUARD_ENABLED PRICE_EDIT_DB_WRITE_ENABLED
+KEEP_APP_KEYS=(PRICE_FILE_ONCE_PER_TURN_ENABLED STEP_TEXT_SEPARATE_ENABLED
+  EMPTY_REPLY_GUARD_ENABLED PRICE_EDIT_DB_WRITE_ENABLED
   PRICE_EDIT_TEXT_BLOCKS_ENABLED PRICE_EDIT_FIRST_ENABLED DOCX_PAGES_ENABLED
   SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED
   YANDEX_SEARCH_MAX_CONCURRENCY YANDEX_SEARCH_MIN_INTERVAL_MS)
-# Флаги G9q2 (защита от пустого ответа) и G9q в compose.project.yml по умолчанию включены
-# (`:-true`): после патча файл не должен потерять эти строки (если пакет его заменяет).
-G9Q_APP_FLAGS=(EMPTY_REPLY_GUARD_ENABLED PRICE_EDIT_DB_WRITE_ENABLED
-  PRICE_EDIT_TEXT_BLOCKS_ENABLED)
+# Флаги G9q3 (один файл правки прайса за ход, текст шага отдельно), G9q2 (защита от пустого
+# ответа) и G9q в compose.project.yml по умолчанию включены (`:-true`): после патча файл не
+# должен потерять эти строки (если пакет его заменяет). Список G9q3 - первые два имени.
+G9Q_APP_FLAGS=(PRICE_FILE_ONCE_PER_TURN_ENABLED STEP_TEXT_SEPARATE_ENABLED
+  EMPTY_REPLY_GUARD_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED)
 FLAG_DEFAULT_VALUE="true"
 # Значение из окружения запуска сильнее .env и compose: сброс, чтобы эффективное значение
 # определялось только файлами дерева (переменная, экспортированная в оболочке владельца, иначе

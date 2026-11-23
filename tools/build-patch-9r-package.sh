@@ -51,8 +51,9 @@
 # DOCUMENTS_EDIT_PDF, DOCUMENTS_PPT_CONVERT, DOCUMENTS_EDIT_PDF_FALLBACK_FONT),
 # compose.project.yml в HEAD - переменные G8z (SHORTLIST_PAGING_ENABLED,
 # SUPPLIER_DISCOVERY_ENABLED), G9p (PRICE_EDIT_FIRST_ENABLED, DOCX_PAGES_ENABLED) и G9q
-# (PRICE_EDIT_DB_WRITE_ENABLED, PRICE_EDIT_TEXT_BLOCKS_ENABLED) и G9q2 (EMPTY_REPLY_GUARD_ENABLED)
-# с умолчанием true, routes.tsv в
+# (PRICE_EDIT_DB_WRITE_ENABLED, PRICE_EDIT_TEXT_BLOCKS_ENABLED), G9q2
+# (EMPTY_REPLY_GUARD_ENABLED) и G9q3 (PRICE_FILE_ONCE_PER_TURN_ENABLED,
+# STEP_TEXT_SEPARATE_ENABLED) с умолчанием true, routes.tsv в
 # HEAD - маршрут /docx/pages. С --tgz пакет упаковывается в архив (режим 600, корень
 # patch-package/; обычно stage-9r/patch-package.tgz).
 #
@@ -69,12 +70,12 @@ ROUTE_TOOLS=(check-routes.sh route-flags.tsv)
 # Файлы дерева, которые патч вправе заменить (кроме images.lock в корне пакета).
 # ДОЛЖНО совпадать с PATCH_FILE_ALLOW в patch.sh.
 DEPLOY_FILES=(compose.project.yml platform/compose.base.yml platform/PLATFORM-VERSION)
-# Переменные app от G8z, G9p, G9q и G9q2 (уже на бою): обязаны остаться в compose.project.yml
+# Переменные app от G8z, G9p, G9q, G9q2 и G9q3 (уже на бою): обязаны остаться в compose.project.yml
 # с умолчанием true (флаги по умолчанию включены, false в .env - выключатель): пакет заменяет
 # файл целиком.
 OLD_APP_VARS=(SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED PRICE_EDIT_FIRST_ENABLED
   DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED
-  EMPTY_REPLY_GUARD_ENABLED)
+  EMPTY_REPLY_GUARD_ENABLED PRICE_FILE_ONCE_PER_TURN_ENABLED STEP_TEXT_SEPARATE_ENABLED)
 NEW_APP_DEFAULT="true"
 NEW_APP_FILE="compose.project.yml"
 # Маршрут documents от G9p (образ documents у G9r его сохраняет): обязан быть в routes.tsv из HEAD.

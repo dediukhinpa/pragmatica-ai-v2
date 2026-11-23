@@ -80,6 +80,7 @@ cat >"$BIN/docker" <<'STUB'
 printf '%s\n' "$*" >>"$DOCKER_LOG"
 # Что видит docker из оболочечных переменных: патч обязан их сбросить.
 echo "${EMPTY_REPLY_GUARD_ENABLED-<unset>} ${PRICE_EDIT_DB_WRITE_ENABLED-<unset>}" \
+  "${PRICE_FILE_ONCE_PER_TURN_ENABLED-<unset>} ${STEP_TEXT_SEPARATE_ENABLED-<unset>}" \
   "${PRICE_EDIT_TEXT_BLOCKS_ENABLED-<unset>}" \
   "${PRICE_EDIT_FIRST_ENABLED-<unset>} ${DOCX_PAGES_ENABLED-<unset>}" \
   "${SHORTLIST_PAGING_ENABLED-<unset>} ${SUPPLIER_DISCOVERY_ENABLED-<unset>}" \
@@ -190,7 +191,10 @@ config_json() { # config_json <каталог deploy> <lock>
       "$(stub_val "$dir" DOCX_PAGES_ENABLED true)" "$dbw"
     printf '"PRICE_EDIT_TEXT_BLOCKS_ENABLED":"%s",' \
       "$(stub_val "$dir" PRICE_EDIT_TEXT_BLOCKS_ENABLED true)"
-    printf '"EMPTY_REPLY_GUARD_ENABLED":"%s"' "$(stub_val "$dir" EMPTY_REPLY_GUARD_ENABLED true)"
+    printf '"EMPTY_REPLY_GUARD_ENABLED":"%s",' "$(stub_val "$dir" EMPTY_REPLY_GUARD_ENABLED true)"
+    printf '"PRICE_FILE_ONCE_PER_TURN_ENABLED":"%s",' \
+      "$(stub_val "$dir" PRICE_FILE_ONCE_PER_TURN_ENABLED true)"
+    printf '"STEP_TEXT_SEPARATE_ENABLED":"%s"' "$(stub_val "$dir" STEP_TEXT_SEPARATE_ENABLED true)"
     if ((newp)); then
       [[ "${STUB_CFG_NO_B24:-0}" == 1 ]] || printf ',"B24_CALL_RECORDING_MAX_BYTES":"%s"' "$b24max"
       printf ',"B24_CALL_RECORDING_TIMEOUT_MS":"%s"' "$b24to"
@@ -262,7 +266,8 @@ case "$1" in
             set_image p-app-1 "$ref"
             bump_started p-app-1
             grep -vE '^(YANDEX_|SHORTLIST_|SUPPLIER_DISCOVERY_|PRICE_EDIT_|DOCX_PAGES_|B24_)' \
-              "$STUB/env/p-app-1" | grep -v '^EMPTY_REPLY_' >"$STUB/env/p-app-1.n" || true
+              "$STUB/env/p-app-1" | grep -vE '^(EMPTY_REPLY_|PRICE_FILE_|STEP_TEXT_)' \
+              >"$STUB/env/p-app-1.n" || true
             if [[ "${STUB_APP_LOSE_YANDEX:-0}" != 1 || $isnew != 1 ]]; then
               echo "YANDEX_SEARCH_MAX_CONCURRENCY=1" >>"$STUB/env/p-app-1.n"
               echo "YANDEX_SEARCH_MIN_INTERVAL_MS=1200" >>"$STUB/env/p-app-1.n"
@@ -283,6 +288,10 @@ case "$1" in
               [[ $isnew != 1 ]] || dbw="${STUB_ENV_DB_WRITE:-$dbw}"
               echo "EMPTY_REPLY_GUARD_ENABLED=$(stub_val "$dir" \
                 EMPTY_REPLY_GUARD_ENABLED true)" >>"$STUB/env/p-app-1.n"
+              echo "PRICE_FILE_ONCE_PER_TURN_ENABLED=$(stub_val "$dir" \
+                PRICE_FILE_ONCE_PER_TURN_ENABLED true)" >>"$STUB/env/p-app-1.n"
+              echo "STEP_TEXT_SEPARATE_ENABLED=$(stub_val "$dir" \
+                STEP_TEXT_SEPARATE_ENABLED true)" >>"$STUB/env/p-app-1.n"
               echo "PRICE_EDIT_DB_WRITE_ENABLED=$dbw" >>"$STUB/env/p-app-1.n"
               echo "PRICE_EDIT_TEXT_BLOCKS_ENABLED=$(stub_val "$dir" \
                 PRICE_EDIT_TEXT_BLOCKS_ENABLED true)" >>"$STUB/env/p-app-1.n"
@@ -436,6 +445,8 @@ write_compose() { # write_compose <файл> [значение по умолча
     printf '      PRICE_EDIT_TEXT_BLOCKS_ENABLED: ${PRICE_EDIT_TEXT_BLOCKS_ENABLED:-%s}\n' \
       "${2:-true}"
     printf '      EMPTY_REPLY_GUARD_ENABLED: ${EMPTY_REPLY_GUARD_ENABLED:-true}\n'
+    printf '      PRICE_FILE_ONCE_PER_TURN_ENABLED: ${PRICE_FILE_ONCE_PER_TURN_ENABLED:-true}\n'
+    printf '      STEP_TEXT_SEPARATE_ENABLED: ${STEP_TEXT_SEPARATE_ENABLED:-true}\n'
     printf '  documents:\n    environment:\n'
     printf '      DOCUMENTS_EDIT_PPTX: ${DOCUMENTS_EDIT_PPTX:-true}\n'
     printf '      DOCUMENTS_EDIT_PDF: ${DOCUMENTS_EDIT_PDF:-true}\n'
@@ -539,7 +550,9 @@ reset_stand() { # reset_stand: бой «после G9q3» (дерево, кон�
   printf 'PRICE_EDIT_FIRST_ENABLED=true\nDOCX_PAGES_ENABLED=true\n' >>"$STUB/env/p-app-1"
   printf 'PRICE_EDIT_DB_WRITE_ENABLED=true\nPRICE_EDIT_TEXT_BLOCKS_ENABLED=true\n' \
     >>"$STUB/env/p-app-1"
-  printf 'EMPTY_REPLY_GUARD_ENABLED=true\n' >>"$STUB/env/p-app-1"
+  printf 'EMPTY_REPLY_GUARD_ENABLED=true\nPRICE_FILE_ONCE_PER_TURN_ENABLED=true\n' \
+    >>"$STUB/env/p-app-1"
+  printf 'STEP_TEXT_SEPARATE_ENABLED=true\n' >>"$STUB/env/p-app-1"
   printf 'DOCUMENTS_EDIT_PPTX=true\nDOCUMENTS_EDIT_PDF=true\nDOCUMENTS_PPT_CONVERT=true\n' \
     >>"$STUB/env/p-documents-1"
   printf 'DOCUMENTS_EDIT_PDF_FALLBACK_FONT=false\n' >>"$STUB/env/p-documents-1"
@@ -719,7 +732,7 @@ g9q2_case docsimage "G9q3 не применён: documents не на образ�
 for app_var in YANDEX_SEARCH_MAX_CONCURRENCY YANDEX_SEARCH_MIN_INTERVAL_MS \
   SHORTLIST_PAGING_ENABLED SUPPLIER_DISCOVERY_ENABLED PRICE_EDIT_FIRST_ENABLED \
   DOCX_PAGES_ENABLED PRICE_EDIT_DB_WRITE_ENABLED PRICE_EDIT_TEXT_BLOCKS_ENABLED \
-  EMPTY_REPLY_GUARD_ENABLED; do
+  EMPTY_REPLY_GUARD_ENABLED PRICE_FILE_ONCE_PER_TURN_ENABLED STEP_TEXT_SEPARATE_ENABLED; do
   reset_stand
   sed -i "/^$app_var=/d" "$STUB/env/p-app-1"
   T1="$(tree_snapshot)"
@@ -967,14 +980,15 @@ assert "дрейф тома: сообщение называет services.migrat
   "out_has cfgpathdrift 'services.migrate.volumes'"
 # Оболочечные переменные патч сбрасывает: значение из окружения запуска сильнее .env.
 PRICE_EDIT_FIRST_ENABLED=true DOCX_PAGES_ENABLED=true SHORTLIST_PAGING_ENABLED=false \
-  EMPTY_REPLY_GUARD_ENABLED=false PRICE_EDIT_DB_WRITE_ENABLED=false \
+  EMPTY_REPLY_GUARD_ENABLED=false PRICE_FILE_ONCE_PER_TURN_ENABLED=false \
+  STEP_TEXT_SEPARATE_ENABLED=false PRICE_EDIT_DB_WRITE_ENABLED=false \
   PRICE_EDIT_TEXT_BLOCKS_ENABLED=false \
   SUPPLIER_DISCOVERY_ENABLED=false B24_CALL_RECORDING_MAX_BYTES=5 \
   B24_CALL_RECORDING_TIMEOUT_MS=5 DOCUMENTS_EDIT_PDF_TEXT=false run shellenv --preflight-only
 assert "переменные в оболочке владельца: preflight код 0" "[[ $RC -eq 0 ]]"
 assert "переменные в оболочке: docker их не видит (сброшены)" \
-  "[[ -s '$STUB/shellenv.log' ]] && ! grep -qv \
-   '^<unset> <unset> <unset> <unset> <unset> <unset> <unset> <unset> <unset> <unset>\$' \
+  "[[ -s '$STUB/shellenv.log' ]] && ! grep -qvE \
+   '^(<unset> ){11}<unset>\$' \
    '$STUB/shellenv.log'"
 reset_stand
 STUB_NO_READY=1 run noready
@@ -1049,7 +1063,7 @@ assert "--preflight-only: эффективные значения записан
 DOCUMENTS_EDIT_PDF_TEXT=<пусто: по умолчанию платформы включено> ' ]]"
 assert "--preflight-only: значения переменных app до замены записаны (флаги и числа)" \
   "grep -qx 'PRICE_EDIT_DB_WRITE_ENABLED=true' $PF_RES/app-values-before.txt \
-   && [[ \$(wc -l <$PF_RES/app-values-before.txt) -eq 9 ]]"
+   && [[ \$(wc -l <$PF_RES/app-values-before.txt) -eq 11 ]]"
 assert "--preflight-only: журнал называет сходство прочей конфигурации" \
   "out_has preflight 'прочая конфигурация: ok'"
 assert "--preflight-only: в списке замены две копии платформы (compose.project.yml равен)" \
