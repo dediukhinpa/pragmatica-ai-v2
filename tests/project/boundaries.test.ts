@@ -28,6 +28,7 @@ const OWNED_ROOT_FILES = [
   'price-edit-followup.ts',
   'price-edit-prompt.ts',
   'price-spots-client.ts',
+  'image-warnings-prompt.ts',
   'price-spots-tool.ts',
   'price-spots.ts',
   'price-table-places.ts',

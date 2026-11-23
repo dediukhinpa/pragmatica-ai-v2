@@ -46,7 +46,9 @@ import {
 import { configureEmptyReplyGuard } from './empty-reply-guard';
 import { withPriceCopyTools } from './price-copy-tools';
 import { configureTurnRuntimeWrap } from './turn-runtime-wrap';
+import { IMAGE_WARNINGS_PROMPT } from '../image-warnings-prompt';
 import { PRICE_FILE_ONCE_PROMPT } from '../price-edit-prompt';
+import { PRICES_SCAN_FLOW_PROMPT, withScanFlowTools } from '../scan-price-flow';
 import { turnFileChat } from '../turn-file-buffer';
 import { HttpPriceSpotReader, type PriceSpotReader } from '../price-spots-client';
 import { DOCX_PAGES_PROMPT } from '../docx-pages-prompt';
@@ -144,6 +146,10 @@ export function assemblePragmatikaAgents(ctx: Context): ProjectAgents {
   const { table: parser, text: documentsParser } = buildDocumentParsers(
     services.parser,
     services.imageReader,
+    {
+      scanFlow: ctx.project.PRICES_SCAN_FLOW_ENABLED === 'true',
+      textFirstWarnings: ctx.config.vision.textFirst,
+    },
   );
   const shared = { tableExporter: services.tableExporter, intake: services.intake };
   const docxLayout = docxLayoutOf(ctx);
@@ -772,9 +778,13 @@ function declarationsOf(
   const onceFile =
     project.PRICE_FILE_ONCE_PER_TURN_ENABLED === 'true' &&
     project.PRICE_EDIT_FIRST_ENABLED === 'true';
+  // Сканы прайсов (этап 9v): инструмент правки по скану и охрана reportToManager.
+  const scanFlow = project.PRICES_SCAN_FLOW_ENABLED === 'true';
+  // Этап 9v: предупреждения о картинках по слайдам; false (VISION_TEXT_FIRST) - прежний промпт.
+  const imageWarnings = config.vision.textFirst;
   return restored.map((declaration) => ({
     // Этап 9t: xlsx-копия прайса собирается кодом, скрипт получает совет при большом выводе
-    ...withPriceCopyTools(declaration, {
+    ...withPriceCopyTools(withScanFlowTools(declaration, { enabled: scanFlow }), {
       copy: project.PRICE_EDIT_FIRST_ENABLED === 'true',
       // Этап 9u: повторная отправка последнего файла правки («вышли файл»)
       resend: onceFile,
@@ -782,6 +792,8 @@ function declarationsOf(
     prompt:
       `${declaration.prompt}${declaration.id === DOCUMENTS_AGENT_ID ? pagesPrompt : ''}` +
       `${declaration.id === PRICES_AGENT_ID && onceFile ? PRICE_FILE_ONCE_PROMPT : ''}` +
+      `${declaration.id === PRICES_AGENT_ID && scanFlow ? PRICES_SCAN_FLOW_PROMPT : ''}` +
+      `${declaration.id === PRICES_AGENT_ID && imageWarnings ? IMAGE_WARNINGS_PROMPT : ''}` +
       `\n${REPLY_LANGUAGE_PROMPT_RULE}\n`,
   }));
 }

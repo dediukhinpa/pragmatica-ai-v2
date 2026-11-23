@@ -1,5 +1,6 @@
 import { HttpDocumentParser, VisionTableDocumentParser } from '@business-ai/adapters';
 import { isArchiveName } from '@business-ai/core';
+import { withScanTableParser } from '../scan-price-parser';
 import type {
   DocumentParser,
   ImageReader,
@@ -80,6 +81,17 @@ export class ScanTextDocumentParser implements DocumentParser {
   }
 }
 
+/** Параметры сборки разборщиков: новое поведение этапа 9v включается явно, без них - прежнее. */
+export interface DocumentParserOptions {
+  /**
+   * Сканы прайсов (`PRICES_SCAN_FLOW_ENABLED`): табличный разборщик оставляет распознанный
+   * текст скана, а позиции скана становятся таблицей. Разборщик документов не меняется.
+   */
+  scanFlow?: boolean;
+  /** Предупреждение о картинках с текстом по слайдам (`VISION_TEXT_FIRST`); false - прежнее. */
+  textFirstWarnings?: boolean;
+}
+
 /**
  * Разборщики проекта. Для боевого `HttpDocumentParser` - табличный (прайсы) и текстовый
  * (документы); для любого другого (тестовая заглушка) - один и тот же исходный, как раньше.
@@ -87,8 +99,17 @@ export class ScanTextDocumentParser implements DocumentParser {
 export function buildDocumentParsers(
   source: DocumentParser,
   imageReader: ImageReader,
+  options: DocumentParserOptions = {},
 ): DocumentParsers {
   if (!(source instanceof HttpDocumentParser)) return { table: source, text: source };
-  const table = new VisionTableDocumentParser(source, imageReader);
-  return { table, text: new ScanTextDocumentParser(source, table) };
+  const textFirstWarnings = options.textFirstWarnings ?? true;
+  const plain = new VisionTableDocumentParser(source, imageReader, { textFirstWarnings });
+  const text = new ScanTextDocumentParser(source, plain);
+  if (options.scanFlow !== true) return { table: plain, text };
+  const prices = withScanTableParser(
+    new VisionTableDocumentParser(source, imageReader, { textFirstWarnings, keepScanText: true }),
+    true,
+  );
+  // Документам скан нужен целиком страницами: их разборщик остаётся прежним табличным.
+  return { table: prices, text };
 }
