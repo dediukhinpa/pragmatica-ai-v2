@@ -163,6 +163,8 @@ TREE_FROM_HEAD=(compose.yml compat.env compose.project.yml platform/compose.base
 ARCHIVE_SUB="chat-attachments"
 CLI_FILE="src/chat-attachments-cli.ts"
 INTAKE_ROOT_KEY="INTAKE_ROOT"
+# uid пользователя app в образе (bun): владелец корня тома приёма на бою.
+APP_UID=1000
 INTAKE_VOLUME_SUFFIX="intake-data"
 # Права подкаталога архива: только владелец (DIR_MODE образа).
 ARCHIVE_MODE_WANT="700"
@@ -753,6 +755,11 @@ prepare_intake() {
       "нет монтирования (корень '${root:-<нет>}')"
     return 1
   fi
+  # Как на бою (cutover проверяет, что uid app пишет в том): корень нового тома отдаём app.
+  # (у app сброшены все capabilities, поэтому chown делает одноразовый контейнер на том же томе)
+  docker run --rm --user 0 --network none --label "bai.stage=9s" \
+    -v "${PROJECT}_${INTAKE_VOLUME_SUFFIX}:/v" --entrypoint chown \
+    "$(docker inspect -f '{{.Config.Image}}' "$APP")" "$APP_UID:$APP_UID" /v >/dev/null 2>&1 || true
   seeded="$(app_bun "$JS_SEED" "SEED_DIRS=$INTAKE_SEED_DIRS" "SEED_FILES=$INTAKE_SEED_FILES" \
     | tail -n 1)"
   files="$(intake_snapshot "$INTAKE_BEFORE")"
