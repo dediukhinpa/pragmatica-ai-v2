@@ -1,0 +1,70 @@
+--- eval/synthetic/scenarios.ts
++++ eval/synthetic/scenarios.ts
+@@ -629,6 +629,58 @@
+   ...formSearchTail('req-25'),
+ ]);
+ 
++/**
++ * Этап 8z: «ещё 10» после первого шорт-листа. Сценарии скриптуют правильное поведение: первая
++ * выдача как обычно (поиск, шорт-лист, вопрос менеджеру), на «ещё» - только showMoreSuppliers
++ * (шорт-лист заново не собирается). Страницу и вопрос выбора показывает код и заканчивает ход,
++ * на «новых нет» модель отвечает сама.
++ */
++function pagingFirstPage(id: string): StepOrBuilder[] {
++  return [
++    callTools(SEARCH_NAMES.map((name, i) => [`search-${i}`, name, { requestId: id }])),
++    callTool('c-build', 'buildShortlist', { requestId: id }),
++    (request) =>
++      callTool('c-ask', 'askManagerToChoose', {
++        requestId: id,
++        version: lastToolResult(request)['version'],
++      }),
++  ];
++}
++const showMore = (id: string, n: number): ScriptStep =>
++  callTool(`c-more-${n}`, 'showMoreSuppliers', { requestId: id, count: 10 });
++
++/** 10 из базы, затем «ещё»: остаток базы и интернет. */
++const orderMoreAfterTenBase: Script = sequence([
++  ...pagingFirstPage('req-30'),
++  showMore('req-30', 1),
++]);
++/** 7 из базы + 3 из интернета, затем «ещё»: десятка целиком из интернета. */
++const orderMoreAfterSevenPlusThree: Script = sequence([
++  ...pagingFirstPage('req-31'),
++  showMore('req-31', 1),
++]);
++/** Повторные «ещё» до «новых подходящих нет». */
++const orderMoreUntilExhausted: Script = sequence([
++  ...pagingFirstPage('req-32'),
++  showMore('req-32', 1),
++  showMore('req-32', 2),
++  say('Новых подходящих поставщиков нет: все найденные уже показаны.'),
++  showMore('req-32', 3),
++  say('Новых подходящих поставщиков по-прежнему нет, повторов не будет.'),
++]);
++
++/**
++ * Этап 8z: пополнение базы без заявки. Поиск по свободному запросу, затем «заведи 1 и 3» -
++ * карточки показывает код (запись только по ответу сотрудника); шорт-лист и поиск по заявке
++ * в этом режиме не вызываются.
++ */
++const orderDiscoveryAddCards: Script = sequence([
++  callTool('c-find', 'findSuppliersForBase', { query: 'ёлочные игрушки' }),
++  say('Нашёл новых кандидатов, список показан выше. Назовите номера, кого завести в базу.'),
++  callTool('c-prepare', 'prepareDiscoveredSupplierCards', { numbers: [1, 3] }),
++  say('Показал карточки 1 и 3: запишу в базу только после вашего ответа.'),
++]);
++
+ /** Один сценарий для обоих синтетических алиасов. */
+ const pair = (script: Script): Record<SyntheticModel, Script> => ({
+   'model-a': script,
+@@ -737,4 +789,8 @@
+   'order-calc-other-no-task-link': pair(otherNoLink),
+   'order-calc-business-card-photo': pair(businessCardPhoto),
+   'order-calc-business-card-photo-unreadable': pair(businessCardPhotoUnreadable),
++  'order-calc-more-after-ten-base': pair(orderMoreAfterTenBase),
++  'order-calc-more-after-seven-plus-three': pair(orderMoreAfterSevenPlusThree),
++  'order-calc-more-until-exhausted': pair(orderMoreUntilExhausted),
++  'order-calc-discovery-add-cards': pair(orderDiscoveryAddCards),
+ };

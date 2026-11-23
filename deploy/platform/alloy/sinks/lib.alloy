@@ -1,0 +1,222 @@
+// Приёмники телеметрии: два готовых модуля (local_sink, remote_sink). Режим работы собирают
+// файлы local.alloy / remote.alloy / both.alloy из этих модулей (см. config.alloy).
+//
+// Контракт адреса: URL - БАЗОВЫЙ адрес, пути на нём фиксированы и у двух режимов РАЗНЫЕ.
+//
+// remote (TELEMETRY_REMOTE_URL = https://mon.example.com - общий хост, без завершающего "/";
+//   <ID> = COMPANY_ID, сегмент компании в пути приёма):
+//   метрики  <URL>/ingest/<ID>/prometheus/api/v1/write -> nginx хоста мониторинга -> Prometheus /api/v1/write
+//   логи     <URL>/ingest/<ID>/loki/api/v1/push        -> nginx -> VictoriaLogs
+//                                                         /insert/loki/api/v1/push
+//   трассы   <URL>/ingest/<ID>/otlp                    -> клиент добавит /v1/traces -> nginx
+//                                                         -> Tempo
+//   Это маршруты общего nginx (/ingest/<компания>/prometheus/..., /ingest/<компания>/loki/...,
+//   /ingest/<компания>/otlp/v1/traces); токен компании идёт Bearer на всех трёх, токен чужой
+//   компании на пути <ID> даёт 401.
+//
+// local (TELEMETRY_LOCAL_URL = http://<адрес фронта>, порты стека опубликованы только на
+//   127.0.0.1 хоста стека, из контейнера Alloy напрямую недоступны, поэтому нужен фронт):
+//   метрики  <URL>/api/v1/write       -> Prometheus (:PROM_PORT, по умолчанию 9090) /api/v1/write
+//   логи     <URL>/loki/api/v1/push   -> VictoriaLogs (:VLOGS_PORT, 9428) /insert/loki/api/v1/push
+//   трассы   <URL>/otlp               -> Tempo OTLP/HTTP (:TEMPO_OTLP_HTTP_PORT, 4318) /v1/traces
+//   Без токена (доверенная сеть). Пример фронта - в deploy/alloy/README.md.
+//   Напрямую на VictoriaLogs путь /loki/api/v1/push НЕ работает: у неё Loki-приём живёт
+//   под /insert/loki/api/v1/push.
+//
+// Буфер при недоступном приёмнике:
+//   метрики - WAL remote_write на диске (том alloy-data), хранится до max_keepalive_time;
+//   трассы  - постоянная очередь экспортёра на диске (otelcol.storage.file);
+//   логи    - ограниченная очередь в памяти и повторы с нарастающей паузой; оригиналы остаются
+//             в json-file Docker (ротация 10m x 5), поэтому диск под логи не резервируется.
+
+// Приёмник рядом с компанией: без токена (доверенная сеть клиента); пути - см. выше.
+declare "local_sink" {
+  prometheus.remote_write "local" {
+    endpoint {
+      url            = string.join([sys.env("TELEMETRY_LOCAL_URL"), "/api/v1/write"], "")
+      remote_timeout = "30s"
+
+      queue_config {
+        capacity             = 10000
+        min_shards           = 1
+        max_shards           = 4
+        max_samples_per_send = 2000
+        batch_send_deadline  = "2s"
+        min_backoff          = "1s"
+        max_backoff          = "5m"
+        retry_on_http_429    = true
+      }
+    }
+
+    // WAL на диске: при обрыве связи данные копятся до 24 ч, затем самые старые отбрасываются.
+    wal {
+      truncate_frequency = "2h"
+      min_keepalive_time = "5m"
+      max_keepalive_time = "24h"
+    }
+
+    external_labels = {
+      company = sys.env("COMPANY_ID"),
+      host    = constants.hostname,
+    }
+  }
+
+  loki.write "local" {
+    endpoint {
+      url                 = string.join([sys.env("TELEMETRY_LOCAL_URL"), "/loki/api/v1/push"], "")
+      // События ядра - JSON без текстового поля: _msg берётся из event (иначе VictoriaLogs
+      // подставляет "missing _msg field").
+      headers             = {"VL-Msg-Field" = "event,msg,message"}
+      min_backoff_period  = "500ms"
+      max_backoff_period  = "5m"
+      max_backoff_retries = 60
+    }
+
+    external_labels = {
+      company = sys.env("COMPANY_ID"),
+      host    = constants.hostname,
+    }
+  }
+
+  otelcol.storage.file "buffer" {
+    directory        = "/var/lib/alloy/data/otel-queue-local"
+    create_directory = true
+  }
+
+  otelcol.exporter.otlphttp "local" {
+    client {
+      endpoint = string.join([sys.env("TELEMETRY_LOCAL_URL"), "/otlp"], "")
+    }
+
+    sending_queue {
+      enabled       = true
+      num_consumers = 2
+      queue_size    = 5000
+      storage       = otelcol.storage.file.buffer.handler
+    }
+
+    retry_on_failure {
+      enabled          = true
+      initial_interval = "5s"
+      max_interval     = "5m"
+      max_elapsed_time = "24h"
+    }
+  }
+
+  export "metrics" {
+    value = prometheus.remote_write.local.receiver
+  }
+
+  export "logs" {
+    value = loki.write.local.receiver
+  }
+
+  export "traces" {
+    value = otelcol.exporter.otlphttp.local.input
+  }
+}
+
+// Наш приёмник (хост мониторинга): токен компании как Bearer на всех трёх маршрутах.
+declare "remote_sink" {
+  prometheus.remote_write "remote" {
+    endpoint {
+      url            = string.join(
+        [
+          sys.env("TELEMETRY_REMOTE_URL"), "/ingest/", sys.env("COMPANY_ID"),
+          "/prometheus/api/v1/write",
+        ], "",
+      )
+      bearer_token   = sys.env("TELEMETRY_COMPANY_TOKEN")
+      remote_timeout = "30s"
+
+      queue_config {
+        capacity             = 10000
+        min_shards           = 1
+        max_shards           = 4
+        max_samples_per_send = 2000
+        batch_send_deadline  = "2s"
+        min_backoff          = "1s"
+        max_backoff          = "5m"
+        retry_on_http_429    = true
+      }
+    }
+
+    wal {
+      truncate_frequency = "2h"
+      min_keepalive_time = "5m"
+      max_keepalive_time = "24h"
+    }
+
+    external_labels = {
+      company = sys.env("COMPANY_ID"),
+      host    = constants.hostname,
+    }
+  }
+
+  loki.write "remote" {
+    endpoint {
+      url                 = string.join(
+        [
+          sys.env("TELEMETRY_REMOTE_URL"), "/ingest/", sys.env("COMPANY_ID"),
+          "/loki/api/v1/push",
+        ], "",
+      )
+      // События ядра - JSON без текстового поля: _msg берётся из event (иначе VictoriaLogs
+      // подставляет "missing _msg field").
+      headers             = {"VL-Msg-Field" = "event,msg,message"}
+      bearer_token        = sys.env("TELEMETRY_COMPANY_TOKEN")
+      min_backoff_period  = "500ms"
+      max_backoff_period  = "5m"
+      max_backoff_retries = 60
+    }
+
+    external_labels = {
+      company = sys.env("COMPANY_ID"),
+      host    = constants.hostname,
+    }
+  }
+
+  otelcol.auth.bearer "remote" {
+    token = sys.env("TELEMETRY_COMPANY_TOKEN")
+  }
+
+  otelcol.storage.file "buffer" {
+    directory        = "/var/lib/alloy/data/otel-queue-remote"
+    create_directory = true
+  }
+
+  otelcol.exporter.otlphttp "remote" {
+    client {
+      endpoint = string.join(
+        [sys.env("TELEMETRY_REMOTE_URL"), "/ingest/", sys.env("COMPANY_ID"), "/otlp"], "",
+      )
+      auth     = otelcol.auth.bearer.remote.handler
+    }
+
+    sending_queue {
+      enabled       = true
+      num_consumers = 2
+      queue_size    = 5000
+      storage       = otelcol.storage.file.buffer.handler
+    }
+
+    retry_on_failure {
+      enabled          = true
+      initial_interval = "5s"
+      max_interval     = "5m"
+      max_elapsed_time = "24h"
+    }
+  }
+
+  export "metrics" {
+    value = prometheus.remote_write.remote.receiver
+  }
+
+  export "logs" {
+    value = loki.write.remote.receiver
+  }
+
+  export "traces" {
+    value = otelcol.exporter.otlphttp.remote.input
+  }
+}

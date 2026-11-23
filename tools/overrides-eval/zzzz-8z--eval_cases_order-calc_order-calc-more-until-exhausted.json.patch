@@ -1,0 +1,236 @@
+--- /dev/null
++++ eval/cases/order-calc/order-calc-more-until-exhausted.json
+@@ -0,0 +1,233 @@
++{
++  "id": "order-calc-more-until-exhausted",
++  "agent": "order-calc",
++  "description": "Этап 8z: в базе три подходящих, в интернете немного. Повторное «ещё» доходит до честного ответа «новых подходящих нет»; поставщики не повторяются, поиск после исчерпания не продолжается.",
++  "request": "Заявка req-32 по сделке D-32, возьми в работу. Ответственная — Елена Орлова, +7 (900) 100-20-30.",
++  "followUps": [
++    "Покажи ещё 10 поставщиков.",
++    "Покажи ещё 10 поставщиков.",
++    "Покажи ещё 10 поставщиков."
++  ],
++  "state": {
++    "requests": [
++      {
++        "id": "req-32",
++        "dealRef": "D-32",
++        "items": [
++          {
++            "name": "Ёлочные шары",
++            "quantity": 500,
++            "unit": "шт"
++          }
++        ],
++        "createdAt": "2026-01-01T00:00:00.000Z",
++        "slaDeadline": "2026-01-02T00:00:00.000Z"
++      }
++    ],
++    "suppliers": [
++      {
++        "id": "b01",
++        "name": "Новогодний Двор",
++        "email": "zakaz-novogodniy-dvor@novogodniy-dvor.example"
++      },
++      {
++        "id": "b02",
++        "name": "Серебряный Шар",
++        "email": "zakaz-serebryanyy-shar@serebryanyy-shar.example"
++      },
++      {
++        "id": "b03",
++        "name": "Зимняя Сказка",
++        "email": "zakaz-zimnyaya-skazka@zimnyaya-skazka.example"
++      }
++    ],
++    "prices": [
++      {
++        "supplierId": "b01",
++        "productName": "Ёлочные шары 8 см стекло",
++        "price": 40
++      },
++      {
++        "supplierId": "b02",
++        "productName": "Ёлочные шары 8 см стекло",
++        "price": 42
++      },
++      {
++        "supplierId": "b03",
++        "productName": "Ёлочные шары 8 см стекло",
++        "price": 44
++      }
++    ],
++    "web": [
++      {
++        "title": "Фабрика ёлочных украшений A-01",
++        "url": "https://elka-a-01.test",
++        "snippet": "Ёлочные шары от производителя, доставка по России"
++      },
++      {
++        "title": "Фабрика ёлочных украшений A-02",
++        "url": "https://elka-a-02.test",
++        "snippet": "Ёлочные шары от производителя, доставка по России"
++      },
++      {
++        "title": "Фабрика ёлочных украшений A-03",
++        "url": "https://elka-a-03.test",
++        "snippet": "Ёлочные шары от производителя, доставка по России"
++      },
++      {
++        "title": "Фабрика ёлочных украшений A-04",
++        "url": "https://elka-a-04.test",
++        "snippet": "Ёлочные шары от производителя, доставка по России"
++      },
++      {
++        "title": "Фабрика ёлочных украшений A-05",
++        "url": "https://elka-a-05.test",
++        "snippet": "Ёлочные шары от производителя, доставка по России"
++      },
++      {
++        "title": "Фабрика ёлочных украшений A-06",
++        "url": "https://elka-a-06.test",
++        "snippet": "Ёлочные шары от производителя, доставка по России"
++      },
++      {
++        "title": "Фабрика ёлочных украшений A-07",
++        "url": "https://elka-a-07.test",
++        "snippet": "Ёлочные шары от производителя, доставка по России"
++      },
++      {
++        "title": "Фабрика ёлочных украшений A-08",
++        "url": "https://elka-a-08.test",
++        "snippet": "Ёлочные шары от производителя, доставка по России"
++      },
++      {
++        "title": "Фабрика ёлочных украшений B-01",
++        "url": "https://elka-b-01.test",
++        "snippet": "Ёлочные шары оптом со склада"
++      },
++      {
++        "title": "Фабрика ёлочных украшений B-02",
++        "url": "https://elka-b-02.test",
++        "snippet": "Ёлочные шары оптом со склада"
++      },
++      {
++        "title": "Фабрика ёлочных украшений B-03",
++        "url": "https://elka-b-03.test",
++        "snippet": "Ёлочные шары оптом со склада"
++      },
++      {
++        "title": "Фабрика ёлочных украшений B-04",
++        "url": "https://elka-b-04.test",
++        "snippet": "Ёлочные шары оптом со склада"
++      }
++    ],
++    "shortlistPaging": true
++  },
++  "expect": {
++    "maxSteps": 9,
++    "requiredTools": [
++      "searchKnowledgeSuppliers",
++      "searchWeb",
++      "buildShortlist",
++      "askManagerToChoose",
++      "showMoreSuppliers"
++    ],
++    "toolOrder": "ordered",
++    "forbiddenTools": [
++      "recordSelection",
++      "prepareSupplierRequestText"
++    ],
++    "outputContains": [
++      "новых подходящих"
++    ],
++    "stateChecks": [
++      {
++        "probe": "proposedSupplierCount",
++        "value": 15
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Следующие поставщики",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Следующие поставщики: №11–15",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Из базы знаний: 0, из интернета: 5",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Нашлось меньше, чем просили",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Это все подходящие поставщики",
++        "value": 0
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "elka-a-07.test",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "elka-a-08.test",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "elka-b-03.test",
++        "value": 1
++      },
++      {
++        "probe": "webSearchCount",
++        "value": 4
++      },
++      {
++        "probe": "mailSent",
++        "value": 0
++      },
++      {
++        "probe": "scheduledTasks",
++        "value": 0
++      }
++    ],
++    "turnChecks": [
++      {
++        "probe": "proposedSupplierCount",
++        "value": 15,
++        "turn": 1
++      },
++      {
++        "probe": "proposedSupplierCount",
++        "value": 15,
++        "turn": 2
++      },
++      {
++        "probe": "proposedSupplierCount",
++        "value": 15,
++        "turn": 3
++      }
++    ],
++    "noPiiInRequests": true
++  },
++  "pii": {
++    "names": [
++      "Орлова",
++      "Елена"
++    ],
++    "phones": [
++      "+7 (900) 100-20-30"
++    ],
++    "emails": [
++      "zakaz-novogodniy-dvor@novogodniy-dvor.example",
++      "zakaz-serebryanyy-shar@serebryanyy-shar.example",
++      "zakaz-zimnyaya-skazka@zimnyaya-skazka.example"
++    ]
++  }
++}

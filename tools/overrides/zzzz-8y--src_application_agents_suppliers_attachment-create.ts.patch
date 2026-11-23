@@ -1,0 +1,12 @@
+--- src/application/agents/suppliers/attachment-create.ts
++++ src/application/agents/suppliers/attachment-create.ts
+@@ -80,7 +80,8 @@
+   'prepareSupplierCardEdit.';
+ const CREATED_TEXT = 'Карточка поставщика создана по вложению, реквизиты заполнены.';
+ const ACCESS_DENIED_TEXT =
+-  'Записывать карточки поставщиков в общую базу могут только руководители отделов.';
++  'Записывать карточки поставщиков в общую базу могут только руководители отделов и ' +
++  'менеджеры закупок с доступом.';
+ 
+ function answer(status: Output['status'], message: string, extra?: Partial<Output>): Output {
+   return { status, message, issues: [], matches: [], rejected: [], warnings: [], ...extra };

@@ -1,0 +1,160 @@
+--- src/application/agents/order-calc/orders-digest.ts
++++ src/application/agents/order-calc/orders-digest.ts
+@@ -20,12 +20,27 @@
+  * Первая строка сообщения: утро сотрудника начинается с плана на день (пожелание клиента,
+  * этап 125), а не с выгрузки по заявкам.
+  */
+-const HEADLINE = 'План на день:';
++const HEADLINE = 'План на день';
++
++/**
++ * Заголовок сообщения: жирным, с сегодняшней датой в часовом поясе сводки
++ * («**План на день (22.11.2026):**»; решение владельца 22.11.2026, этап 9p). Жирный - markdown,
++ * адаптер Bitrix24 переводит его в BBCode.
++ */
++function headline(now: Date, timezone: string): string {
++  const [year = '', month = '', day = ''] = localDateKey(now, timezone).split('-');
++  return `**${HEADLINE} (${day}.${month}.${year}):**`;
++}
+ /** Первый пункт плана: за этим сотрудник и открывает сводку. */
+ const CHECK_REPLIES_ITEM = '1. Проверьте, ответили ли поставщики по вашим запросам цен:';
+ /** Второй пункт плана: коротко, что уже известно по каждой заявке. */
+ const DETAILS_ITEM = '2. Что известно по этим заявкам:';
+ 
++/** Заголовок блока старых заказов: перечисляются названием, а не одной строкой с числом. */
++const STALE_BLOCK_TITLE_PREFIX = 'Без ответа больше';
++/** Сколько старых заказов перечисляем по названию (остальные - «и ещё N»; этап 9p). */
++export const ORDER_DIGEST_MAX_STALE_LISTED = 10;
++
+ /** Просьба сотруднику уточнить статус (ТЗ, разд. 6): ответ мог прийти не только по почте. */
+ const STATUS_CHECK_FOOTER =
+   'Проверьте, пожалуйста, статус по этим заявкам: ответ мог прийти в мессенджере или по телефону.';
+@@ -50,8 +65,8 @@
+ export interface OrdersDigestOptions {
+   timezone: string;
+   /**
+-   * Сколько дней с отправки запроса заказ показывается отдельной строкой
+-   * (`ORDER_DIGEST_OPEN_MAX_DAYS`); старше - одной строкой «и N заказов старше N дней».
++   * Сколько дней с отправки запроса заказ показывается в плане дня (`ORDER_DIGEST_OPEN_MAX_DAYS`);
++   * старше - отдельным блоком «Без ответа больше N дней» (названия, дата, число поставщиков).
+    * По умолчанию `ORDER_DIGEST_OPEN_MAX_DAYS` (14).
+    */
+   openMaxDays?: number;
+@@ -63,7 +78,7 @@
+   threadId: string;
+   /** Дней с первой подготовки/отправки запроса. */
+   ageDays: number;
+-  /** Старше предела: в сводке только числом. */
++  /** Старше предела: в сводке отдельным блоком старых заказов. */
+   stale: boolean;
+   /** Ящик владельца недоступен: письма могли не прочитаться. */
+   mailboxIssue?: MailboxIssue;
+@@ -292,11 +307,63 @@
+   return `• ${parts.join(' ')}`;
+ }
+ 
+-/** Заявки, которые сводка перечисляет отдельными строками (остальные - числом). */
+-function listedOrders(orders: readonly DigestOrder[]): DigestOrder[] {
++/** Свежие заявки плана дня, которые сводка перечисляет строками (остальные - «и ещё N»). */
++function listedFresh(orders: readonly DigestOrder[]): DigestOrder[] {
+   return orders.filter((order) => !order.stale).slice(0, ORDER_DIGEST_MAX_ORDERS_LISTED);
+ }
+ 
++/** Старые заявки, перечисленные по названию (остальные - «и ещё N»). */
++function listedStale(orders: readonly DigestOrder[]): DigestOrder[] {
++  return orders.filter((order) => order.stale).slice(0, ORDER_DIGEST_MAX_STALE_LISTED);
++}
++
++/** Все заявки, названные в сообщении: свежие плана дня и старые блока «Без ответа». */
++function listedOrders(orders: readonly DigestOrder[]): DigestOrder[] {
++  return [...listedFresh(orders), ...listedStale(orders)];
++}
++
++/**
++ * Строка старого заказа: название, дата отправки, число поставщиков и сколько дней без ответа.
++ * Подробного статуса по каждому поставщику здесь нет: заказ давно висит, нужно решение.
++ */
++function staleLine(order: DigestOrder, label: string, timezone: string): string {
++  const { progress } = order;
++  const suppliers = progress.suppliers.filter((supplier) => supplier.requestAt !== undefined);
++  const sent =
++    progress.firstSentAt === undefined
++      ? 'дата отправки не указана'
++      : `отправлено ${shortDate(localDateKey(new Date(progress.firstSentAt), timezone))}`;
++  return (
++    `• ${label}: ${sent}, поставщиков: ${suppliers.length}, ` +
++    `${formatDays(order.ageDays)} без ответа.`
++  );
++}
++
++/**
++ * Блок старых заказов: заголовок с порогом, строки по названию (до предела, остаток - «и ещё N»)
++ * и подсказка, как закрыть заказ, если ответ уже получен или заказ не нужен (инструмент
++ * closeOrder: сотрудник пишет «заказ ... закрыт», затем подтверждает).
++ */
++function staleBlock(
++  orders: readonly DigestOrder[],
++  labelOf: (order: DigestOrder) => string,
++  options: Required<OrdersDigestOptions>,
++): string[] {
++  const stale = orders.filter((order) => order.stale);
++  if (stale.length === 0) return [];
++  const shown = listedStale(orders);
++  const rest = stale.length - shown.length;
++  const first = shown[0];
++  const example = first === undefined ? 'заказ закрыт' : `заказ «${labelOf(first)}» закрыт`;
++  return [
++    `${STALE_BLOCK_TITLE_PREFIX} ${formatDaysGenitive(options.openMaxDays)}:`,
++    ...shown.map((order) => staleLine(order, labelOf(order), options.timezone)),
++    ...(rest > 0 ? [`• и ещё ${rest} ${pluralRu(rest, ['заказ', 'заказа', 'заказов'])}`] : []),
++    'Если по заказу ответ уже получен или он больше не нужен, напишите мне, например: ' +
++      `«${example}» - я закрою его, и он пропадёт из сводки.`,
++  ];
++}
++
+ /**
+  * Текст сообщения по шаблону кода: план на день. Пункт 1 - названия заявок, по которым ждём
+  * поставщиков; пункт 2 - статус по каждой. Названия поставщиков и заявок, без адресов, ФИО и
+@@ -309,19 +376,12 @@
+   options: Required<OrdersDigestOptions>,
+ ): string {
+   const fresh = orders.filter((order) => !order.stale);
+-  const stale = orders.length - fresh.length;
+-  const shown = listedOrders(orders);
++  const shown = listedFresh(orders);
+   const labelOf = (order: DigestOrder): string =>
+     labels.get(order.progress.requestId) ?? 'заявка без названия';
+   const rest = fresh.length - shown.length;
+   const tail: string[] = [];
+   if (rest > 0) tail.push(`• и ещё ${rest} заявок`);
+-  if (stale > 0) {
+-    tail.push(
+-      `• и ${stale} ${pluralRu(stale, ['заказ', 'заказа', 'заказов'])} старше ` +
+-        formatDaysGenitive(options.openMaxDays),
+-    );
+-  }
+   const issues = new Set(orders.map((order) => order.mailboxIssue).filter((i) => i !== undefined));
+   // Почта недоступна: «нет ответа» относится к данным системы, письма могли не прочитаться.
+   const notes = [...issues].map((issue) => MAILBOX_NOTES[issue]);
+@@ -335,7 +395,10 @@
+           ...shown.map((order) => orderLine(order, labelOf(order), today, options.timezone)),
+         ];
+   // Просьба проверить статус стоит всегда: ответ мог прийти не только по почте.
+-  return [HEADLINE, ...plan, ...tail, ...notes, STATUS_CHECK_FOOTER].join('\n');
++  const staleLines = staleBlock(orders, labelOf, options);
++  // Пустая строка перед просьбой проверить статус: абзац отделён от списка (решение владельца
++  // 22.11.2026, этап 9p).
++  return [headline(today, options.timezone), ...plan, ...tail, ...staleLines, ...notes, '', STATUS_CHECK_FOOTER].join('\n');
+ }
+ 
+ /**
+@@ -380,7 +443,8 @@
+  * или отправлены, а у выбранного поставщика нет ни КП, ни отказа, и заказ не закрыт. По каждому
+  * поставщику: ответил (почта, телефон, мессенджер, дата), КП записано, либо «нет ответа N дней».
+  * Работает без почты: ответ мог быть устным; почта читается, только если подключена. Заказы
+- * старше `openMaxDays` с отправки перечисляются одной строкой с числом. Просьба проверить статус
++ * старше `openMaxDays` с отправки идут отдельным блоком «Без ответа больше N дней» (название,
++ * дата отправки, число поставщиков, до предела и «и ещё N») с подсказкой, как закрыть заказ. Просьба проверить статус
+  * стоит всегда. Один заказ - одна строка (названием заявки, не её id), одно сообщение на тред владельца заявки в день; ключ
+  * сообщения содержит локальную дату, поэтому повтор задачи не дублирует его. Модель не
+  * участвует.

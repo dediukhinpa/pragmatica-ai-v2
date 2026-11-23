@@ -1,0 +1,11 @@
+--- tests/application/agents/documents-contract-templates.test.ts
++++ tests/application/agents/documents-contract-templates.test.ts
+@@ -388,7 +388,7 @@
+ 
+ describe('перечень разрешённых шаблонов в документации', () => {
+   test('значение DOCUMENT_TEMPLATE_ALLOWLIST в deploy/.env.example = имена файлов реестра', () => {
+-    const path = new URL('../../../../deploy/.env.example', import.meta.url);
++    const path = new URL('../../../deploy/.env.example', import.meta.url);
+     const example = readFileSync(path, 'utf8');
+     const line = /^#DOCUMENT_TEMPLATE_ALLOWLIST=(.+)$/m.exec(example);
+     expect(line?.[1]?.split(',').map((name) => name.trim())).toEqual(contractTemplateFileNames());

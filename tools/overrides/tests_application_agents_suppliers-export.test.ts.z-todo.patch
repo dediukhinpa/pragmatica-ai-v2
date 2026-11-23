@@ -1,0 +1,13 @@
+--- tests/application/agents/suppliers-export.test.ts
++++ tests/application/agents/suppliers-export.test.ts
+@@ -530,7 +530,9 @@
+     expect(await keyOf('u-100', 1)).toBe(await keyOf('u-100', 1));
+   });
+ 
+-  test('успешный результат одного сотрудника не отдаётся другому в том же треде', async () => {
++  // ПРОБЕЛ ПЛАТФОРМЫ: ключ повтора платформы не знает исполнителя (в предшественника приходит
++  // только номер реплики), поэтому проверка ждёт правки платформы. См. «Решения владельца».
++  test.todo('успешный результат одного сотрудника не отдаётся другому в том же треде', async () => {
+     access.allow({ userId: 'u-200', botId: BOT, action: ACTION_EXPORT_SUPPLIERS });
+     const shared = (userId: string) => ({ ...turnOf(userId), threadId: THREAD });
+     await run({ fields: ['инн'] }, shared(USER));

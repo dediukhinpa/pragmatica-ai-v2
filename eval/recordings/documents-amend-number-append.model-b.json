@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "caseId": "documents-amend-number-append",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "amendCounterpartyContract",
+          "arguments": {
+            "entity": "mg",
+            "numberEdit": {
+              "mode": "append",
+              "text": "17/10"
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7507,
+        "outputTokens": 31
+      },
+      "latencyMs": 650,
+      "requestHash": "78d7d8f0da20647826fed1d8bedd055ac68d17dcdaf0d27ff266bc1b7fbfd9fc"
+    },
+    {
+      "content": "Готово: реквизиты вписаны, номер дополнен: было «103/11-26», стало «103/11-26 / 17/10».",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7693,
+        "outputTokens": 23
+      },
+      "latencyMs": 650,
+      "requestHash": "7d0a2e8d4dc48628dd85cad086f50fe1cb444e9de07c0d6fbb397af4260a16c4"
+    }
+  ],
+  "synthetic": true
+}

@@ -1,0 +1,24 @@
+--- tests/application/agents/prices-changes.test.ts
++++ tests/application/agents/prices-changes.test.ts
+@@ -169,13 +169,18 @@
+     expect(isDomainError(error) && error.code).toBe('not_configured');
+   });
+ 
+-  test('скачок попадает на лист «На проверку» с пометкой «проверьте перед внесением»', async () => {
++  test('скачок - обычное изменение цены: на лист «На проверку» не попадает, просьбы проверить нет', async () => {
+     const { fileHash } = await stageDiskCsv(deps, [['Болт', 40, 'B1']]);
+     const preview = await previewPriceChanges.execute(args(fileHash), deps, CTX);
++    // число скачков остаётся для журнала и метрик
++    expect(preview.counts.jumps).toBe(1);
+     await sendPriceChangeFile.execute({ ...args(fileHash), diffHash: preview.diffHash }, deps, CTX);
+     const text = new TextDecoder().decode(deps.chat.outbox[1]?.file?.content);
+-    // Ячейка с запятой экранируется кавычками в csv-заглушке.
+-    expect(text).toContain('Скачок цены;"было 10, стало 40 (+300%); проверьте перед внесением"');
++    expect(text).not.toContain('Скачок цены');
++    expect(text).not.toContain('проверьте перед внесением');
++    // изменение видно на листе «Изменения»
++    expect(text).toContain('B1;Болт;10;40;300;RUB');
++    expect(deps.chat.outbox[0]?.message?.text).toContain('на проверку: 0');
+   });
+ 
+   test('правка сотрудника: в «Источнике» сотрудник и его пометка', async () => {

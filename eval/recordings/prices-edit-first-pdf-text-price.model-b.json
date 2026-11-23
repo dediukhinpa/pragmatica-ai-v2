@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-pdf-text-price",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8277,
+        "outputTokens": 15
+      },
+      "latencyMs": 650,
+      "requestHash": "6a83e4bc188c978bab9aab09bd5675a38ab4e67465bc6c457c685863bf81c872"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-read",
+          "name": "readPriceFile",
+          "arguments": {
+            "path": "knwqhtryhhnnhwwj/vqsgpmqskzprnwvttvtvwhzkvwzykwhm_Offer_autumn.pdf"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8366,
+        "outputTokens": 33
+      },
+      "latencyMs": 650,
+      "requestHash": "b58aaff011ece9472419f3d7af90326ffe3ac29912f891271b331dc6ac5b883e"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-spots",
+          "name": "listPriceSpots",
+          "arguments": {
+            "path": "knwqhtryhhnnhwwj/vqsgpmqskzprnwvttvtvwhzkvwzykwhm_Offer_autumn.pdf",
+            "page": 1
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8539,
+        "outputTokens": 36
+      },
+      "latencyMs": 650,
+      "requestHash": "392f267efb06bc8dd567ad75e80999baca2dc096c23f8f3e75499c13d3a47784"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-edit",
+          "name": "editPriceInFile",
+          "arguments": {
+            "path": "knwqhtryhhnnhwwj/vqsgpmqskzprnwvttvtvwhzkvwzykwhm_Offer_autumn.pdf",
+            "edits": [
+              {
+                "oldPrice": 1250,
+                "newPrice": 1300,
+                "page": 1,
+                "rowText": "Итого"
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8774,
+        "outputTokens": 51
+      },
+      "latencyMs": 650,
+      "requestHash": "482c9f938be8c4c4a46f9074fc62077fc6799c3f73c813b1898c19cd198f8f92"
+    },
+    {
+      "content": "Готово, файл отправил вам. Что изменено: страница 1, текст «Итого за единицу: 1 250,00 USD»: было 1250, стало 1300. Как называется поставщик? Обновить цены этих позиций в базе?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 9063,
+        "outputTokens": 45
+      },
+      "latencyMs": 650,
+      "requestHash": "3989fb95cd59b36bf0d94c606497a4b5bb13dace2d5ae6737419bf070f09d93a"
+    }
+  ],
+  "synthetic": true
+}

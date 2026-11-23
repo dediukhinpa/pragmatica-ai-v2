@@ -1,0 +1,172 @@
+--- src/application/agents/documents/declaration.ts
++++ src/application/agents/documents/declaration.ts
+@@ -1,3 +1,4 @@
++import { searchConversationHistory } from '../shared/common-tools.owned';
+ import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
+ import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
+ import type { AgentDeclaration } from '@business-ai/core';
+@@ -14,7 +15,6 @@
+ import { prepareSupplierDocument } from './prepare-supplier-document';
+ import { ATTACHMENT_ONLY_SCRIPT_PROMPT, DATA_SCRIPT_PROMPT } from '@business-ai/core';
+ import { runDataScript } from './run-data-script';
+-import { searchConversationHistory } from '@business-ai/core';
+ import { searchInternetForDocuments } from './search-internet';
+ import { askToConfirmWebFields, recordWebFieldsDecision } from './web-confirmation';
+ import { CHAT_ATTACHMENTS_PROMPT, CONTRACT_CARD_ENRICH_PROMPT, COUNTERPARTY_AMEND_PROMPT, OWN_REQUISITES_PROMPT, buildDocumentsPrompt } from './prompt';
+--- src/application/agents/documents/run-data-script.ts
++++ src/application/agents/documents/run-data-script.ts
+@@ -1,4 +1,5 @@
+ import { createRunDataScriptTool, openIntakeDataSource } from '@business-ai/core';
++import { LEGACY_RUN_DATA_SCRIPT_PRESENTATION } from '../shared/common-tools.owned';
+ import { priceItemsSummaryKind } from '../shared/price-items-kind.owned';
+ import type { DocumentsDeps } from './deps';
+ 
+@@ -9,4 +10,5 @@
+  */
+ export const runDataScript = createRunDataScriptTool<DocumentsDeps>(openIntakeDataSource, {
+   resultKinds: [priceItemsSummaryKind<DocumentsDeps>()],
++  presentation: LEGACY_RUN_DATA_SCRIPT_PRESENTATION,
+ });
+--- src/application/agents/documents/search-internet.ts
++++ src/application/agents/documents/search-internet.ts
+@@ -1,5 +1,5 @@
+ import type { ToolDefinition } from '@business-ai/core';
+-import { searchInternet } from '@business-ai/core';
++import { searchInternet } from '../shared/common-tools.owned';
+ import type { DocumentsDeps } from './deps';
+ import { noteWebSearchText } from './web-confirmation';
+ 
+--- src/application/agents/order-calc/declaration.ts
++++ src/application/agents/order-calc/declaration.ts
+@@ -1,3 +1,4 @@
++import { searchConversationHistory, searchInternet } from '../shared/common-tools.owned';
+ import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
+ import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
+ import type { AgentDeclaration } from '@business-ai/core';
+@@ -9,8 +10,6 @@
+ import { confirmQuoteReplacement } from './confirm-quote-replacement';
+ import { DATA_SCRIPT_PROMPT } from '@business-ai/core';
+ import { runDataScript } from './run-data-script';
+-import { searchConversationHistory } from '@business-ai/core';
+-import { searchInternet } from '@business-ai/core';
+ import { ORDER_CALC_AGENT_ID } from './deps';
+ import { HANDOFF_TO_PRICES_PROMPT, handoffResultTool, handoffToPrices, handoffToPricesValidator } from './handoff-to-prices';
+ import { INTAKE_PROMPT } from './intake';
+--- src/application/agents/order-calc/run-data-script.ts
++++ src/application/agents/order-calc/run-data-script.ts
+@@ -1,6 +1,7 @@
+ import { DomainError } from '@business-ai/core';
+ import { createRunDataScriptTool, openIntakeDataSource, parseReplyRef, type DataScriptSource } from '@business-ai/core';
+ import { requirePort } from '@business-ai/core';
++import { LEGACY_RUN_DATA_SCRIPT_PRESENTATION } from '../shared/common-tools.owned';
+ import { priceItemsSummaryKind } from '../shared/price-items-kind.owned';
+ import type { OrderCalcDeps } from './deps';
+ import { loadReplyAttachment } from './reply-reading';
+@@ -32,4 +33,5 @@
+ /** `runDataScript` агента заказов. */
+ export const runDataScript = createRunDataScriptTool<OrderCalcDeps>(openOrderCalcDataSource, {
+   resultKinds: [priceItemsSummaryKind<OrderCalcDeps>()],
++  presentation: LEGACY_RUN_DATA_SCRIPT_PRESENTATION,
+ });
+--- src/application/agents/prices/declaration.ts
++++ src/application/agents/prices/declaration.ts
+@@ -1,9 +1,8 @@
++import { searchConversationHistory, searchInternet } from '../shared/common-tools.owned';
+ import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
+ import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
+ import type { AgentDeclaration } from '@business-ai/core';
+ import { searchSuppliers } from '../../search-suppliers';
+-import { searchConversationHistory } from '@business-ai/core';
+-import { searchInternet } from '@business-ai/core';
+ import { PRICES_AGENT_ID } from './deps';
+ import { listPriceFiles } from './list-price-files';
+ import { normalizePriceTable } from './normalize-price-table';
+--- src/application/agents/prices/run-data-script.ts
++++ src/application/agents/prices/run-data-script.ts
+@@ -2,6 +2,7 @@
+ import { createRunDataScriptTool, type ScriptResultKindHandler as PriceItemsHandler } from '@business-ai/core';
+ import { z } from 'zod';
+ import { requirePort } from '@business-ai/core';
++import { LEGACY_RUN_DATA_SCRIPT_PRESENTATION } from '../shared/common-tools.owned';
+ import type { PricesDeps } from './deps';
+ import { parseSource } from './parse-cache';
+ import { openPriceSource, sourceSizeOf } from './price-sources';
+@@ -90,6 +91,7 @@
+ 
+ /** `runDataScript` агента прайсов: вид `price_items` регистрируется в реестре платформы. */
+ export const runDataScript = createRunDataScriptTool<PricesDeps>(openPricesDataSource, {
++  presentation: LEGACY_RUN_DATA_SCRIPT_PRESENTATION,
+   resultKinds: [
+     {
+       name: 'price_items',
+--- src/application/agents/site-export/declaration.ts
++++ src/application/agents/site-export/declaration.ts
+@@ -1,11 +1,10 @@
++import { searchConversationHistory, searchInternet } from '../shared/common-tools.owned';
+ import { SESSION_SUMMARY_PROMPT } from '../shared/legacy-prompts.owned';
+ import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
+ import type { AgentDeclaration } from '@business-ai/core';
+ import { readChatAttachments, readChatAttachmentsRecorded } from '../order-calc/read-chat-attachments';
+ import { ATTACHMENT_ONLY_SCRIPT_PROMPT, DATA_SCRIPT_PROMPT } from '@business-ai/core';
+ import { runDataScript } from './run-data-script';
+-import { searchConversationHistory } from '@business-ai/core';
+-import { searchInternet } from '@business-ai/core';
+ import { SITE_EXPORT_AGENT_ID } from './deps';
+ import { gatherItemData } from './gather-item-data';
+ import { SITE_CARD_ENRICH_PROMPT, buildSiteExportPrompt } from './prompt';
+--- src/application/agents/site-export/run-data-script.ts
++++ src/application/agents/site-export/run-data-script.ts
+@@ -1,4 +1,5 @@
+ import { createRunDataScriptTool, openIntakeDataSource } from '@business-ai/core';
++import { LEGACY_RUN_DATA_SCRIPT_PRESENTATION } from '../shared/common-tools.owned';
+ import { priceItemsSummaryKind } from '../shared/price-items-kind.owned';
+ import type { SiteExportDeps } from './deps';
+ 
+@@ -9,4 +10,5 @@
+  */
+ export const runDataScript = createRunDataScriptTool<SiteExportDeps>(openIntakeDataSource, {
+   resultKinds: [priceItemsSummaryKind<SiteExportDeps>()],
++  presentation: LEGACY_RUN_DATA_SCRIPT_PRESENTATION,
+ });
+--- /dev/null
++++ src/application/agents/shared/common-tools.owned.ts
+@@ -0,0 +1,39 @@
++import {
++  createSearchConversationHistoryTool,
++  createSearchInternetTool,
++  type RunDataScriptPresentation,
++} from '@business-ai/core';
++import {
++  LEGACY_HISTORY_SEARCH_NOTICE,
++  LEGACY_RUN_DATA_SCRIPT_DESCRIPTION,
++  LEGACY_SCRIPT_EXHAUSTED_MESSAGE,
++  LEGACY_SCRIPT_RECONCILE_HINT,
++  LEGACY_SCRIPT_SCAN_REFUSED_MESSAGE,
++  LEGACY_SEARCH_HISTORY_DESCRIPTION,
++  LEGACY_SEARCH_INTERNET_DESCRIPTION,
++} from '../../legacy-tool-texts';
++
++/** Виды результата скрипта для модели в прежней схеме (`rows` модели не показывается). */
++const LEGACY_RESULT_KIND_NAMES = ['price_items', 'table', 'value'] as const;
++
++/** Редакция `runDataScript` для всех агентов: описание, виды результата, подсказки ответа. */
++export const LEGACY_RUN_DATA_SCRIPT_PRESENTATION: RunDataScriptPresentation = {
++  description: LEGACY_RUN_DATA_SCRIPT_DESCRIPTION,
++  resultKindNames: LEGACY_RESULT_KIND_NAMES,
++  messages: {
++    exhausted: LEGACY_SCRIPT_EXHAUSTED_MESSAGE,
++    reconcile: LEGACY_SCRIPT_RECONCILE_HINT,
++    scanRefused: LEGACY_SCRIPT_SCAN_REFUSED_MESSAGE,
++  },
++};
++
++/** Поиск по истории диалога с прежним описанием и пометкой ответа (КП, сделки). */
++export const searchConversationHistory = createSearchConversationHistoryTool({
++  description: LEGACY_SEARCH_HISTORY_DESCRIPTION,
++  notice: LEGACY_HISTORY_SEARCH_NOTICE,
++});
++
++/** Поиск в интернете с прежним описанием (ИНН, поставщики). */
++export const searchInternet = createSearchInternetTool({
++  description: LEGACY_SEARCH_INTERNET_DESCRIPTION,
++});

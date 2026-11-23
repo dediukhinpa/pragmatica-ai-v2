@@ -1,0 +1,6 @@
+*
+!services/
+!services/documents-docx/
+!services/documents-docx/pragmatika_documents/
+!services/documents-docx/pragmatika_documents/**
+!deploy/docker/

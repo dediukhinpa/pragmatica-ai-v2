@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "caseId": "documents-invoice-new-supplier-no-offer",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "lookupSupplierInBase",
+          "arguments": {
+            "name": "Новый Поставщик",
+            "documentKind": "invoice"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7792,
+        "outputTokens": 27
+      },
+      "latencyMs": 650,
+      "requestHash": "593332bb723c7526a1e434195383b4ea4fa30f30cb529ffe551b58b64abe3b6b"
+    },
+    {
+      "content": "Счёт подготовлен по данным из запроса.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7893,
+        "outputTokens": 10
+      },
+      "latencyMs": 650,
+      "requestHash": "58d5e6aa887ed626382e86d5f8bae73e9c77a03957997cf4b76765607cb5be8d"
+    }
+  ],
+  "synthetic": true
+}

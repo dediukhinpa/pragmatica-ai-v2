@@ -1,0 +1,14 @@
+[project]
+name = "pragmatika-documents"
+version = "0.1.0"
+description = "Проектные маршруты /docx/* поверх платформенного сервиса документов"
+requires-python = ">=3.12"
+# Зависимости (fastapi, python-docx, ...) приходят с платформенным пакетом `documents`
+dependencies = []
+
+[tool.setuptools.packages.find]
+include = ["pragmatika_documents*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::UserWarning", "ignore::DeprecationWarning"]

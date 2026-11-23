@@ -1,0 +1,51 @@
+{
+  "id": "documents-invoice-new-supplier-no-offer",
+  "agent": "documents",
+  "description": "Счёт с поставщиком, которого нет в базе (этап 219): вид документа не договор, поэтому код не регистрирует предложение (offer=not_offered). Проверяется состояние, а не текст ответа: открытых предложений нет, карточка не создана.",
+  "request": "Выставь счёт на 10 болтов М8 по 12 руб., поставщик ООО Новый Поставщик. Ответственный — Ольга Белова, +7 (916) 222-33-44.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "files": [
+      {
+        "path": "templates/Договор поставки.docx",
+        "text": "tpl"
+      }
+    ],
+    "supplierCards": true
+  },
+  "expect": {
+    "maxSteps": 4,
+    "requiredTools": [
+      "lookupSupplierInBase"
+    ],
+    "forbiddenTools": [
+      "recordSupplierLookupDecision",
+      "createSupplierFromAttachment"
+    ],
+    "noPiiInRequests": true,
+    "stateChecks": [
+      {
+        "probe": "openSupplierOffers",
+        "value": 0
+      },
+      {
+        "probe": "supplierCardCount",
+        "value": 1
+      }
+    ]
+  },
+  "pii": {
+    "names": [
+      "Белова",
+      "Ольга"
+    ],
+    "phones": [
+      "+7 (916) 222-33-44"
+    ]
+  }
+}

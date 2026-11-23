@@ -1,0 +1,53 @@
+{
+  "id": "documents-contract-new-supplier-offer",
+  "agent": "documents",
+  "description": "Договор с поставщиком, которого нет в базе (этап 219): модель ищет поставщика с видом документа contract. Проверяется состояние, а не текст ответа: предложение «Добавить в базу?» зарегистрировано (offer=asked), карточка без ответа «да» не создана (recordSupplierLookupDecision не вызывается).",
+  "request": "Сделай договор поставки с ООО Новый Поставщик на 10 болтов М8 по 12 руб. Ответственный — Ольга Белова, +7 (916) 222-33-44.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "files": [
+      {
+        "path": "templates/Договор поставки.docx",
+        "text": "tpl"
+      }
+    ],
+    "supplierCards": true
+  },
+  "expect": {
+    "maxSteps": 5,
+    "requiredTools": [
+      "findTemplate",
+      "lookupSupplierInBase"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "recordSupplierLookupDecision",
+      "createSupplierFromAttachment"
+    ],
+    "noPiiInRequests": true,
+    "stateChecks": [
+      {
+        "probe": "openSupplierOffers",
+        "value": 1
+      },
+      {
+        "probe": "supplierCardCount",
+        "value": 1
+      }
+    ]
+  },
+  "pii": {
+    "names": [
+      "Белова",
+      "Ольга"
+    ],
+    "phones": [
+      "+7 (916) 222-33-44"
+    ]
+  }
+}

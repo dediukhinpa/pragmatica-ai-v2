@@ -1,0 +1,7 @@
+--- src/application/agents/site-export/prompt.ts
++++ src/application/agents/site-export/prompt.ts
+@@ -1,3 +1,3 @@
+ import { HISTORY_SEARCH_PROMPT } from '@business-ai/core';
+-import { WEB_SEARCH_PROMPT } from '@business-ai/core';
++import { WEB_SEARCH_PROMPT } from '../shared/web-search-prompt.owned';
+ 

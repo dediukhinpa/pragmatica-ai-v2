@@ -1,0 +1,225 @@
+--- eval/environments/price-edit-first.ts
++++ eval/environments/price-edit-first.ts
+@@ -17,11 +17,14 @@
+   SkippedPriceEdit,
+ } from '../../src/kit/ports/price-file-editor';
+ import { PRICE_EDIT_FOLLOWUP_NAMESPACE } from '../../src/price-edit-followup';
++import { PriceEditRefusedError, type PriceEditRefusal } from '../../src/price-edit-refusal';
+ import type {
+   PriceSpot,
+   PriceSpotMap,
+   PriceSpotReader,
+ } from '../../src/price-spots-client';
++import type { z } from 'zod';
++import type { priceAnySpotSchema } from '../state';
+ import { chatFileContainsCount } from './common';
+ import { chatFileCount } from '@business-ai/eval';
+ import { splitArg, type ProbeFn } from '@business-ai/eval';
+@@ -35,8 +38,14 @@
+ 
+ /** Сигнатура zip: приём файлов чата сверяет начало pptx с расширением. */
+ const ZIP_SIGNATURE: readonly number[] = [0x50, 0x4b, 0x03, 0x04];
++/** Сигнатура pdf («%PDF»): той же длины, что у zip, markdown начинается с того же смещения. */
++const PDF_SIGNATURE: readonly number[] = [0x25, 0x50, 0x44, 0x46];
+ /** Расширение презентации. */
+ const DECK_EXTENSION = '.pptx';
++/** Расширение pdf: файл кейса - тот же markdown, места называются «## Страница N». */
++const PDF_EXTENSION = '.pdf';
++/** Тип содержимого pdf. */
++const PDF_MIME = 'application/pdf';
+ /** Тип содержимого презентации. */
+ const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+ /** Строка-разделитель таблицы markdown (то же правило, что у разбора таблиц платформы). */
+@@ -47,27 +56,32 @@
+ const SCAN_LIMIT = 1000;
+ /** Число частей адреса ячейки в замерах правок: таблица, строка, столбец. */
+ const CELL_ADDRESS_PARTS = 3;
+-/** Заголовок слайда в markdown разбора презентации: «## Слайд 4: Акции». */
+-const SLIDE_HEADING = /^##\s+Слайд\s+(\d+)/u;
++/** Заголовок слайда или страницы в markdown разбора: «## Слайд 4: Акции», «## Страница 2». */
++const SLIDE_HEADING = /^##\s+(?:Слайд|Страница)\s+(\d+)/u;
+ /** Число в тексте: целое или с долей, тысячи через пробел («1 200,50»); знаки рядом не входят. */
+ const NUMBER_IN_TEXT = /\d+(?:[\s\u00a0]\d{3})*(?:[.,]\d+)?/u;
+ 
+-/** Презентация ли файл по имени. */
++/** Презентация или pdf ли файл по имени: у такого файла содержимое кейса - markdown разбора. */
+ function isDeck(name: string): boolean {
+-  return name.toLowerCase().endsWith(DECK_EXTENSION);
++  const lower = name.toLowerCase();
++  return lower.endsWith(DECK_EXTENSION) || lower.endsWith(PDF_EXTENSION);
+ }
+ 
+-/** Содержимое файла чата: pptx - с сигнатурой zip перед markdown, остальное - обычный текст. */
++/**
++ * Содержимое файла чата: pptx - с сигнатурой zip, pdf - с сигнатурой «%PDF» перед markdown,
++ * остальное - обычный текст.
++ */
+ export function chatFileBytes(name: string, text: string): Uint8Array {
+   const body = new TextEncoder().encode(text);
+   if (!isDeck(name)) return body;
+-  const bytes = new Uint8Array(ZIP_SIGNATURE.length + body.length);
+-  bytes.set(ZIP_SIGNATURE);
+-  bytes.set(body, ZIP_SIGNATURE.length);
++  const signature = name.toLowerCase().endsWith(PDF_EXTENSION) ? PDF_SIGNATURE : ZIP_SIGNATURE;
++  const bytes = new Uint8Array(signature.length + body.length);
++  bytes.set(signature);
++  bytes.set(body, signature.length);
+   return bytes;
+ }
+ 
+-/** Markdown презентации без сигнатуры. */
++/** Markdown презентации или pdf без сигнатуры (у обеих одной длины). */
+ function deckText(bytes: Uint8Array): string {
+   return new TextDecoder().decode(bytes.subarray(ZIP_SIGNATURE.length));
+ }
+@@ -143,16 +157,31 @@
+ export class DeckPriceEditor implements PriceFileEditor {
+   readonly requests: EditPricesRequest[] = [];
+ 
+-  /** @param spots числа вне таблиц, которые знает заглушка сервиса (локаторы правок 9q). */
+-  constructor(private readonly spots: readonly PriceSpot[] = []) {}
++  /**
++   * @param spots числа вне таблиц, которые знает заглушка сервиса (локаторы правок 9q и 9r).
++   * @param pdfRefusal код отказа, которым заглушка отвечает на правку числа в тексте pdf (как
++   *   422 `edit_refused`: у pdf любой сбой места - отказ целиком, файл не выдаётся); нет -
++   *   принимает.
++   */
++  constructor(
++    private readonly spots: readonly PriceSpot[] = [],
++    private readonly pdfRefusal?: string,
++  ) {}
+ 
+   async editPrices(request: EditPricesRequest): Promise<EditedPriceFile> {
+     this.requests.push(request);
+     const lines = deckText(request.bytes).split('\n');
+     const tables = tableRowLines(lines);
+     const skipped: SkippedPriceEdit[] = [];
++    const refusals: PriceEditRefusal[] = [];
+     let changed = 0;
+     for (const edit of request.edits) {
++      if (edit.page !== undefined && edit.spot !== undefined) {
++        const refusal = this.editPdfSpot(lines, edit);
++        if (refusal === null) changed += 1;
++        else refusals.push(refusal);
++        continue;
++      }
+       if (edit.slide !== undefined && edit.shape !== undefined) {
+         const refused = this.editTextBlock(lines, edit);
+         if (refused === null) changed += 1;
+@@ -173,9 +202,11 @@
+         changed += 1;
+       }
+     }
++    // pdf: проверки не прошли - файл не выдаётся, причины по местам
++    if (refusals.length > 0) throw new PriceEditRefusedError(refusals);
+     return {
+       fileName: request.fileName,
+-      mimeType: PPTX_MIME,
++      mimeType: request.fileName.toLowerCase().endsWith(PDF_EXTENSION) ? PDF_MIME : PPTX_MIME,
+       bytes: chatFileBytes(request.fileName, lines.join('\n')),
+       changed,
+       skipped,
+@@ -183,6 +214,36 @@
+   }
+ 
+   /**
++   * Правка числа в тексте pdf по `page/spot`: число берётся из карты мест, строка - из markdown
++   * страницы. Как настоящий сервис, отказывает при неизвестном месте, другом старом значении
++   * (`expected` обязателен) и заданном кейсом коде отказа. `null` - записано, иначе причина.
++   */
++  private editPdfSpot(lines: string[], edit: PriceCellEdit): PriceEditRefusal | null {
++    const page = edit.page ?? 0;
++    const spotIndex = edit.spot ?? 0;
++    const refuse = (code: string): PriceEditRefusal => ({ code, page, spot: spotIndex });
++    const spot = this.spots.find(
++      (candidate) =>
++        candidate.kind === 'pdf' && candidate.page === page && candidate.spot === spotIndex,
++    );
++    if (spot === undefined) return refuse('spot_not_found');
++    if (this.pdfRefusal !== undefined) return refuse(this.pdfRefusal);
++    const cell = parsePriceCell(spot.text);
++    const want = typeof edit.expected === 'number' ? edit.expected : Number.NaN;
++    if (cell.kind !== 'ok' || Math.abs(cell.value - want) > EXPECTED_TOLERANCE) {
++      return refuse('mismatch');
++    }
++    const [from, to] = slideRange(lines, page);
++    for (let at = from; at < to; at += 1) {
++      const line = lines[at] ?? '';
++      if (line.startsWith('|') || !line.includes(spot.context.trim())) continue;
++      lines[at] = line.replace(spot.text, formatLike(spot.text, edit.value));
++      return null;
++    }
++    return refuse('spot_not_found');
++  }
++
++  /**
+    * Правка числа в текстовом блоке слайда по локатору: число берётся из карты мест, строка
+    * абзаца - из markdown слайда. Как настоящий сервис, не пишет при другом старом значении
+    * (`expected` обязателен) и при неизвестном локаторе. `null` - записано, иначе пропуск.
+@@ -202,6 +263,7 @@
+     });
+     const spot = this.spots.find(
+       (candidate) =>
++        candidate.kind === 'pptx' &&
+         candidate.slide === locator.slide &&
+         candidate.shape === locator.shape &&
+         candidate.paragraph === locator.paragraph &&
+@@ -230,7 +292,17 @@
+   }
+ }
+ 
+-/** Границы слайда в строках markdown: от заголовка «## Слайд N» до следующего заголовка. */
++/** Число в формате старого: те же знаки после запятой, разделитель и пробелы в тысячах. */
++function formatLike(old: string, value: number): string {
++  const fraction = /([.,])(\d+)$/u.exec(old);
++  const [whole = '', rest] = value.toFixed(fraction?.[2]?.length ?? 0).split('.');
++  const grouped = /\d[\s\u00a0]\d{3}/u.test(old)
++    ? whole.replace(/\B(?=(\d{3})+(?!\d))/gu, ' ')
++    : whole;
++  return rest === undefined ? grouped : `${grouped}${fraction?.[1] ?? ','}${rest}`;
++}
++
++/** Границы слайда или страницы в строках markdown: от заголовка «## Слайд N» до следующего. */
+ function slideRange(lines: readonly string[], slide: number): [number, number] {
+   const begin = lines.findIndex((line) => Number(SLIDE_HEADING.exec(line)?.[1]) === slide);
+   if (begin < 0) return [0, 0];
+@@ -238,6 +310,26 @@
+   return [begin + 1, next < 0 ? lines.length : next];
+ }
+ 
++/** Число вне таблицы из состояния кейса (`priceSpots`) в виде карты мест: pptx или pdf. */
++export function toPriceSpots(items: readonly z.infer<typeof priceAnySpotSchema>[]): PriceSpot[] {
++  return items.map((item): PriceSpot => {
++    if ('page' in item) {
++      return {
++        kind: 'pdf',
++        page: item.page,
++        spot: item.spot,
++        text: item.text,
++        context: item.context,
++        textTable: null,
++        row: null,
++        col: null,
++        header: item.header ?? null,
++      };
++    }
++    return { kind: 'pptx', ...item };
++  });
++}
++
+ /**
+  * Заглушка сервиса документов, отдающая карту чисел вне таблиц (порт `PriceSpotReader`, этап
+  * 9q): карта задана кейсом (`priceSpots`), число обращений считается для замеров.
+@@ -330,8 +422,10 @@
+       const proposals = await listProposals(state, arg ?? '');
+       return proposals.reduce((total, proposal) => total + proposal.items.length, 0);
+     },
+-    // Сколько правок ушло с локатором текстового блока слайда (число вне таблицы).
+-    editedTextBlockCount: () => editor.allEdits().filter((edit) => edit.slide !== undefined).length,
++    // Сколько правок ушло с локатором числа вне таблицы: текстовый блок слайда или текст pdf.
++    editedTextBlockCount: () =>
++      editor.allEdits().filter((edit) => edit.slide !== undefined || edit.page !== undefined)
++        .length,
+     // Записей реестра правок сотрудника у поставщика (их пишет writeEditedPricesToDb).
+     employeeFileEditCount: async (arg) =>
+       Object.keys(await loadEmployeeFileEdits(state, arg ?? '')).length,

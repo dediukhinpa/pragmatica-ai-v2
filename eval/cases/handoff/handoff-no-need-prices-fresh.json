@@ -1,0 +1,97 @@
+{
+  "id": "handoff-no-need-prices-fresh",
+  "description": "Сотрудник сам говорит, что цены свежие и «Актуализация прайса (ИИ агент)» подключать не нужно: передача была бы лишней.",
+  "request": "Заявка req-4 по сделке D-4, возьми в работу. Цены в базе обновлены сегодня, освежать их не нужно и агента «Актуализация прайса (ИИ агент)» подключать не надо. Ответственный — Анна Рябова, +7 (999) 444-55-66.",
+  "state": {
+    "requests": [
+      {
+        "id": "req-4",
+        "dealRef": "D-4",
+        "items": [
+          {
+            "name": "Арматура",
+            "quantity": 100,
+            "unit": "м"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Арматура 12 мм",
+        "price": 50,
+        "date": "2026-01-01T00:00:00.000Z"
+      },
+      {
+        "supplierId": "s2",
+        "productName": "Арматура 12 мм",
+        "price": 52,
+        "date": "2026-01-01T00:00:00.000Z"
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Арматура: условия поставки"
+    },
+    "web": [
+      {
+        "title": "МеталлТорг",
+        "url": "https://metall.test",
+        "snippet": "Арматура от склада"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 6,
+    "expectedStatus": "completed",
+    "requiredTools": [
+      "buildShortlist",
+      "askManagerToChoose"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "handoffToPrices",
+      "prepareSupplierRequestText",
+      "recordSelection"
+    ],
+    "stateChecks": [
+      {
+        "probe": "handoffsQueued",
+        "value": 0
+      },
+      {
+        "probe": "mailSent",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Рябова",
+      "Анна"
+    ],
+    "phones": [
+      "+7 (999) 444-55-66"
+    ]
+  },
+  "handoff": {
+    "category": "no_need",
+    "access": "allowed",
+    "allowedHandoffCalls": 0
+  }
+}

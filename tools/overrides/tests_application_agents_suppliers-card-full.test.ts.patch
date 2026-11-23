@@ -1,0 +1,11 @@
+--- tests/application/agents/suppliers-card-full.test.ts
++++ tests/application/agents/suppliers-card-full.test.ts
+@@ -113,7 +113,7 @@
+   });
+ 
+   test('файл шаблона в репозитории совпадает с колонками кода', async () => {
+-    const path = join(import.meta.dir, '../../../../docs/templates/supplier-template.xlsx');
++    const path = join(import.meta.dir, '../../../docs/templates/supplier-template.xlsx');
+     const bytes = readFileSync(path);
+     // xlsx - zip со сжатыми строками: содержимое сверяет сборка из тех же колонок
+     // (`build_supplier_template.py`), здесь проверяется, что файл на месте и это zip.

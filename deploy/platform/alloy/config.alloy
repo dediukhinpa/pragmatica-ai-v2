@@ -1,0 +1,415 @@
+// Сборщик телеметрии (Grafana Alloy) на ВМ клиента. Профиль compose: telemetry.
+// Один процесс: OTLP ядра, логи Docker, метрики хоста/контейнеров/Postgres, пробы служб и
+// шлюза, textfile-метрики скриптов и индексатора. Наружу уходят только метаданные:
+// коды, числа, хэши, имена служб. Тексты и ПДн в телеметрию не добавляются (логи читаются как
+// есть, поля severity/event/code остаются в строке; новых полей с текстами сборщик не создаёт).
+//
+// Куда отправлять, решает TELEMETRY_TARGETS (local | remote | both). В Alloy нет условных
+// блоков и перебора блоков, а пустой endpoint не допускается, поэтому режим выбирает ПУТЬ
+// модуля приёмников: compose передаёт ALLOY_SINKS_FILE=/etc/alloy/sinks/<режим>.alloy, а этот
+// файл (import.file ниже) экспортирует списки получателей metrics/logs/traces. Остальной конфиг
+// одинаков для всех режимов. Неверное значение режима = файла нет = Alloy не стартует
+// (громкий отказ, healthcheck красный), а не молчаливая потеря данных.
+//
+// Метки company и host добавляются на всех метриках (external_labels remote_write), логах
+// (external_labels loki.write) и трассах (атрибуты ресурса, processor.transform ниже).
+// Проверка синтаксиса: `alloy fmt` / `alloy run` на образе, закреплённом в docker-compose.yml.
+
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+import.file "sinks" {
+  filename = sys.env("ALLOY_SINKS_FILE")
+}
+
+sinks.out "default" {}
+
+// ---------------------------------------------------------------------------------------------
+// 1. OTLP от ядра (grpc 4317, http 4318). Единственная сеть alloy с другими сервисами -
+//    backend (internal, без выхода наружу); сеть с выходом (telemetry-egress) у alloy отдельная
+//    и пустая, общей с app и gateway-mtls egress у него нет. Поэтому 0.0.0.0 здесь значит
+//    "только сервисы ядра в backend"; на хост порты не публикуются. Аутентификации у OTLP нет:
+//    граница - сеть (docs/MONITORING.md, «Права Alloy»).
+// ---------------------------------------------------------------------------------------------
+
+otelcol.receiver.otlp "core" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.processor.memory_limiter.default.input]
+    traces  = [otelcol.processor.memory_limiter.default.input]
+  }
+}
+
+// Защита от OOM: лимит ниже mem_limit контейнера (384m) с запасом под остальные компоненты.
+otelcol.processor.memory_limiter "default" {
+  check_interval = "1s"
+  limit          = "192MiB"
+  spike_limit    = "48MiB"
+
+  output {
+    metrics = [otelcol.processor.transform.labels.input]
+    traces  = [otelcol.processor.transform.labels.input]
+  }
+}
+
+// В Alloy нет otelcol.processor.resource: атрибуты ресурса задаёт transform (контекст resource).
+otelcol.processor.transform "labels" {
+  error_mode = "ignore"
+
+  trace_statements {
+    context = "resource"
+    statements = [
+      string.join(["set(attributes[\"company\"], \"", sys.env("COMPANY_ID"), "\")"], ""),
+      string.join(["set(attributes[\"host\"], \"", constants.hostname, "\")"], ""),
+    ]
+  }
+
+  metric_statements {
+    context = "resource"
+    statements = [
+      string.join(["set(attributes[\"company\"], \"", sys.env("COMPANY_ID"), "\")"], ""),
+      string.join(["set(attributes[\"host\"], \"", constants.hostname, "\")"], ""),
+    ]
+  }
+
+  output {
+    metrics = [otelcol.processor.deltatocumulative.core.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+// Ядро шлёт счётчики и гистограммы с temporality=delta (adapters/telemetry/otlp-encode.ts),
+// а otelcol.exporter.prometheus молча отбрасывает delta-метрики (в Prometheus не попадало ничего).
+// Преобразуем в накопительные значения до экспортёра. Серия, молчащая дольше max_stale,
+// забывается; следующий всплеск начнёт счёт с нуля, что для increase()/rate() не страшно
+// (сброс счётчика).
+otelcol.processor.deltatocumulative "core" {
+  max_stale = "1h"
+
+  output {
+    metrics = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  timeout         = "5s"
+  send_batch_size = 512
+
+  output {
+    metrics = [otelcol.exporter.prometheus.core.input]
+    traces  = sinks.out.default.traces
+  }
+}
+
+// OTLP-метрики ядра -> remote_write (буфер WAL на диске живёт в приёмнике метрик).
+otelcol.exporter.prometheus "core" {
+  forward_to = sinks.out.default.metrics
+}
+
+// ---------------------------------------------------------------------------------------------
+// 2. Логи контейнеров compose-проекта (по умолчанию agentplatform; Docker json-file). Строки уходят как есть; из JSON
+//    поднимается в метку только severity (4 значения, низкая кардинальность) для фильтров.
+//    event/code/trace_id остаются полями строки (VictoriaLogs индексирует их сама).
+// ---------------------------------------------------------------------------------------------
+
+// Docker API - через docker-socket-proxy (только чтение: containers и networks, POST=0), сам
+// docker.sock в контейнер alloy не смонтирован. Имя прокси - сервис compose.
+discovery.docker "containers" {
+  host             = "tcp://docker-socket-proxy:2375"
+  refresh_interval = "15s"
+
+  filter {
+    name   = "label"
+    // Имя compose-проекта задаёт ALLOY_COMPOSE_PROJECT (пусто или не задано = agentplatform):
+    // развёртывание с другим `name:` иначе не получило бы ни одной строки логов контейнеров.
+    values = [string.join([
+      "com.docker.compose.project=",
+      coalesce(sys.env("ALLOY_COMPOSE_PROJECT"), "agentplatform"),
+    ], "")]
+  }
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "service"
+  }
+}
+
+loki.source.docker "containers" {
+  host       = "tcp://docker-socket-proxy:2375"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.process.docker.receiver]
+}
+
+loki.process "docker" {
+  // Не JSON-строки (postgres, nginx) стадию пропускают без ошибки: метки severity у них нет.
+  stage.json {
+    expressions = {
+      severity = "severity",
+    }
+  }
+
+  stage.labels {
+    values = {
+      severity = "",
+    }
+  }
+
+  forward_to = sinks.out.default.logs
+}
+
+// ---------------------------------------------------------------------------------------------
+// 3. Метрики. Все scrape пишут в тот же список получателей, что и OTLP-метрики.
+// ---------------------------------------------------------------------------------------------
+
+// 3.1 Хост (node exporter). timex даёт синхронизацию NTP (node_timex_sync_status,
+//     node_timex_offset_seconds); textfile читает метрики скриптов deploy/ (check-host.sh --probe
+//     -> agentplatform_host_probe.prom, дрейф безопасности; backup, healthwatch, cert-expiry.sh).
+prometheus.exporter.unix "host" {
+  rootfs_path = "/host/root"
+  procfs_path = "/host/proc"
+  sysfs_path  = "/sys"
+
+  set_collectors = [
+    "cpu", "diskstats", "filesystem", "loadavg", "meminfo", "netdev", "stat", "time",
+    "timex", "uname", "vmstat", "textfile",
+  ]
+
+  filesystem {
+    fs_types_exclude     = string.join(
+      [
+        "^(autofs", "binfmt_misc", "bpf", "cgroup2?", "configfs", "debugfs", "devpts",
+        "devtmpfs", "fusectl", "hugetlbfs", "iso9660", "mqueue", "nsfs", "overlay", "proc",
+        "procfs", "pstore", "rpc_pipefs", "securityfs", "selinuxfs", "squashfs", "sysfs",
+        "tracefs)$",
+      ], "|",
+    )
+    mount_points_exclude = "^/(dev|proc|run/credentials/.+|sys|var/lib/docker/.+)($|/)"
+  }
+
+  textfile {
+    // TEXTFILE_METRICS_DIR хоста (монтируется в compose только на чтение).
+    directory = "/var/lib/agentplatform/metrics"
+  }
+}
+
+// 3.2 Textfile индексатора (indexer.prom из тома indexer-state; INDEXER_METRICS_DIR=/state).
+//     Collector textfile у Alloy принимает ровно один каталог, поэтому для второго каталога
+//     поднят отдельный экземпляр, где включён только textfile.
+prometheus.exporter.unix "indexer" {
+  set_collectors = ["textfile"]
+
+  textfile {
+    directory = "/var/lib/agentplatform/indexer"
+  }
+}
+
+// 3.3 Контейнеры: cAdvisor убран. На Docker 29 с образным хранилищем containerd он не находит
+//     слой контейнера и не отдаёт container_* по службам. Состояние, health, RestartCount,
+//     время старта (Docker API) и память/лимит/CPU/OOM (cgroup v2, /sys/fs/cgroup) пишет
+//     container-metrics.sh в textfile-каталог хоста (agentplatform_containers.prom); его читает
+//     коллектор textfile экземпляра "host" (3.1), job="node". Имена метрик -
+//     agentplatform_container_* (см. README.md). Обнаружение Docker (discovery.docker) в Alloy
+//     используется для логов (раздел 2): метрик из списка целей оно не создаёт.
+
+// 3.4 Postgres: пользователь только чтение (роль pg_monitor), DSN из TELEMETRY_PG_DSN.
+//     pg_settings_* (в т.ч. max_connections) включены по умолчанию.
+prometheus.exporter.postgres "db" {
+  data_source_names = [sys.env("TELEMETRY_PG_DSN")]
+
+  enabled_collectors = [
+    "database", "locks", "replication", "stat_bgwriter", "stat_database", "stat_user_tables",
+    "wal", "long_running_transactions", "postmaster", "stat_activity_autovacuum",
+  ]
+}
+
+// 3.5 Пробы blackbox. Модуль http_2xx - внутренние службы; gateway_mtls - прямая проба шлюза
+//     внешнего шлюза с клиентским сертификатом из MTLS_DIR (те же client.crt/client.key/ca.crt, что
+//     читает check-host.sh), имя в сертификате - GATEWAY_TLS_NAME.
+//     Доступны по сети только documents, embeddings и gateway-mtls. Недоступны для пробы:
+//     app (служебный HTTP слушает 127.0.0.1 своего контейнера) и pseudonymizer (изолированная
+//     сеть pseudonymizer-net, alloy в неё не входит намеренно): их состояние - по
+//     agentplatform_container_* и метрикам ядра.
+prometheus.exporter.blackbox "services" {
+  config = encoding.to_json({
+    modules = {
+      http_2xx = {
+        prober  = "http",
+        timeout = "4s",
+        http = {
+          method                = "GET",
+          valid_status_codes    = [200],
+          preferred_ip_protocol = "ip4",
+        },
+      },
+      gateway_mtls = {
+        prober  = "http",
+        timeout = "8s",
+        http = {
+          method                = "GET",
+          valid_status_codes    = [200],
+          preferred_ip_protocol = "ip4",
+          fail_if_not_ssl       = true,
+          tls_config = {
+            ca_file     = "/etc/gateway-mtls/ca.crt",
+            cert_file   = "/etc/gateway-mtls/client.crt",
+            key_file    = "/etc/gateway-mtls/client.key",
+            server_name = sys.env("GATEWAY_TLS_NAME"),
+          },
+        },
+      },
+    },
+  })
+
+  target {
+    name    = "documents_health"
+    address = "http://documents:8310/health"
+    module  = "http_2xx"
+    labels  = { service = "documents", check = "health" }
+  }
+
+  target {
+    name    = "embeddings_health"
+    address = "http://embeddings:8320/health"
+    module  = "http_2xx"
+    labels  = { service = "embeddings", check = "health" }
+  }
+
+  // Сам прокси gateway-mtls: жив ли nginx (без обращения к шлюзу).
+  target {
+    name    = "gateway_mtls_proxy_health"
+    address = "http://gateway-mtls:8080/nginx-health"
+    module  = "http_2xx"
+    labels  = { service = "gateway-mtls", check = "health" }
+  }
+
+  // Канал к шлюзу через прокси (как положительная проверка check-host.sh): mTLS + шлюз.
+  target {
+    name    = "gateway_mtls_proxy_gateway"
+    address = "http://gateway-mtls:8080/healthz"
+    module  = "http_2xx"
+    labels  = { service = "gateway-mtls", check = "gateway_via_proxy" }
+  }
+
+  // Прямая mTLS-проба шлюза; probe_ssl_earliest_cert_expiry - срок серверного сертификата.
+  target {
+    name    = "gateway_external_mtls"
+    address = string.join(
+      ["https://", sys.env("GATEWAY_HOST"), ":", sys.env("GATEWAY_PORT"), "/healthz"], "",
+    )
+    module = "gateway_mtls"
+    labels = { service = "gateway", check = "mtls" }
+  }
+}
+
+// 3.6 Сам сборщик: alloy_*, prometheus_remote_storage_* (рост/потери буфера, отставание).
+prometheus.exporter.self "alloy" {}
+
+// Имя job задаём явно. Экспортёры Alloy отдают цели с собственным job вида integrations/...,
+// а job_name у prometheus.scrape подставляется только когда метки job у цели нет. Правила
+// стека опираются на job="alloy" (host_up), job="blackbox", job="node" и т. п., поэтому
+// переопределяем метку на этапе discovery.relabel, а не полагаемся на job_name.
+
+discovery.relabel "job_host" {
+  targets = prometheus.exporter.unix.host.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "node"
+  }
+}
+
+discovery.relabel "job_indexer" {
+  targets = prometheus.exporter.unix.indexer.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "indexer_textfile"
+  }
+}
+
+discovery.relabel "job_postgres" {
+  targets = prometheus.exporter.postgres.db.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "postgres"
+  }
+}
+
+discovery.relabel "job_probes" {
+  targets = prometheus.exporter.blackbox.services.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "blackbox"
+  }
+}
+
+discovery.relabel "job_alloy" {
+  targets = prometheus.exporter.self.alloy.targets
+
+  rule {
+    target_label = "job"
+    replacement  = "alloy"
+  }
+}
+
+// Интервалы 10-15 с у host (15), postgres (15), probes (10) и alloy (10) нужны срочным
+// алертам (сервис упал <= 60 с, хост молчит <= 120 с; docs/MONITORING.md, раздел 4.4).
+// host - потому что через него идут метрики container-metrics.sh (CONTAINER_DOWN); alloy -
+// основа host_up; postgres - pg_up. indexer не ускорялся: его метрики идут в serious/warning.
+prometheus.scrape "host" {
+  targets         = discovery.relabel.job_host.output
+  job_name        = "node"
+  scrape_interval = "15s"
+  forward_to      = sinks.out.default.metrics
+}
+
+prometheus.scrape "indexer" {
+  targets         = discovery.relabel.job_indexer.output
+  job_name        = "indexer_textfile"
+  scrape_interval = "60s"
+  forward_to      = sinks.out.default.metrics
+}
+
+prometheus.scrape "postgres" {
+  targets         = discovery.relabel.job_postgres.output
+  job_name        = "postgres"
+  scrape_interval = "15s"
+  forward_to      = sinks.out.default.metrics
+}
+
+prometheus.scrape "probes" {
+  targets         = discovery.relabel.job_probes.output
+  job_name        = "blackbox"
+  scrape_interval = "10s"
+  // Больше таймаута самой медленной пробы (gateway_mtls - 8 с), но не больше интервала.
+  scrape_timeout  = "9s"
+  forward_to      = sinks.out.default.metrics
+}
+
+prometheus.scrape "alloy" {
+  targets         = discovery.relabel.job_alloy.output
+  job_name        = "alloy"
+  scrape_interval = "10s"
+  forward_to      = sinks.out.default.metrics
+}

@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+# Тест tools/build-rehearsal-package.sh: состав пакета, манифест, запрет секретов, отказы.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
+SCRIPT="$HERE/build-rehearsal-package.sh"
+TMP="$(mktemp -d)"
+trap 'rm -rf "${TMP:?}"' EXIT
+PASS=0
+FAIL=0
+LIMIT=100
+
+ok() { PASS=$((PASS + 1)); echo "PASS $1"; }
+bad() { FAIL=$((FAIL + 1)); echo "FAIL $1"; }
+assert() { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
+
+# Временный git-репозиторий с минимальным составом проекта.
+REPO="$TMP/repo"
+mkdir -p "$REPO/deploy/rehearsal" "$REPO/deploy/platform" "$REPO/db/app" "$REPO/tools"
+echo "services: {}" >"$REPO/deploy/compose.yml"
+echo "x" >"$REPO/deploy/platform/compose.base.yml"
+echo "SELECT 1;" >"$REPO/db/app/001_x.sql"
+echo "KEY=" >"$REPO/deploy/.env.example"
+printf '#!/usr/bin/env bash\necho rehearse\n' >"$REPO/deploy/rehearsal/rehearse.sh"
+echo "# README" >"$REPO/deploy/rehearsal/README.md"
+echo "app/026_x" >"$REPO/deploy/rehearsal/expected-pending.txt"
+echo "# tool" >"$REPO/tools/check_migrations_schema.py"
+for f in check-image-routes.sh route-flags.tsv; do echo "# $f" >"$REPO/tools/$f"; done
+mkdir -p "$REPO/deploy/cutover"
+printf 'documents\tPOST\t/parse\troute\n' >"$REPO/deploy/cutover/routes.tsv"
+# Скрипт переключения упоминает PRIVATE KEY в тексте (проверка заголовков): в пакет репетиции
+# он не должен попадать и не должен срабатывать как утечка ключа.
+mkdir -p "$REPO/deploy/cutover"
+printf '#!/usr/bin/env bash\n# ищет строки PRIVATE KEY\n' \
+  >"$REPO/deploy/cutover/verify-signatures.sh"
+git -C "$REPO" init -q
+git -C "$REPO" add -A
+git -C "$REPO" -c user.name=t -c user.email=t@example.test commit -q -m init
+
+# Lock платформы 1.1.3: образы лёгкого режима и mask (без mask compose не собирается).
+printf 'BAI_VERSION=1.1.3\nBAI_IMAGE_POSTGRES=pg@sha256:aa\n' >"$TMP/images.lock"
+printf 'BAI_IMAGE_PSEUDONYMIZER=ps@sha256:bb\n' >>"$TMP/images.lock"
+printf 'BAI_IMAGE_APP=app@sha256:cc\nBAI_IMAGE_MASK=mask@sha256:dd\n' >>"$TMP/images.lock"
+grep -v '^BAI_IMAGE_MASK=' "$TMP/images.lock" >"$TMP/images-nomask.lock"
+echo "-- schema" >"$TMP/schema.sql"
+echo "public-key" >"$TMP/cosign.pub"
+printf 'A_NAME\nB_NAME\n' >"$TMP/names.txt"
+run() { BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --lock "$TMP/images.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" "$@"; }
+
+OUT="$TMP/pkg"
+rc=0
+run --out "$OUT" --expected-env-names "$TMP/names.txt" >"$TMP/out.log" 2>&1 || rc=$?
+assert "сборка проходит" "[[ $rc -eq 0 ]]"
+for f in rehearse.sh README.md images.lock cosign.pub schema-expected.sql expected-pending.txt \
+  expected-env-names.txt tools/check_migrations_schema.py stack/deploy/compose.yml \
+  tools/check-image-routes.sh tools/route-flags.tsv routes.tsv \
+  stack/deploy/platform/compose.base.yml stack/db/app/001_x.sql MANIFEST.sha256; do
+  assert "в пакете есть $f" "[[ -f '$OUT/$f' ]]"
+done
+assert "скриптов переключения в пакете репетиции нет" "[[ ! -e '$OUT/stack/deploy/cutover' ]]"
+assert "rehearse.sh исполняемый" "[[ -x '$OUT/rehearse.sh' ]]"
+assert "манифест сходится" "(cd '$OUT' && sha256sum -c --quiet MANIFEST.sha256)"
+assert "образец .env.example допустим" "[[ -f '$OUT/stack/deploy/.env.example' ]]"
+assert "в манифесте нет самого манифеста" "! grep -q MANIFEST '$OUT/MANIFEST.sha256'"
+
+# Незакоммиченный файл в пакет не попадает.
+echo "secret" >"$REPO/deploy/.env"
+OUT2="$TMP/pkg2"
+run --out "$OUT2" >/dev/null 2>&1
+assert "незакоммиченный .env не попал" "[[ ! -e '$OUT2/stack/deploy/.env' ]]"
+
+# Закоммиченный запрещённый файл - отказ.
+echo "SECRET=1" >"$REPO/deploy/secrets.env"
+git -C "$REPO" add -f deploy/secrets.env
+git -C "$REPO" -c user.name=t -c user.email=t@example.test commit -q -m bad
+rc=0
+run --out "$TMP/pkg3" >"$TMP/out3.log" 2>&1 || rc=$?
+assert "запрещённый файл в дереве - отказ" "[[ $rc -eq 1 ]]"
+assert "в сообщении назван файл" "grep -q 'secrets.env' '$TMP/out3.log'"
+git -C "$REPO" rm -q -f deploy/secrets.env
+git -C "$REPO" -c user.name=t -c user.email=t@example.test commit -q -m rm
+
+# Закрытый ключ внутри файла - отказ.
+printf -- '-----BEGIN PRIVATE KEY-----\nabc\n' >"$REPO/deploy/platform/note.txt"
+git -C "$REPO" add deploy/platform/note.txt
+git -C "$REPO" -c user.name=t -c user.email=t@example.test commit -q -m key
+rc=0
+run --out "$TMP/pkg4" >/dev/null 2>&1 || rc=$?
+assert "закрытый ключ в содержимом - отказ" "[[ $rc -eq 1 ]]"
+
+# Непустой каталог, нет аргументов, нет схемы.
+mkdir -p "$TMP/full" && touch "$TMP/full/x"
+rc=0
+run --out "$TMP/full" >/dev/null 2>&1 || rc=$?
+assert "непустой каталог - код 2" "[[ $rc -eq 2 ]]"
+rc=0
+bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
+assert "без аргументов - код 2" "[[ $rc -eq 2 ]]"
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg5" --lock "$TMP/images.lock" \
+  --schema-expected "$TMP/none.sql" --cosign-pub "$TMP/cosign.pub" >/dev/null 2>&1 || rc=$?
+assert "нет файла схемы - код 2" "[[ $rc -eq 2 ]]"
+
+# Lock без BAI_IMAGE_MASK (платформа 1.1.3 требует его в compose) - отказ до сборки.
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg6" --lock "$TMP/images-nomask.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" >"$TMP/out6.log" 2>&1 || rc=$?
+assert "lock без mask - код 2" "[[ $rc -eq 2 ]]"
+assert "в сообщении назван BAI_IMAGE_MASK" "grep -q 'BAI_IMAGE_MASK' '$TMP/out6.log'"
+assert "пакет из lock без mask не создан" "[[ ! -e '$TMP/pkg6/rehearse.sh' ]]"
+# Lock без образа лёгкого режима - тоже отказ.
+grep -v '^BAI_IMAGE_APP=' "$TMP/images.lock" >"$TMP/images-noapp.lock"
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg7" --lock "$TMP/images-noapp.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" >"$TMP/out7.log" 2>&1 || rc=$?
+assert "lock без app - код 2" "[[ $rc -eq 2 ]]"
+assert "lock пакета содержит mask" "grep -q '^BAI_IMAGE_MASK=' '$OUT/images.lock'"
+
+# Стиль.
+assert "bash -n" "bash -n '$SCRIPT'"
+assert "строки до $LIMIT знаков" "! awk 'length > $LIMIT' '$SCRIPT' '$0' | grep -q ."
+assert "set -euo pipefail" "grep -q '^set -euo pipefail' '$SCRIPT'"
+
+echo "проверок: $((PASS + FAIL)), провалено: $FAIL"
+[[ "$FAIL" -eq 0 ]]

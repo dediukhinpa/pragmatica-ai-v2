@@ -1,0 +1,47 @@
+--- src/application/agents/suppliers/supplier-tools.ts
++++ src/application/agents/suppliers/supplier-tools.ts
+@@ -1,5 +1,5 @@
+ import { z } from 'zod';
+-import { ACTION_CONFIRM_SUPPLIER_CARD } from '../../../domain/access.owned';
++import { confirmCardVerdict } from './confirm-card-right';
+ import { DomainError } from '@business-ai/core';
+ import { DUPLICATE_REASON_LABELS, MAX_EMAIL_LENGTH, MAX_NOTE_LENGTH, MAX_SUPPLY_ITEM_LENGTH, SUPPLIER_STATUS_LABELS, normalizeInn, normalizeSupplierCard, primaryContact, validateSupplierCard, type DuplicateMatch, type SupplierCard, type SupplierContact } from '../../../domain/supplier-card';
+ import { defineTool } from '@business-ai/core';
+@@ -266,30 +266,22 @@
+ async function assertMayConfirmCard(scope: TurnScope, agentId: string): Promise<void> {
+   const { access } = scope.deps;
+   if (access === undefined) return;
+-  const request = { userId: scope.userId, botId: agentId, action: ACTION_CONFIRM_SUPPLIER_CARD };
+-  let decision: { allowed: boolean; reason?: string | undefined };
+-  try {
+-    decision =
+-      access.decide === undefined
+-        ? { allowed: await access.isAllowed(request) }
+-        : await access.decide(request);
+-  } catch {
+-    throw new DomainError('access_denied', SHOW_UNAVAILABLE_TEXT);
+-  }
+-  if (decision.allowed) return;
++  // Руководитель отдела или менеджер закупок с доступом (этап 8y): общая проверка права.
++  const verdict = await confirmCardVerdict(access, { userId: scope.userId, botId: agentId });
++  if (verdict === 'allowed') return;
+   throw new DomainError(
+     'access_denied',
+-    decision.reason === 'directory_unavailable' ? SHOW_UNAVAILABLE_TEXT : SHOW_DENIED_TEXT,
++    verdict === 'unavailable' ? SHOW_UNAVAILABLE_TEXT : SHOW_DENIED_TEXT,
+   );
+ }
+ 
+ /** Показ записи в общую базу тому, кто не вправе её подтвердить, бессмыслен. */
+ const SHOW_DENIED_TEXT =
+-  'Записывать карточки поставщиков в общую базу могут только руководители отделов: ' +
+-  'карточка не показана и не записана. Личную заметку (запомни ...) можно сохранить и вам.';
++  'Записывать карточки поставщиков в общую базу могут только руководители отделов и ' +
++  'менеджеры закупок с доступом: карточка не показана и не записана. Личную заметку (запомни ...) можно сохранить и вам.';
+ /** Справочник руководителей недоступен: временный сбой. */
+ const SHOW_UNAVAILABLE_TEXT =
+-  'Не удалось проверить, что сотрудник руководитель отдела, поэтому карточка не показана. ' +
++  'Не удалось проверить право записи в общую базу, поэтому карточка не показана. ' +
+   'Это временный сбой: повторите запрос чуть позже.';
+ 
+ /**

@@ -1,0 +1,1899 @@
+{
+ "_comment": "Выжимка из эталона прежней сборки (stage-0 baseline, behavior/agents.json): только формы инструментов (схемы, разметка, отпечаток описания). Данных заказчика нет.",
+ "agents": {
+  "documents": {
+   "tools": {
+    "createFile": {
+     "descriptionLength": 368,
+     "descriptionSha256": "4cb631b7100589598f03e5afe1758ccef8c4c8fe97f748359222212aa85ef16f",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "columns": {
+        "description": "Заголовки столбцов: обязательны для xlsx и csv, для docx - таблица в документе",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "fileName": {
+        "description": "Имя без пути и без расширения",
+        "minLength": 1,
+        "type": "string"
+       },
+       "kind": {
+        "description": "xlsx - Excel, docx - Word, txt, csv, md",
+        "enum": [
+         "csv",
+         "docx",
+         "md",
+         "txt",
+         "xlsx"
+        ],
+        "type": "string"
+       },
+       "paragraphs": {
+        "description": "Для docx/txt/md: абзацы; «- » в начале - пункт списка, «# » - подзаголовок",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "rows": {
+        "description": "Строки таблицы (строки или числа), длина каждой равна числу столбцов",
+        "items": {
+         "items": {
+          "type": [
+           "null",
+           "number",
+           "string"
+          ]
+         },
+         "type": "array"
+        },
+        "type": "array"
+       },
+       "text": {
+        "description": "Для docx/txt/md: готовый текст",
+        "type": "string"
+       },
+       "title": {
+        "description": "Заголовок документа/листа",
+        "type": "string"
+       }
+      },
+      "required": [
+       "fileName",
+       "kind"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": true,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": "confirm",
+      "replayEffective": "confirm",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": true
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "fileName": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "csv",
+         "docx",
+         "md",
+         "txt",
+         "xlsx"
+        ],
+        "type": "string"
+       },
+       "rows": {
+        "type": "integer"
+       },
+       "sizeBytes": {
+        "type": "integer"
+       },
+       "warnings": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "fileName",
+       "kind",
+       "rows",
+       "sizeBytes"
+      ],
+      "type": "object"
+     }
+    },
+    "runDataScript": {
+     "descriptionLength": 1365,
+     "descriptionSha256": "fbff8927506c10113cdef788416a26f2e133c30f5cfd49e07f50eccd7ae65960",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "code": {
+        "maxLength": 30000,
+        "minLength": 1,
+        "type": "string"
+       },
+       "fileRef": {
+        "maxLength": 600,
+        "minLength": 1,
+        "type": "string"
+       },
+       "onEmployeeRequest": {
+        "type": "boolean"
+       },
+       "resultKind": {
+        "enum": [
+         "price_items",
+         "table",
+         "value"
+        ],
+        "type": "string"
+       },
+       "supplierId": {
+        "maxLength": 100,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code",
+       "resultKind"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": true,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "attemptsLeft": {
+        "type": "integer"
+       },
+       "error": {
+        "additionalProperties": false,
+        "properties": {
+         "code": {
+          "type": "string"
+         },
+         "line": {
+          "anyOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "policy": {
+          "type": [
+           "null",
+           "string"
+          ]
+         },
+         "type": {
+          "type": [
+           "null",
+           "string"
+          ]
+         }
+        },
+        "required": [
+         "code",
+         "line",
+         "policy",
+         "type"
+        ],
+        "type": "object"
+       },
+       "message": {
+        "type": "string"
+       },
+       "ok": {
+        "type": "boolean"
+       },
+       "parserTruncated": {
+        "type": "boolean"
+       },
+       "resultKind": {
+        "enum": [
+         "price_items",
+         "table",
+         "value"
+        ],
+        "type": "string"
+       },
+       "rowCount": {
+        "type": "integer"
+       },
+       "scriptDidNotHelp": {
+        "type": "boolean"
+       },
+       "summary": {
+        "additionalProperties": {},
+        "type": "object"
+       },
+       "truncated": {
+        "type": "boolean"
+       },
+       "value": {}
+      },
+      "required": [
+       "ok",
+       "resultKind"
+      ],
+      "type": "object"
+     }
+    },
+    "searchConversationHistory": {
+     "descriptionLength": 402,
+     "descriptionSha256": "d9780386cf7f2bb8c24702e8f30358db2c7d23200f0bd53848900cfeb892e9d9",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "limit": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+       },
+       "query": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+       },
+       "sinceDaysAgo": {
+        "maximum": 3650,
+        "minimum": 0,
+        "type": "integer"
+       },
+       "untilDaysAgo": {
+        "maximum": 3650,
+        "minimum": 0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "found": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "fragments": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "after": {
+           "items": {
+            "$ref": "2/message"
+           },
+           "type": "array"
+          },
+          "before": {
+           "items": {
+            "$ref": "2/message"
+           },
+           "type": "array"
+          },
+          "message": {
+           "additionalProperties": false,
+           "properties": {
+            "at": {
+             "type": "string"
+            },
+            "role": {
+             "enum": [
+              "agent",
+              "user"
+             ],
+             "type": "string"
+            },
+            "text": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "at",
+            "role",
+            "text"
+           ],
+           "type": "object"
+          }
+         },
+         "required": [
+          "after",
+          "before",
+          "message"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "notice": {
+        "type": "string"
+       },
+       "truncated": {
+        "type": "boolean"
+       },
+       "untrusted": {
+        "const": true,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "found",
+       "fragments",
+       "notice",
+       "truncated",
+       "untrusted"
+      ],
+      "type": "object"
+     }
+    },
+    "searchInternet": {
+     "descriptionLength": 343,
+     "descriptionSha256": "5173188f69925bcfdc683f67b5bc519d1669b50ce5ff713a76ef62610749a5c2",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "query": {
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "notice": {
+        "type": "string"
+       },
+       "results": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "snippet": {
+           "type": "string"
+          },
+          "title": {
+           "type": "string"
+          },
+          "url": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "snippet",
+          "title",
+          "url"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "summary": {
+        "type": "string"
+       },
+       "untrusted": {
+        "const": true,
+        "type": "boolean"
+       },
+       "warnings": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "notice",
+       "results",
+       "untrusted"
+      ],
+      "type": "object"
+     }
+    }
+   }
+  },
+  "order-calc": {
+   "tools": {
+    "createFile": {
+     "descriptionLength": 368,
+     "descriptionSha256": "4cb631b7100589598f03e5afe1758ccef8c4c8fe97f748359222212aa85ef16f",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "columns": {
+        "description": "Заголовки столбцов: обязательны для xlsx и csv, для docx - таблица в документе",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "fileName": {
+        "description": "Имя без пути и без расширения",
+        "minLength": 1,
+        "type": "string"
+       },
+       "kind": {
+        "description": "xlsx - Excel, docx - Word, txt, csv, md",
+        "enum": [
+         "csv",
+         "docx",
+         "md",
+         "txt",
+         "xlsx"
+        ],
+        "type": "string"
+       },
+       "paragraphs": {
+        "description": "Для docx/txt/md: абзацы; «- » в начале - пункт списка, «# » - подзаголовок",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "rows": {
+        "description": "Строки таблицы (строки или числа), длина каждой равна числу столбцов",
+        "items": {
+         "items": {
+          "type": [
+           "null",
+           "number",
+           "string"
+          ]
+         },
+         "type": "array"
+        },
+        "type": "array"
+       },
+       "text": {
+        "description": "Для docx/txt/md: готовый текст",
+        "type": "string"
+       },
+       "title": {
+        "description": "Заголовок документа/листа",
+        "type": "string"
+       }
+      },
+      "required": [
+       "fileName",
+       "kind"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": true,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": "confirm",
+      "replayEffective": "confirm",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": true
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "fileName": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "csv",
+         "docx",
+         "md",
+         "txt",
+         "xlsx"
+        ],
+        "type": "string"
+       },
+       "rows": {
+        "type": "integer"
+       },
+       "sizeBytes": {
+        "type": "integer"
+       },
+       "warnings": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "fileName",
+       "kind",
+       "rows",
+       "sizeBytes"
+      ],
+      "type": "object"
+     }
+    },
+    "runDataScript": {
+     "descriptionLength": 1365,
+     "descriptionSha256": "fbff8927506c10113cdef788416a26f2e133c30f5cfd49e07f50eccd7ae65960",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "code": {
+        "maxLength": 30000,
+        "minLength": 1,
+        "type": "string"
+       },
+       "fileRef": {
+        "maxLength": 600,
+        "minLength": 1,
+        "type": "string"
+       },
+       "onEmployeeRequest": {
+        "type": "boolean"
+       },
+       "resultKind": {
+        "enum": [
+         "price_items",
+         "table",
+         "value"
+        ],
+        "type": "string"
+       },
+       "supplierId": {
+        "maxLength": 100,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code",
+       "resultKind"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": true,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "attemptsLeft": {
+        "type": "integer"
+       },
+       "error": {
+        "additionalProperties": false,
+        "properties": {
+         "code": {
+          "type": "string"
+         },
+         "line": {
+          "anyOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "policy": {
+          "type": [
+           "null",
+           "string"
+          ]
+         },
+         "type": {
+          "type": [
+           "null",
+           "string"
+          ]
+         }
+        },
+        "required": [
+         "code",
+         "line",
+         "policy",
+         "type"
+        ],
+        "type": "object"
+       },
+       "message": {
+        "type": "string"
+       },
+       "ok": {
+        "type": "boolean"
+       },
+       "parserTruncated": {
+        "type": "boolean"
+       },
+       "resultKind": {
+        "enum": [
+         "price_items",
+         "table",
+         "value"
+        ],
+        "type": "string"
+       },
+       "rowCount": {
+        "type": "integer"
+       },
+       "scriptDidNotHelp": {
+        "type": "boolean"
+       },
+       "summary": {
+        "additionalProperties": {},
+        "type": "object"
+       },
+       "truncated": {
+        "type": "boolean"
+       },
+       "value": {}
+      },
+      "required": [
+       "ok",
+       "resultKind"
+      ],
+      "type": "object"
+     }
+    },
+    "searchConversationHistory": {
+     "descriptionLength": 402,
+     "descriptionSha256": "d9780386cf7f2bb8c24702e8f30358db2c7d23200f0bd53848900cfeb892e9d9",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "limit": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+       },
+       "query": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+       },
+       "sinceDaysAgo": {
+        "maximum": 3650,
+        "minimum": 0,
+        "type": "integer"
+       },
+       "untilDaysAgo": {
+        "maximum": 3650,
+        "minimum": 0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "found": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "fragments": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "after": {
+           "items": {
+            "$ref": "2/message"
+           },
+           "type": "array"
+          },
+          "before": {
+           "items": {
+            "$ref": "2/message"
+           },
+           "type": "array"
+          },
+          "message": {
+           "additionalProperties": false,
+           "properties": {
+            "at": {
+             "type": "string"
+            },
+            "role": {
+             "enum": [
+              "agent",
+              "user"
+             ],
+             "type": "string"
+            },
+            "text": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "at",
+            "role",
+            "text"
+           ],
+           "type": "object"
+          }
+         },
+         "required": [
+          "after",
+          "before",
+          "message"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "notice": {
+        "type": "string"
+       },
+       "truncated": {
+        "type": "boolean"
+       },
+       "untrusted": {
+        "const": true,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "found",
+       "fragments",
+       "notice",
+       "truncated",
+       "untrusted"
+      ],
+      "type": "object"
+     }
+    },
+    "searchInternet": {
+     "descriptionLength": 343,
+     "descriptionSha256": "5173188f69925bcfdc683f67b5bc519d1669b50ce5ff713a76ef62610749a5c2",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "query": {
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "notice": {
+        "type": "string"
+       },
+       "results": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "snippet": {
+           "type": "string"
+          },
+          "title": {
+           "type": "string"
+          },
+          "url": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "snippet",
+          "title",
+          "url"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "summary": {
+        "type": "string"
+       },
+       "untrusted": {
+        "const": true,
+        "type": "boolean"
+       },
+       "warnings": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "notice",
+       "results",
+       "untrusted"
+      ],
+      "type": "object"
+     }
+    }
+   }
+  },
+  "prices": {
+   "tools": {
+    "createFile": {
+     "descriptionLength": 368,
+     "descriptionSha256": "4cb631b7100589598f03e5afe1758ccef8c4c8fe97f748359222212aa85ef16f",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "columns": {
+        "description": "Заголовки столбцов: обязательны для xlsx и csv, для docx - таблица в документе",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "fileName": {
+        "description": "Имя без пути и без расширения",
+        "minLength": 1,
+        "type": "string"
+       },
+       "kind": {
+        "description": "xlsx - Excel, docx - Word, txt, csv, md",
+        "enum": [
+         "csv",
+         "docx",
+         "md",
+         "txt",
+         "xlsx"
+        ],
+        "type": "string"
+       },
+       "paragraphs": {
+        "description": "Для docx/txt/md: абзацы; «- » в начале - пункт списка, «# » - подзаголовок",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "rows": {
+        "description": "Строки таблицы (строки или числа), длина каждой равна числу столбцов",
+        "items": {
+         "items": {
+          "type": [
+           "null",
+           "number",
+           "string"
+          ]
+         },
+         "type": "array"
+        },
+        "type": "array"
+       },
+       "text": {
+        "description": "Для docx/txt/md: готовый текст",
+        "type": "string"
+       },
+       "title": {
+        "description": "Заголовок документа/листа",
+        "type": "string"
+       }
+      },
+      "required": [
+       "fileName",
+       "kind"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": true,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": "confirm",
+      "replayEffective": "confirm",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": true
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "fileName": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "csv",
+         "docx",
+         "md",
+         "txt",
+         "xlsx"
+        ],
+        "type": "string"
+       },
+       "rows": {
+        "type": "integer"
+       },
+       "sizeBytes": {
+        "type": "integer"
+       },
+       "warnings": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "fileName",
+       "kind",
+       "rows",
+       "sizeBytes"
+      ],
+      "type": "object"
+     }
+    },
+    "runDataScript": {
+     "descriptionLength": 1365,
+     "descriptionSha256": "fbff8927506c10113cdef788416a26f2e133c30f5cfd49e07f50eccd7ae65960",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "code": {
+        "maxLength": 30000,
+        "minLength": 1,
+        "type": "string"
+       },
+       "fileRef": {
+        "maxLength": 600,
+        "minLength": 1,
+        "type": "string"
+       },
+       "onEmployeeRequest": {
+        "type": "boolean"
+       },
+       "resultKind": {
+        "enum": [
+         "price_items",
+         "table",
+         "value"
+        ],
+        "type": "string"
+       },
+       "supplierId": {
+        "maxLength": 100,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code",
+       "resultKind"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": true,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "attemptsLeft": {
+        "type": "integer"
+       },
+       "error": {
+        "additionalProperties": false,
+        "properties": {
+         "code": {
+          "type": "string"
+         },
+         "line": {
+          "anyOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "policy": {
+          "type": [
+           "null",
+           "string"
+          ]
+         },
+         "type": {
+          "type": [
+           "null",
+           "string"
+          ]
+         }
+        },
+        "required": [
+         "code",
+         "line",
+         "policy",
+         "type"
+        ],
+        "type": "object"
+       },
+       "message": {
+        "type": "string"
+       },
+       "ok": {
+        "type": "boolean"
+       },
+       "parserTruncated": {
+        "type": "boolean"
+       },
+       "resultKind": {
+        "enum": [
+         "price_items",
+         "table",
+         "value"
+        ],
+        "type": "string"
+       },
+       "rowCount": {
+        "type": "integer"
+       },
+       "scriptDidNotHelp": {
+        "type": "boolean"
+       },
+       "summary": {
+        "additionalProperties": {},
+        "type": "object"
+       },
+       "truncated": {
+        "type": "boolean"
+       },
+       "value": {}
+      },
+      "required": [
+       "ok",
+       "resultKind"
+      ],
+      "type": "object"
+     }
+    },
+    "searchConversationHistory": {
+     "descriptionLength": 402,
+     "descriptionSha256": "d9780386cf7f2bb8c24702e8f30358db2c7d23200f0bd53848900cfeb892e9d9",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "limit": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+       },
+       "query": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+       },
+       "sinceDaysAgo": {
+        "maximum": 3650,
+        "minimum": 0,
+        "type": "integer"
+       },
+       "untilDaysAgo": {
+        "maximum": 3650,
+        "minimum": 0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "found": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "fragments": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "after": {
+           "items": {
+            "$ref": "2/message"
+           },
+           "type": "array"
+          },
+          "before": {
+           "items": {
+            "$ref": "2/message"
+           },
+           "type": "array"
+          },
+          "message": {
+           "additionalProperties": false,
+           "properties": {
+            "at": {
+             "type": "string"
+            },
+            "role": {
+             "enum": [
+              "agent",
+              "user"
+             ],
+             "type": "string"
+            },
+            "text": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "at",
+            "role",
+            "text"
+           ],
+           "type": "object"
+          }
+         },
+         "required": [
+          "after",
+          "before",
+          "message"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "notice": {
+        "type": "string"
+       },
+       "truncated": {
+        "type": "boolean"
+       },
+       "untrusted": {
+        "const": true,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "found",
+       "fragments",
+       "notice",
+       "truncated",
+       "untrusted"
+      ],
+      "type": "object"
+     }
+    },
+    "searchInternet": {
+     "descriptionLength": 343,
+     "descriptionSha256": "5173188f69925bcfdc683f67b5bc519d1669b50ce5ff713a76ef62610749a5c2",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "query": {
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "notice": {
+        "type": "string"
+       },
+       "results": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "snippet": {
+           "type": "string"
+          },
+          "title": {
+           "type": "string"
+          },
+          "url": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "snippet",
+          "title",
+          "url"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "summary": {
+        "type": "string"
+       },
+       "untrusted": {
+        "const": true,
+        "type": "boolean"
+       },
+       "warnings": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "notice",
+       "results",
+       "untrusted"
+      ],
+      "type": "object"
+     }
+    }
+   }
+  },
+  "site-export": {
+   "tools": {
+    "createFile": {
+     "descriptionLength": 368,
+     "descriptionSha256": "4cb631b7100589598f03e5afe1758ccef8c4c8fe97f748359222212aa85ef16f",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "columns": {
+        "description": "Заголовки столбцов: обязательны для xlsx и csv, для docx - таблица в документе",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "fileName": {
+        "description": "Имя без пути и без расширения",
+        "minLength": 1,
+        "type": "string"
+       },
+       "kind": {
+        "description": "xlsx - Excel, docx - Word, txt, csv, md",
+        "enum": [
+         "csv",
+         "docx",
+         "md",
+         "txt",
+         "xlsx"
+        ],
+        "type": "string"
+       },
+       "paragraphs": {
+        "description": "Для docx/txt/md: абзацы; «- » в начале - пункт списка, «# » - подзаголовок",
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       },
+       "rows": {
+        "description": "Строки таблицы (строки или числа), длина каждой равна числу столбцов",
+        "items": {
+         "items": {
+          "type": [
+           "null",
+           "number",
+           "string"
+          ]
+         },
+         "type": "array"
+        },
+        "type": "array"
+       },
+       "text": {
+        "description": "Для docx/txt/md: готовый текст",
+        "type": "string"
+       },
+       "title": {
+        "description": "Заголовок документа/листа",
+        "type": "string"
+       }
+      },
+      "required": [
+       "fileName",
+       "kind"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": true,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": "confirm",
+      "replayEffective": "confirm",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": true
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "fileName": {
+        "type": "string"
+       },
+       "kind": {
+        "enum": [
+         "csv",
+         "docx",
+         "md",
+         "txt",
+         "xlsx"
+        ],
+        "type": "string"
+       },
+       "rows": {
+        "type": "integer"
+       },
+       "sizeBytes": {
+        "type": "integer"
+       },
+       "warnings": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "fileName",
+       "kind",
+       "rows",
+       "sizeBytes"
+      ],
+      "type": "object"
+     }
+    },
+    "runDataScript": {
+     "descriptionLength": 1365,
+     "descriptionSha256": "fbff8927506c10113cdef788416a26f2e133c30f5cfd49e07f50eccd7ae65960",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "code": {
+        "maxLength": 30000,
+        "minLength": 1,
+        "type": "string"
+       },
+       "fileRef": {
+        "maxLength": 600,
+        "minLength": 1,
+        "type": "string"
+       },
+       "onEmployeeRequest": {
+        "type": "boolean"
+       },
+       "resultKind": {
+        "enum": [
+         "price_items",
+         "table",
+         "value"
+        ],
+        "type": "string"
+       },
+       "supplierId": {
+        "maxLength": 100,
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "code",
+       "resultKind"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": true,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "attemptsLeft": {
+        "type": "integer"
+       },
+       "error": {
+        "additionalProperties": false,
+        "properties": {
+         "code": {
+          "type": "string"
+         },
+         "line": {
+          "anyOf": [
+           {
+            "type": "integer"
+           },
+           {
+            "type": "null"
+           }
+          ]
+         },
+         "policy": {
+          "type": [
+           "null",
+           "string"
+          ]
+         },
+         "type": {
+          "type": [
+           "null",
+           "string"
+          ]
+         }
+        },
+        "required": [
+         "code",
+         "line",
+         "policy",
+         "type"
+        ],
+        "type": "object"
+       },
+       "message": {
+        "type": "string"
+       },
+       "ok": {
+        "type": "boolean"
+       },
+       "parserTruncated": {
+        "type": "boolean"
+       },
+       "resultKind": {
+        "enum": [
+         "price_items",
+         "table",
+         "value"
+        ],
+        "type": "string"
+       },
+       "rowCount": {
+        "type": "integer"
+       },
+       "scriptDidNotHelp": {
+        "type": "boolean"
+       },
+       "summary": {
+        "additionalProperties": {},
+        "type": "object"
+       },
+       "truncated": {
+        "type": "boolean"
+       },
+       "value": {}
+      },
+      "required": [
+       "ok",
+       "resultKind"
+      ],
+      "type": "object"
+     }
+    },
+    "searchConversationHistory": {
+     "descriptionLength": 402,
+     "descriptionSha256": "d9780386cf7f2bb8c24702e8f30358db2c7d23200f0bd53848900cfeb892e9d9",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "limit": {
+        "maximum": 20,
+        "minimum": 1,
+        "type": "integer"
+       },
+       "query": {
+        "maxLength": 300,
+        "minLength": 1,
+        "type": "string"
+       },
+       "sinceDaysAgo": {
+        "maximum": 3650,
+        "minimum": 0,
+        "type": "integer"
+       },
+       "untilDaysAgo": {
+        "maximum": 3650,
+        "minimum": 0,
+        "type": "integer"
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "found": {
+        "minimum": 0,
+        "type": "integer"
+       },
+       "fragments": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "after": {
+           "items": {
+            "$ref": "2/message"
+           },
+           "type": "array"
+          },
+          "before": {
+           "items": {
+            "$ref": "2/message"
+           },
+           "type": "array"
+          },
+          "message": {
+           "additionalProperties": false,
+           "properties": {
+            "at": {
+             "type": "string"
+            },
+            "role": {
+             "enum": [
+              "agent",
+              "user"
+             ],
+             "type": "string"
+            },
+            "text": {
+             "type": "string"
+            }
+           },
+           "required": [
+            "at",
+            "role",
+            "text"
+           ],
+           "type": "object"
+          }
+         },
+         "required": [
+          "after",
+          "before",
+          "message"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "notice": {
+        "type": "string"
+       },
+       "truncated": {
+        "type": "boolean"
+       },
+       "untrusted": {
+        "const": true,
+        "type": "boolean"
+       }
+      },
+      "required": [
+       "found",
+       "fragments",
+       "notice",
+       "truncated",
+       "untrusted"
+      ],
+      "type": "object"
+     }
+    },
+    "searchInternet": {
+     "descriptionLength": 343,
+     "descriptionSha256": "5173188f69925bcfdc683f67b5bc519d1669b50ce5ff713a76ef62610749a5c2",
+     "inputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "query": {
+        "minLength": 1,
+        "type": "string"
+       }
+      },
+      "required": [
+       "query"
+      ],
+      "type": "object"
+     },
+     "markup": {
+      "budgetExempt": false,
+      "endsTurn": false,
+      "endsTurnAfterShown": false,
+      "has_endsTurnWhen": false,
+      "has_idempotencyKey": false,
+      "has_idempotencyPredecessor": false,
+      "has_resolveInput": false,
+      "readsFile": false,
+      "replay": null,
+      "replayEffective": "safe",
+      "resumable": false,
+      "scriptAware": false,
+      "scriptFallbackOnError": false,
+      "sideEffect": false
+     },
+     "outputSchema": {
+      "additionalProperties": false,
+      "properties": {
+       "notice": {
+        "type": "string"
+       },
+       "results": {
+        "items": {
+         "additionalProperties": false,
+         "properties": {
+          "snippet": {
+           "type": "string"
+          },
+          "title": {
+           "type": "string"
+          },
+          "url": {
+           "type": "string"
+          }
+         },
+         "required": [
+          "snippet",
+          "title",
+          "url"
+         ],
+         "type": "object"
+        },
+        "type": "array"
+       },
+       "summary": {
+        "type": "string"
+       },
+       "untrusted": {
+        "const": true,
+        "type": "boolean"
+       },
+       "warnings": {
+        "items": {
+         "type": "string"
+        },
+        "type": "array"
+       }
+      },
+      "required": [
+       "notice",
+       "results",
+       "untrusted"
+      ],
+      "type": "object"
+     }
+    }
+   }
+  }
+ },
+ "promptBlocks": {
+  "DATA_SCRIPT_PROMPT": {
+   "length": 737,
+   "sha256": "fd5e4b3580a6b68f8b3923a9b517acf9f31de7ac24a2e6bac6a4036519fc770a"
+  },
+  "EMPLOYEE_LANGUAGE_PROMPT": {
+   "length": 468,
+   "sha256": "cac34c5cfd0ac23a8c89c2323749b2a572fd6dcecc18487ed4707f51e60faab7"
+  },
+  "FILE_TOOL_PROMPT": {
+   "length": 235,
+   "sha256": "385883dab721049879dec6b1ac37536b37ed11b3a4184e418e9416e4d266c8a5"
+  },
+  "REPLY_FORMAT_PROMPT": {
+   "length": 290,
+   "sha256": "2d545c5a3b9feb218c974f1657d1034edafe81388155a2549b6adc9056cd35a1"
+  }
+ }
+}

@@ -1,0 +1,95 @@
+# Исходящий mTLS-прокси к зарубежному шлюзу.
+# ЗАЧЕМ: адаптер модели в ядре ходит по обычному HTTP на LITELLM_BASE_URL и не умеет
+# клиентские сертификаты. Прокси внутри приватной сети принимает HTTP от app и сам
+# предъявляет client.crt шлюзу. Порт наружу не публикуется. Подстановка ${GATEWAY_*} — envsubst.
+
+# Формат журнала без query-строки и тел (контекст http: файл подключается из conf.d).
+log_format combined_nobody '$remote_addr "$request_method $uri" $status $request_time';
+
+upstream gateway {
+    # Шлюз один: резервного нет (решение владельца, 06.10.2026). Блокировка IP или хостера
+    # шлюза останавливает систему; мера — перенос конфигурации на другой сервер (gateway/README).
+    server ${GATEWAY_HOST}:${GATEWAY_PORT};
+}
+
+server {
+    listen 8080;
+
+    # Потоковые ответы модели: без буферизации, длинный таймаут (как на шлюзе).
+    proxy_buffering off;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+
+    proxy_ssl_server_name on;
+    # Имя в сертификате шлюза (SAN) = GATEWAY_TLS_NAME.
+    proxy_ssl_name ${GATEWAY_TLS_NAME};
+    proxy_ssl_verify on;
+    proxy_ssl_verify_depth 2;
+    proxy_ssl_trusted_certificate /etc/gateway-mtls/ca.crt;
+    proxy_ssl_certificate /etc/gateway-mtls/client.crt;
+    proxy_ssl_certificate_key /etc/gateway-mtls/client.key;
+    proxy_ssl_protocols TLSv1.2 TLSv1.3;
+    # Host для шлюза = имя из его сертификата (server_name на шлюзе). Без этого уходило бы
+    # имя апстрима `gateway` и шлюз отвечал 421 (F-1).
+    proxy_set_header Host ${GATEWAY_TLS_NAME};
+    # Недоступный шлюз - быстрый отказ, а не ожидание на весь read-таймаут (R3-NET-15).
+    proxy_connect_timeout 10s;
+    # proxy_next_upstream не задаём: сервер в upstream один, повторять некуда (R3-NET-15).
+    # Повторы запросов к модели - ответственность ядра, а не прокси.
+
+    # Локальная проверка самого прокси (шлюз не дёргает): для healthcheck контейнера.
+    location = /nginx-health {
+        access_log off;
+        return 200 "ok\n";
+    }
+
+    # Проверка связи со шлюзом (mTLS + доступность): ходит на шлюз.
+    location = /healthz {
+        proxy_pass https://gateway/healthz;
+    }
+
+    # Только API моделей; всё остальное закрыто.
+    location /v1/ {
+        proxy_pass https://gateway;
+        client_max_body_size 16m;
+    }
+
+    # Маршрут веб-поиска шлюза: короткий запрос (до 4 КиБ, продолжение до 256 КиБ). Без этого
+    # location путь закрыт и поиск через шлюз получает 404. Форму запроса проверяет шлюз.
+    location = /search/v1/messages {
+        proxy_pass https://gateway;
+        client_max_body_size 256k;
+    }
+
+    # Маршрут зрения: картинки в запросе к модели, тот же шлюз по mTLS. Точное совпадение,
+    # подпути закрыты. Предел тела 16m - как на шлюзе (картинки в base64).
+    location = /vision/v1/messages {
+        proxy_pass https://gateway;
+        client_max_body_size 16m;
+    }
+
+    # Маршрут страниц сайтов: извлечение фактов из текста публичной страницы, тот же шлюз по
+    # mTLS. Точное совпадение, подпути закрыты. Предел тела 256k - как на шлюзе.
+    location = /webpage/v1/messages {
+        proxy_pass https://gateway;
+        client_max_body_size 256k;
+    }
+
+    # Маршрут чтения закрытого Telegram-канала: поиск по постам идёт на шлюз тем же mTLS
+    # (служба tg-reader шлюза, профиль telegram). Точное совпадение, подпути закрыты. Запрос
+    # короткий (строка поиска, предел, список каналов), тело до 8k - как на шлюзе. Заголовок
+    # Authorization проходит как есть. Пока служба на шлюзе не включена, шлюз отвечает 404.
+    location = /telegram/v1/search {
+        proxy_pass https://gateway;
+        client_max_body_size 8k;
+    }
+
+    location / {
+        return 404;
+    }
+
+    # Тела запросов и ответов не логируем: только метод, путь и код.
+    access_log /dev/stdout combined_nobody;
+}

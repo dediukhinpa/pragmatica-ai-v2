@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "caseId": "order-calc-other-no-task-link",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-check",
+          "name": "checkRequestCompleteness",
+          "arguments": {
+            "requestId": "req-25",
+            "kind": "other",
+            "values": {
+              "product": "ежедневники в кожаной обложке",
+              "quantity": "300",
+              "deadline": "до 15.11"
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5877,
+        "outputTokens": 49
+      },
+      "latencyMs": 400,
+      "requestHash": "90f8391a0dbc88d7f7e0af12893cc29ea7e0d16dc5eb6fd0eb70bf0077d034c5"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-web",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-25"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5969,
+        "outputTokens": 18
+      },
+      "latencyMs": 400,
+      "requestHash": "799ee3c4ea1f268bd754ea83bba170c8ed9a960874f3be64aa33010642230d7f"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-25"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6028,
+        "outputTokens": 20
+      },
+      "latencyMs": 400,
+      "requestHash": "aa32d02f516e8e5cfc2ebb59ba57301b1a2c1bfa3b2d8354bf15804f45c4bd9e"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-25",
+            "version": "tpzjwhmhnmtrrqxk"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6228,
+        "outputTokens": 27
+      },
+      "latencyMs": 400,
+      "requestHash": "1b4a4ea05ae262f33da878d8e7d94fb132cd40e7ab4f6d153062e326a52bd6ae"
+    }
+  ],
+  "synthetic": true
+}

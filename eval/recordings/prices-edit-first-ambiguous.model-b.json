@@ -1,0 +1,62 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-ambiguous",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8270,
+        "outputTokens": 15
+      },
+      "latencyMs": 650,
+      "requestHash": "d8664d4d194598ead32c21114276f776829bae178cab76878a19f2f38ef0241d"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-edit",
+          "name": "editPriceInFile",
+          "arguments": {
+            "path": "ktxymmpjmhngsjqp/zgrwnsrzrrgnrnvqjztqnygymtxvpwqs_Спецпредложение.pptx",
+            "edits": [
+              {
+                "oldPrice": 680,
+                "newPrice": 700
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8361,
+        "outputTokens": 45
+      },
+      "latencyMs": 650,
+      "requestHash": "3a256abeb5c2842b7bd20b076ce13b8dbe071c6dfcdaab7896796f8f0bc136f4"
+    },
+    {
+      "content": "Цена 680 есть на двух слайдах: слайд 2 (строка «Болт М8») и слайд 11 (строка «Саморез»). Какую из них поменять?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8591,
+        "outputTokens": 29
+      },
+      "latencyMs": 650,
+      "requestHash": "20cd5200788f5fada306bf6582ba3086a9063a18c0a185a6db2b98969349032b"
+    }
+  ],
+  "synthetic": true
+}

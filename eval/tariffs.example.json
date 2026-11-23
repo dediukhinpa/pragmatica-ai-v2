@@ -1,0 +1,8 @@
+{
+  "note": "ТЕСТОВЫЕ значения для проверки отчёта, не реальные цены моделей: сверить вручную по официальным прайсам провайдеров перед настоящим сравнением.",
+  "currency": "USD",
+  "models": {
+    "model-a": { "inputPerMillion": 1, "outputPerMillion": 2 },
+    "model-b": { "inputPerMillion": 3, "outputPerMillion": 6 }
+  }
+}

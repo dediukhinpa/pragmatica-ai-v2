@@ -1,0 +1,71 @@
+{
+  "id": "order-calc-business-card-photo-unreadable",
+  "agent": "order-calc",
+  "description": "Фото визитки не прочиталось (этап 224): код вернул пометку «Фото не отправлено: текст на нём плохо читается» (status=unavailable). Агент не заводит карточку и ничего не выдумывает, честно говорит об этом и просит прислать данные визитки текстом.",
+  "request": "Заведи поставщика по фото визитки, которое я прислал.",
+  "state": {
+    "requests": [
+      {
+        "id": "req-1",
+        "dealRef": "D-1",
+        "items": [
+          {
+            "name": "Арматура",
+            "quantity": 100,
+            "unit": "м"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "supplierCards": true,
+    "chatPhotos": [
+      {
+        "name": "визитка.jpg",
+        "text": "",
+        "unreadable": true
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 4,
+    "requiredTools": [
+      "readChatAttachments"
+    ],
+    "toolOrder": "any",
+    "forbiddenTools": [
+      "createSupplierFromAttachment",
+      "prepareSupplierCard"
+    ],
+    "outputMatches": [
+      "текст"
+    ],
+    "stateChecks": [
+      {
+        "probe": "supplierCardCount",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Орлов",
+      "Игорь",
+      "Павлович"
+    ],
+    "phones": [
+      "+7 (495) 013-57-91"
+    ],
+    "emails": [
+      "orlov@beta-trade.example"
+    ]
+  }
+}

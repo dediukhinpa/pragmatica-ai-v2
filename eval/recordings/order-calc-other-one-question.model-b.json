@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "caseId": "order-calc-other-one-question",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-check",
+          "name": "checkRequestCompleteness",
+          "arguments": {
+            "requestId": "req-24",
+            "kind": "other",
+            "values": {
+              "product": "ежедневники в кожаной обложке",
+              "quantity": "300",
+              "task_link": "https://portal.example.test/company/personal/user/7/tasks/task/view/2041/"
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5896,
+        "outputTokens": 65
+      },
+      "latencyMs": 650,
+      "requestHash": "e5037368aa5d6d61902fd72f7d10188200a1fb1bddad8a61ec1fa4d15259ae3f"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-web",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-24"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6131,
+        "outputTokens": 18
+      },
+      "latencyMs": 650,
+      "requestHash": "1f64b0e88bf47b6ecbc09470aa4debf3c6850ed579af5e21b1c6ec53be9267df"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-24"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6189,
+        "outputTokens": 20
+      },
+      "latencyMs": 650,
+      "requestHash": "aa32d02f516e8e5cfc2ebb59ba57301b1a2c1bfa3b2d8354bf15804f45c4bd9e"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-24",
+            "version": "tpzjwhmhnmtrrqxk"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6389,
+        "outputTokens": 27
+      },
+      "latencyMs": 650,
+      "requestHash": "d8dc6169740162529206ae0ce86dd2ae7d233cdc417cd6467a7f8c0443edc446"
+    }
+  ],
+  "synthetic": true
+}

@@ -1,0 +1,11 @@
+--- tests/eval/replay-synthetic.test.ts
++++ tests/eval/replay-synthetic.test.ts
+@@ -121,7 +121,7 @@
+       testCase,
+       'model-a',
+       { gateway, latencyOf: gateway.latencyOf },
+-      { prices },
++      { tariffs: prices },
+     );
+     const input = recording.steps.reduce((sum, s) => sum + (s.usage.inputTokens ?? 0), 0);
+     expect(run.inputTokens).toBe(input);

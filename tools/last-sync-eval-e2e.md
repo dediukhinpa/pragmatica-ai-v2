@@ -1,0 +1,23 @@
+# Последняя синхронизация eval и e2e
+
+- Коммит старого репозитория: `5ea7f2d308beb476fb8b6fe05e095587c9ee4f40`
+- Пакеты платформы: `1.1.10`
+- Патчей проекта применено: 57
+- Сгенерировано файлов: 244
+
+| Каталог | Файлов |
+|---|---|
+| `e2e/fixtures` | 4 |
+| `e2e/lib` | 11 |
+| `e2e/load` | 1 |
+| `e2e/tests` | 23 |
+| `eval/cases` | 60 |
+| `eval/constants.ts` | 1 |
+| `eval/environments` | 8 |
+| `eval/recordings` | 120 |
+| `eval/reports` | 3 |
+| `eval/scripts` | 2 |
+| `eval/state.ts` | 1 |
+| `eval/synthetic` | 2 |
+| `eval/tariffs.example.json` | 1 |
+| `tests/eval` | 7 |

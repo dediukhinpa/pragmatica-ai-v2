@@ -1,0 +1,117 @@
+{
+  "id": "order-calc-web-queries-from-form",
+  "agent": "order-calc",
+  "description": "Этап 104: запросы веб-поиска строит модель по полям формы (11.1), а не только по названию позиции. Агент проверяет полноту (все поля и ссылка Б24 есть), поиск открыт; составитель получает вид запроса и поля формы, в веб уходят его запросы (про сублимацию и керамику), названия позиции среди них нет. Шорт-лист показывает две средние.",
+  "request": "Заявка req-20, возьми в работу. Нужны кружки с логотипом, ссылка на задачу https://portal.example.test/company/personal/user/7/tasks/task/view/2041/. Ответственный — Анна Рябова, +7 (903) 444-55-66.",
+  "followUps": [],
+  "state": {
+    "requests": [
+      {
+        "id": "req-20",
+        "dealRef": "D-20",
+        "items": [
+          {
+            "name": "Кружка с логотипом",
+            "quantity": 500,
+            "unit": "шт"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      }
+    ],
+    "prices": [],
+    "knowledge": {},
+    "web": [
+      {
+        "title": "КружкиОпт",
+        "url": "https://kruzhki.test",
+        "snippet": "Кружки керамические с логотипом, сублимационная печать, опт от 100 шт, цена 120 руб. за шт, срок 10 дней, +7 495 111-22-33"
+      },
+      {
+        "title": "Печать на кружках",
+        "url": "https://print-mug.test",
+        "snippet": "Сублимационная печать на кружках, тираж от 50 шт, цена 150 руб. за шт"
+      }
+    ],
+    "completeness": true,
+    "webPlan": [
+      "кружки керамические сублимационная печать логотип опт",
+      "нанесение логотипа на кружки тираж 500 шт"
+    ]
+  },
+  "expect": {
+    "maxSteps": 7,
+    "requiredTools": [
+      "checkRequestCompleteness",
+      "searchWeb",
+      "buildShortlist",
+      "askManagerToChoose"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "prepareSupplierRequestText",
+      "recordSelection"
+    ],
+    "stateChecks": [
+      {
+        "probe": "completenessKindIs",
+        "arg": "custom_product",
+        "value": 1
+      },
+      {
+        "probe": "webPlannerCalls",
+        "value": 1
+      },
+      {
+        "probe": "webPlannerFieldCount",
+        "op": "gte",
+        "value": 9
+      },
+      {
+        "probe": "webSearchContains",
+        "arg": "сублимационная печать",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "webSearchContains",
+        "arg": "Кружка с логотипом",
+        "value": 0
+      },
+      {
+        "probe": "chatTextContains",
+        "arg": "Средняя цена по интернету",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "mailSent",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Рябова",
+      "Анна"
+    ],
+    "phones": [
+      "+7 (903) 444-55-66"
+    ],
+    "emails": []
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "caseId": "handoff-ambiguous-prices-state",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "h-1",
+          "name": "handoffToPrices",
+          "arguments": {
+            "requestId": "req-7",
+            "positions": [
+              "Арматура 12 мм"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3910,
+        "outputTokens": 26
+      },
+      "latencyMs": 650,
+      "requestHash": "9ddf124d9a59f1d315707b3c8c0a78e2d93b7587031bc2b31c04ce53d832830c"
+    },
+    {
+      "content": "Передача помощнику «Актуализация прайса (ИИ агент)» поставлена: итог придёт сообщением.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4028,
+        "outputTokens": 23
+      },
+      "latencyMs": 650,
+      "requestHash": "a8d7c1f63de060e860fd1ceb3b3ce0e43cb292199ac3cd7c5451e9d58495a45d"
+    }
+  ],
+  "synthetic": true
+}

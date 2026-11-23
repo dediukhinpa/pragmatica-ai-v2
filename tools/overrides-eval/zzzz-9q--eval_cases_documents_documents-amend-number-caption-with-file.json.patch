@@ -1,0 +1,63 @@
+--- /dev/null
++++ eval/cases/documents/documents-amend-number-caption-with-file.json
+@@ -0,0 +1,60 @@
++{
++  "id": "documents-amend-number-caption-with-file",
++  "agent": "documents",
++  "description": "Этап 9q (п. 4): сотрудник прислал файл Договор.docx и подписью к нему написал дописать 17/10 к номеру договора (режим только номера). Платформа хук входящих для подписи не зовёт, запрос доступен только в истории треда. Агент правит присланный файл: номер «103/11-26» остаётся, допись после него; ответа number_not_confirmed быть не должно, реквизиты не вписываются.",
++  "request": "Допиши 17/10 к номеру договора, сам номер не заменяй, реквизиты не вписывай.",
++  "state": {
++    "files": [
++      {
++        "path": "2026_МГ_Шаблон_Договора_на_поставку_контрактной_продукции.docx",
++        "text": "Заказчик:\nООО «Ромашка-Тест»\nИНН 7701001238 КПП 770101001\n\nИсполнитель:\n{{seller}}"
++      }
++    ],
++    "counterpartyAmend": true,
++    "chatFiles": [
++      {
++        "path": "Договор.docx",
++        "text": "ДОГОВОР № 103/11-26 от 05.11.2026\nИсполнитель:\nООО «Исполнитель-Тест»\nИНН 1111111111 КПП 222222222\nЗаказчик:\n"
++      }
++    ],
++    "captionWithFile": true
++  },
++  "expect": {
++    "maxSteps": 4,
++    "requiredTools": [
++      "amendCounterpartyContract"
++    ],
++    "forbiddenTools": [
++      "findTemplate",
++      "fillTemplate",
++      "prepareSupplierDocument",
++      "saveDocument"
++    ],
++    "stateChecks": [
++      {
++        "probe": "chatFiles",
++        "value": 1
++      },
++      {
++        "probe": "chatFileContains",
++        "arg": "№ 103/11-26 / 17/10",
++        "value": 1
++      },
++      {
++        "probe": "chatFileContains",
++        "arg": "ООО «Исполнитель-Тест»",
++        "value": 1
++      }
++    ],
++    "noPiiInRequests": true
++  },
++  "pii": {
++    "names": [
++      "Белова",
++      "Ольга"
++    ],
++    "phones": [
++      "+7 (916) 222-33-44"
++    ]
++  }
++}

@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "caseId": "documents-supplier-contract-bypass",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "Договор"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6215,
+        "outputTokens": 17
+      },
+      "latencyMs": 650,
+      "requestHash": "ceb012b94644ea2916c8a0260a46dc4992dc69d949c630a1c410edf97142afbf"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "saveDocument",
+          "arguments": {
+            "templatePath": "templates/Договор поставки.docx",
+            "document": {
+              "id": "doc-1",
+              "kind": "invoice",
+              "number": "Д-1",
+              "buyer": "ООО Кто угодно",
+              "seller": "МеталлТорг",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 99
+                }
+              ],
+              "total": 990,
+              "currency": "RUB",
+              "issuedAt": "2026-01-01T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "employee",
+                "seller": "employee",
+                "lines": "employee",
+                "total": "employee"
+              },
+              "requisites": {}
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6407,
+        "outputTokens": 110
+      },
+      "latencyMs": 650,
+      "requestHash": "ad2d0c8e908c82095eb5f07f2c5c4d83987e96756f9392fa811d2230fc450f48"
+    },
+    {
+      "content": "Документ выпущен с предупреждениями: нужен поставщик из базы и сверка с КП.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6642,
+        "outputTokens": 20
+      },
+      "latencyMs": 650,
+      "requestHash": "2bc8fae78440047b26fb82296f234e2530d112eae5d3da4d9975bb21449c7f88"
+    }
+  ],
+  "synthetic": true
+}

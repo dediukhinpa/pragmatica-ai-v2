@@ -1,0 +1,32 @@
+--- tests/application/agents/order-quote-source.test.ts
++++ tests/application/agents/order-quote-source.test.ts
+@@ -69,7 +69,7 @@
+   test('перезапись КП из другого источника - только через человека', async () => {
+     await seedReply(deps, 'out:r1', 's1');
+     await seedReply(deps, 'out:r3', 's1');
+-    const { recordQuote } = await import('../../../src/application/index.shim');
++    const { recordQuote } = await import('../../../src/application/agents/order-calc/record-quote');
+     await recordQuote.execute(args('s1', 'out:r1'), deps, CTX);
+     // тот же источник: уточнение разбора допускается
+     expect(await codes(args('s1', 'out:r1', 55))).toEqual([]);
+@@ -82,8 +82,9 @@
+ 
+ describe('R4-ALG-4: НДС КП в записи и сводке', () => {
+   test('НДС всего КП переносится в позиции, сводка не называет минимум при смеси', async () => {
+-    const { recordQuote, buildQuoteSummaryText, loadComparison } = await import(
+-      '../../../src/application/index.shim'
++    const { recordQuote } = await import('../../../src/application/agents/order-calc/record-quote');
++    const { buildQuoteSummaryText, loadComparison } = await import(
++      '../../../src/application/agents/order-calc/quote-summary'
+     );
+     await seedReply(deps, 'out:r1', 's1');
+     await seedReply(deps, 'out:r2', 's2');
+@@ -109,7 +110,7 @@
+ 
+ describe('R4-ALG-5: поиск поставщиков в знаниях', () => {
+   test('десяток вариантов одного поставщика не вытесняет остальных; пустой — отказ', async () => {
+-    const { searchKnowledgeSuppliers } = await import('../../../src/application/index.shim');
++    const { searchKnowledgeSuppliers } = await import('../../../src/application/agents/order-calc/search-sources');
+     const item = (supplierId: string, name: string, price: number) => ({
+       supplierId,
+       productName: name,

@@ -1,0 +1,89 @@
+{
+  "id": "order-calc-other-one-question",
+  "agent": "order-calc",
+  "description": "Этап 104, обновлён после этапа 140 (0a891748): форма «прочее», срока в заявке нет. Проверка полноты - лишь подсказка: агент не задаёт уточняющий вопрос и не ждёт ответа, а сразу ищет по имеющимся данным (ссылка Б24 есть), строит шорт-лист и спрашивает менеджера о выборе.",
+  "request": "Заявка req-24, возьми в работу. Нужны ежедневники в кожаной обложке, тираж 300 шт. Ссылка на задачу https://portal.example.test/company/personal/user/7/tasks/task/view/2041/. Ответственный — Анна Рябова, +7 (903) 444-55-66.",
+  "followUps": [],
+  "state": {
+    "requests": [
+      {
+        "id": "req-24",
+        "dealRef": "D-24",
+        "items": [
+          {
+            "name": "Ежедневник в кожаной обложке",
+            "quantity": 300,
+            "unit": "шт"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      }
+    ],
+    "prices": [],
+    "knowledge": {},
+    "web": [
+      {
+        "title": "ЕжедневникиПро",
+        "url": "https://diary.test",
+        "snippet": "Ежедневники в кожаной обложке с тиснением, тираж от 100 шт"
+      },
+      {
+        "title": "Кожа и бумага",
+        "url": "https://leather.test",
+        "snippet": "Ежедневники и блокноты в обложке из кожи"
+      }
+    ],
+    "completeness": true
+  },
+  "expect": {
+    "maxSteps": 9,
+    "requiredTools": [
+      "checkRequestCompleteness",
+      "searchWeb",
+      "buildShortlist",
+      "askManagerToChoose"
+    ],
+    "toolOrder": "ordered",
+    "stateChecks": [
+      {
+        "probe": "completenessKindIs",
+        "arg": "other",
+        "value": 1
+      },
+      {
+        "probe": "webSearchCount",
+        "op": "gte",
+        "value": 1
+      },
+      {
+        "probe": "proposedSupplierCount",
+        "op": "gte",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Рябова",
+      "Анна"
+    ],
+    "phones": [
+      "+7 (903) 444-55-66"
+    ],
+    "emails": []
+  }
+}

@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# Тест tools/build-cutover-package.sh: состав пакета, манифест, запрет секретов, отказы.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$HERE/build-cutover-package.sh"
+TMP="$(mktemp -d)"
+trap 'rm -rf "${TMP:?}"' EXIT
+PASS=0
+FAIL=0
+LIMIT=100
+FREEZE="5ea7f2d308beb476fb8b6fe05e095587c9ee4f40"
+DIGEST_A="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+DIGEST_M="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+
+ok() { PASS=$((PASS + 1)); echo "PASS $1"; }
+bad() { FAIL=$((FAIL + 1)); echo "FAIL $1"; }
+assert() { if eval "$2"; then ok "$1"; else bad "$1"; fi; }
+commit() { git -C "$REPO" add -A -f && git -C "$REPO" -c user.name=t -c user.email=t@example.test \
+  commit -q -m "$1"; }
+
+# Временный git-репозиторий с минимальным составом проекта.
+REPO="$TMP/repo"
+mkdir -p "$REPO/deploy/cutover" "$REPO/deploy/rehearsal" "$REPO/deploy/platform" \
+  "$REPO/db/app/rollback" "$REPO/tools"
+echo "services: {}" >"$REPO/deploy/compose.yml"
+echo "x" >"$REPO/deploy/platform/compose.base.yml"
+echo "SELECT 1;" >"$REPO/db/app/001_x.sql"
+echo "SELECT 2;" >"$REPO/db/app/rollback/026_down.sql"
+echo "SELECT 3;" >"$REPO/db/app/rollback/021_down.sql"
+echo "KEY=" >"$REPO/deploy/.env.example"
+for f in cutover.sh rollback.sh lib.sh verify-signatures.sh units-old-tree.sh; do
+  printf '#!/usr/bin/env bash\necho %s\n' "$f" >"$REPO/deploy/cutover/$f"
+done
+for f in CHECKLIST.md README.md expected-host-dirs.txt; do
+  echo "# $f" >"$REPO/deploy/cutover/$f"
+done
+echo "app/026_x" >"$REPO/deploy/rehearsal/expected-pending.txt"
+echo "# tool" >"$REPO/tools/check_migrations_schema.py"
+for f in check-routes.sh check-image-routes.sh route-flags.tsv; do
+  echo "# $f" >"$REPO/tools/$f"
+done
+printf 'documents\tPOST\t/parse\troute\n' >"$REPO/deploy/cutover/routes.tsv"
+printf '# Последняя синхронизация\n\n- Коммит старого репозитория: `%s`\n' "$FREEZE" \
+  >"$REPO/tools/last-sync.md"
+git -C "$REPO" init -q
+commit init
+
+# lock платформы 1.1.3: образ mask (BAI_IMAGE_MASK) обязателен, сервис в базовом стеке без профиля.
+printf 'BAI_VERSION=1.1.3\nBAI_IMAGE_APP=r/app@sha256:%s\nBAI_IMAGE_MASK=r/mask@sha256:%s\n' \
+  "$DIGEST_A" "$DIGEST_M" >"$TMP/images.lock"
+echo "-- schema" >"$TMP/schema.sql"
+echo "public-key" >"$TMP/cosign.pub"
+run() { BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --lock "$TMP/images.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" "$@"; }
+
+OUT="$TMP/pkg"
+rc=0
+run --out "$OUT" >"$TMP/out.log" 2>&1 || rc=$?
+assert "сборка проходит" "[[ $rc -eq 0 ]]"
+for f in cutover.sh rollback.sh lib.sh verify-signatures.sh units-old-tree.sh CHECKLIST.md \
+  README.md expected-host-dirs.txt images.lock cosign.pub schema-expected.sql \
+  expected-pending.txt FREEZE_SRC tools/check_migrations_schema.py stack/deploy/compose.yml \
+  tools/check-routes.sh tools/check-image-routes.sh tools/route-flags.tsv routes.tsv \
+  stack/deploy/platform/compose.base.yml stack/db/app/001_x.sql \
+  stack/db/app/rollback/021_down.sql stack/db/app/rollback/026_down.sql MANIFEST.sha256; do
+  assert "в пакете есть $f" "[[ -f '$OUT/$f' ]]"
+done
+assert "скрипты проверки маршрутов исполняемые" \
+  "[[ -x '$OUT/tools/check-routes.sh' && -x '$OUT/tools/check-image-routes.sh' ]]"
+assert "cutover.sh и rollback.sh исполняемые" "[[ -x '$OUT/cutover.sh' && -x '$OUT/rollback.sh' ]]"
+assert "FREEZE_SRC из last-sync.md" "[[ \"\$(cat '$OUT/FREEZE_SRC')\" == '$FREEZE' ]]"
+assert "копии скриптов нет в stack" "[[ ! -e '$OUT/stack/deploy/cutover' ]]"
+assert "манифест сходится" "(cd '$OUT' && sha256sum -c --quiet MANIFEST.sha256)"
+assert "в манифесте нет самого манифеста" "! grep -q MANIFEST '$OUT/MANIFEST.sha256'"
+
+# Платформа 1.1.3: lock без BAI_IMAGE_MASK - отказ сборки до создания каталога пакета.
+grep -v '^BAI_IMAGE_MASK=' "$TMP/images.lock" >"$TMP/nomask.lock"
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg-nomask" --lock "$TMP/nomask.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" >"$TMP/out-nomask.log" 2>&1 \
+  || rc=$?
+assert "lock без BAI_IMAGE_MASK - отказ сборки (код 1)" "[[ $rc -eq 1 ]]"
+assert "в сообщении назван BAI_IMAGE_MASK" "grep -q 'BAI_IMAGE_MASK' '$TMP/out-nomask.log'"
+assert "при отказе каталог пакета не создан" "[[ ! -e '$TMP/pkg-nomask' ]]"
+# mask с тегом вместо digest тоже не годится (образ мимо подписи).
+sed 's|^BAI_IMAGE_MASK=.*|BAI_IMAGE_MASK=r/mask:latest|' "$TMP/images.lock" >"$TMP/tagmask.lock"
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg-tagmask" --lock "$TMP/tagmask.lock" \
+  --schema-expected "$TMP/schema.sql" --cosign-pub "$TMP/cosign.pub" >"$TMP/out-tagmask.log" 2>&1 \
+  || rc=$?
+assert "BAI_IMAGE_MASK без digest - отказ сборки (код 1)" "[[ $rc -eq 1 ]]"
+assert "в пакете images.lock содержит mask" "grep -q '^BAI_IMAGE_MASK=' '$OUT/images.lock'"
+
+# Незакоммиченный файл в пакет не попадает.
+echo "secret" >"$REPO/deploy/.env"
+OUT2="$TMP/pkg2"
+run --out "$OUT2" >/dev/null 2>&1
+assert "незакоммиченный .env не попал" "[[ ! -e '$OUT2/stack/deploy/.env' ]]"
+rm -f "$REPO/deploy/.env"
+
+# Закоммиченный запрещённый файл - отказ.
+echo "SECRET=1" >"$REPO/deploy/secrets.env"
+commit bad
+rc=0
+run --out "$TMP/pkg3" >"$TMP/out3.log" 2>&1 || rc=$?
+assert "запрещённый файл в дереве - отказ" "[[ $rc -eq 1 ]]"
+assert "в сообщении назван файл" "grep -q 'secrets.env' '$TMP/out3.log'"
+git -C "$REPO" rm -q -f deploy/secrets.env
+commit rm
+
+# Нет файла отката БД - отказ.
+git -C "$REPO" rm -q -f db/app/rollback/026_down.sql
+commit no-down
+rc=0
+run --out "$TMP/pkg4" >"$TMP/out4.log" 2>&1 || rc=$?
+assert "нет 026_down.sql - отказ" "[[ $rc -eq 1 ]]"
+assert "в сообщении названа причина" "grep -q '026_down' '$TMP/out4.log'"
+
+# Нет файла отката платформенной 021 (платформа 1.1.x) - тоже отказ.
+git -C "$REPO" checkout -q HEAD~1 -- db/app/rollback/026_down.sql
+git -C "$REPO" rm -q -f db/app/rollback/021_down.sql
+commit no-down-021
+rc=0
+run --out "$TMP/pkg4b" >"$TMP/out4b.log" 2>&1 || rc=$?
+assert "нет 021_down.sql - отказ" "[[ $rc -eq 1 ]]"
+assert "в сообщении названа причина 021" "grep -q '021_down' '$TMP/out4b.log'"
+
+# Непустой каталог, нет аргументов, нет схемы.
+mkdir -p "$TMP/full" && touch "$TMP/full/x"
+rc=0
+run --out "$TMP/full" >/dev/null 2>&1 || rc=$?
+assert "непустой каталог - код 2" "[[ $rc -eq 2 ]]"
+rc=0
+bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
+assert "без аргументов - код 2" "[[ $rc -eq 2 ]]"
+rc=0
+BAI_PROJECT_DIR="$REPO" bash "$SCRIPT" --out "$TMP/pkg5" --lock "$TMP/images.lock" \
+  --schema-expected "$TMP/none.sql" --cosign-pub "$TMP/cosign.pub" >/dev/null 2>&1 || rc=$?
+assert "нет файла схемы - код 2" "[[ $rc -eq 2 ]]"
+
+# Стиль.
+assert "bash -n" "bash -n '$SCRIPT'"
+assert "строки до $LIMIT знаков" "! awk 'length > $LIMIT' '$SCRIPT' '$0' | grep -q ."
+assert "set -euo pipefail" "grep -q '^set -euo pipefail' '$SCRIPT'"
+
+echo "проверок: $((PASS + FAIL)), провалено: $FAIL"
+[[ "$FAIL" -eq 0 ]]

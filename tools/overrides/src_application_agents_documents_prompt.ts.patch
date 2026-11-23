@@ -1,0 +1,11 @@
+--- src/application/agents/documents/prompt.ts
++++ src/application/agents/documents/prompt.ts
+@@ -1,7 +1,7 @@
+ import { DOCUMENT_KINDS, type DocumentKind } from '../../../domain/models';
+ import { allowedVatRatesText } from '../../../domain/vat';
+ import { HISTORY_SEARCH_PROMPT } from '@business-ai/core';
+-import { WEB_SEARCH_PROMPT } from '@business-ai/core';
++import { WEB_SEARCH_PROMPT } from '../shared/web-search-prompt.owned';
+ import { allKindsEnabled, kindsText } from './enabled-kinds';
+ 
+ /** Вводный абзац: все виды - прежний текст, иначе только включённые (`DOCUMENTS_ENABLED_KINDS`). */

@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "caseId": "order-calc-other-form-complete",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-check",
+          "name": "checkRequestCompleteness",
+          "arguments": {
+            "requestId": "req-23",
+            "kind": "other",
+            "values": {
+              "product": "ежедневники в кожаной обложке",
+              "quantity": "300",
+              "deadline": "до 15.11",
+              "task_link": "https://portal.example.test/company/personal/user/7/tasks/task/view/2041/"
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5900,
+        "outputTokens": 71
+      },
+      "latencyMs": 650,
+      "requestHash": "cfb03dfddfccee7564539754349725ef8702907ff73c8492bb952df05ebafee1"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-web",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-23"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6014,
+        "outputTokens": 18
+      },
+      "latencyMs": 650,
+      "requestHash": "3c8b5d0f6fa74a30d191f914e8feac874b41b6b273bec6ef2edb40ae1beb3113"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-23"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6073,
+        "outputTokens": 20
+      },
+      "latencyMs": 650,
+      "requestHash": "aa32d02f516e8e5cfc2ebb59ba57301b1a2c1bfa3b2d8354bf15804f45c4bd9e"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-23",
+            "version": "tpzjwhmhnmtrrqxk"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6273,
+        "outputTokens": 27
+      },
+      "latencyMs": 650,
+      "requestHash": "fe5cd185174ede341a7fd79550cc6d6a9b8fd146af1f8aec5f3a183439239939"
+    }
+  ],
+  "synthetic": true
+}

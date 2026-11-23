@@ -1,0 +1,63 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-pptx-no-supplier",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8274,
+        "outputTokens": 15
+      },
+      "latencyMs": 650,
+      "requestHash": "dbc0010346f05df8843a84bfa5860dd72be95789faaf179faa548fff7912b863"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-edit",
+          "name": "editPriceInFile",
+          "arguments": {
+            "path": "txmxrstrvhhqrvmk/rmznmmqxxmsxyyntnkqgxkpyvqhtrpww_Спецпредложение.pptx",
+            "edits": [
+              {
+                "oldPrice": 680,
+                "newPrice": 700,
+                "slide": 11
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8366,
+        "outputTokens": 48
+      },
+      "latencyMs": 650,
+      "requestHash": "0a6b169b4707b61bd7bb27a03b1e12401386c905549048b415e7648a87298383"
+    },
+    {
+      "content": "Готово, исправленный файл отправил вам. Что изменено: слайд 11, строка «Саморез»: было 680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8642,
+        "outputTokens": 42
+      },
+      "latencyMs": 650,
+      "requestHash": "5031820ab80c8cfd1d435da356132739084c91a90a71a679d75315c8819a70a7"
+    }
+  ],
+  "synthetic": true
+}

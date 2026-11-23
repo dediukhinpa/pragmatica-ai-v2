@@ -1,0 +1,95 @@
+--- /dev/null
++++ eval/cases/prices/prices-edit-first-ambiguous.json
+@@ -0,0 +1,92 @@
++{
++  "id": "prices-edit-first-ambiguous",
++  "agent": "prices",
++  "description": "Этап 9p (правка файла сразу): цена 680 стоит на слайдах 2 и 11, сотрудник место не назвал. Единственный допустимый вопрос до правки: один короткий вопрос с вариантами (слайд и строка). Файл не правится и не отправляется, ожидание не заводится, в базу ничего не записано, вопроса про поставщика нет.",
++  "request": "Прислала презентацию Спецпредложение.pptx. Цену 680 замени на 700. Ответственная — Вера Лунина, +7 (921) 600-71-30.",
++  "state": {
++    "suppliers": [
++      {
++        "id": "s1",
++        "name": "МеталлТорг"
++      }
++    ],
++    "prices": [
++      {
++        "supplierId": "s1",
++        "productName": "Саморез",
++        "price": 680
++      }
++    ],
++    "priceEditFirst": true,
++    "chatFiles": [
++      {
++        "path": "Спецпредложение.pptx",
++        "text": "# Спецпредложение\n\n## Слайд 2: Крепёж\n\n| Позиция | Цена |\n| --- | --- |\n| Болт М8 | 680 |\n| Гайка М8 | 25 |\n\n## Слайд 11: Метизы\n\n| Позиция | Цена |\n| --- | --- |\n| Шайба | 12.5 |\n| Саморез | 680 |"
++      }
++    ]
++  },
++  "expect": {
++    "maxSteps": 4,
++    "requiredTools": [
++      "listIntakeFiles",
++      "editPriceInFile"
++    ],
++    "toolOrder": "ordered",
++    "forbiddenTools": [
++      "searchSuppliers",
++      "stagePriceRows",
++      "normalizePriceTable",
++      "savePriceImport",
++      "editPricesInSourceFile",
++      "recordEmployeePriceUpdates",
++      "previewPriceChanges",
++      "commitPriceImport",
++      "closePendingPriceEdit",
++      "sendPriceChangeFile"
++    ],
++    "outputContains": [
++      "слайд 2",
++      "слайд 11"
++    ],
++    "outputNotContains": [
++      "поставщик",
++      "в базе"
++    ],
++    "outputMatches": [
++      "\\?"
++    ],
++    "stateChecks": [
++      {
++        "probe": "chatFiles",
++        "value": 0
++      },
++      {
++        "probe": "editedCellCount",
++        "value": 0
++      },
++      {
++        "probe": "pendingPriceEdit",
++        "value": 0
++      },
++      {
++        "probe": "storedPrice",
++        "arg": "s1:Саморез",
++        "value": 680
++      },
++      {
++        "probe": "storedPriceCount",
++        "value": 1
++      }
++    ],
++    "noPiiInRequests": true
++  },
++  "pii": {
++    "names": [
++      "Лунина",
++      "Вера"
++    ],
++    "phones": [
++      "+7 (921) 600-71-30"
++    ]
++  }
++}

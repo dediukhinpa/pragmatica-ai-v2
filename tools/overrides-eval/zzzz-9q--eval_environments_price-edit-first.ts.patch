@@ -1,0 +1,161 @@
+--- eval/environments/price-edit-first.ts
++++ eval/environments/price-edit-first.ts
+@@ -7,6 +7,8 @@
+   WorkflowStateStore,
+ } from '@business-ai/core';
+ import { listProposals } from '../../src/agents/prices/price-proposals';
++import { parsePriceCell } from '../../src/agents/prices/table-rows';
++import { loadEmployeeFileEdits } from '../../src/employee-file-edits';
+ import type {
+   EditedPriceFile,
+   EditPricesRequest,
+@@ -15,6 +17,11 @@
+   SkippedPriceEdit,
+ } from '../../src/kit/ports/price-file-editor';
+ import { PRICE_EDIT_FOLLOWUP_NAMESPACE } from '../../src/price-edit-followup';
++import type {
++  PriceSpot,
++  PriceSpotMap,
++  PriceSpotReader,
++} from '../../src/price-spots-client';
+ import { chatFileContainsCount } from './common';
+ import { chatFileCount } from '@business-ai/eval';
+ import { splitArg, type ProbeFn } from '@business-ai/eval';
+@@ -40,6 +47,10 @@
+ const SCAN_LIMIT = 1000;
+ /** Число частей адреса ячейки в замерах правок: таблица, строка, столбец. */
+ const CELL_ADDRESS_PARTS = 3;
++/** Заголовок слайда в markdown разбора презентации: «## Слайд 4: Акции». */
++const SLIDE_HEADING = /^##\s+Слайд\s+(\d+)/u;
++/** Число в тексте: целое или с долей, тысячи через пробел («1 200,50»); знаки рядом не входят. */
++const NUMBER_IN_TEXT = /\d+(?:[\s\u00a0]\d{3})*(?:[.,]\d+)?/u;
+ 
+ /** Презентация ли файл по имени. */
+ function isDeck(name: string): boolean {
+@@ -132,6 +143,9 @@
+ export class DeckPriceEditor implements PriceFileEditor {
+   readonly requests: EditPricesRequest[] = [];
+ 
++  /** @param spots числа вне таблиц, которые знает заглушка сервиса (локаторы правок 9q). */
++  constructor(private readonly spots: readonly PriceSpot[] = []) {}
++
+   async editPrices(request: EditPricesRequest): Promise<EditedPriceFile> {
+     this.requests.push(request);
+     const lines = deckText(request.bytes).split('\n');
+@@ -139,6 +153,12 @@
+     const skipped: SkippedPriceEdit[] = [];
+     let changed = 0;
+     for (const edit of request.edits) {
++      if (edit.slide !== undefined && edit.shape !== undefined) {
++        const refused = this.editTextBlock(lines, edit);
++        if (refused === null) changed += 1;
++        else skipped.push(refused);
++        continue;
++      }
+       const where = { table: edit.table ?? 0, row: edit.row, col: edit.col };
+       const lineAt = tables[where.table]?.[edit.row];
+       const cells = lineAt === undefined ? undefined : splitCells(lines[lineAt] ?? '');
+@@ -162,12 +182,77 @@
+     };
+   }
+ 
++  /**
++   * Правка числа в текстовом блоке слайда по локатору: число берётся из карты мест, строка
++   * абзаца - из markdown слайда. Как настоящий сервис, не пишет при другом старом значении
++   * (`expected` обязателен) и при неизвестном локаторе. `null` - записано, иначе пропуск.
++   */
++  private editTextBlock(lines: string[], edit: PriceCellEdit): SkippedPriceEdit | null {
++    const locator = {
++      slide: edit.slide ?? 0,
++      shape: edit.shape ?? '',
++      paragraph: edit.paragraph ?? 0,
++      start: edit.start ?? 0,
++    };
++    const refuse = (reason: string): SkippedPriceEdit => ({
++      row: edit.row,
++      col: edit.col,
++      reason,
++      ...locator,
++    });
++    const spot = this.spots.find(
++      (candidate) =>
++        candidate.slide === locator.slide &&
++        candidate.shape === locator.shape &&
++        candidate.paragraph === locator.paragraph &&
++        candidate.start === locator.start,
++    );
++    if (spot === undefined) return refuse('место не найдено');
++    const cell = parsePriceCell(spot.text);
++    const want = typeof edit.expected === 'number' ? edit.expected : Number.NaN;
++    if (cell.kind !== 'ok' || Math.abs(cell.value - want) > EXPECTED_TOLERANCE) {
++      return refuse('mismatch');
++    }
++    const [from, to] = slideRange(lines, locator.slide);
++    for (let at = from; at < to; at += 1) {
++      const line = lines[at] ?? '';
++      if (line.startsWith('|') || !line.includes(spot.context.trim())) continue;
++      const newText = spot.text.replace(NUMBER_IN_TEXT, String(edit.value));
++      lines[at] = line.replace(spot.text, newText);
++      return null;
++    }
++    return refuse('текст не найден на слайде');
++  }
++
+   /** Все ячейки, которые просили изменить за прогон, по порядку вызовов. */
+   allEdits(): PriceCellEdit[] {
+     return this.requests.flatMap((request) => [...request.edits]);
+   }
+ }
+ 
++/** Границы слайда в строках markdown: от заголовка «## Слайд N» до следующего заголовка. */
++function slideRange(lines: readonly string[], slide: number): [number, number] {
++  const begin = lines.findIndex((line) => Number(SLIDE_HEADING.exec(line)?.[1]) === slide);
++  if (begin < 0) return [0, 0];
++  const next = lines.findIndex((line, at) => at > begin && line.startsWith('## '));
++  return [begin + 1, next < 0 ? lines.length : next];
++}
++
++/**
++ * Заглушка сервиса документов, отдающая карту чисел вне таблиц (порт `PriceSpotReader`, этап
++ * 9q): карта задана кейсом (`priceSpots`), число обращений считается для замеров.
++ */
++export class StubPriceSpotReader implements PriceSpotReader {
++  reads = 0;
++
++  constructor(private readonly spots: readonly PriceSpot[]) {}
++
++  async read(): Promise<PriceSpotMap | null> {
++    this.reads += 1;
++    return { spots: this.spots, unreachable: [], truncated: false };
++  }
++}
++
+ /** Адрес ячейки из аргумента замера `таблица:строка:столбец`. */
+ function cellAddress(name: string, arg: string | undefined): [number, number, number] {
+   const parts = (arg ?? '').split(':').map(Number);
+@@ -202,6 +287,9 @@
+   'editedExpected',
+   'pendingPriceEdit',
+   'proposedPrice',
++  'proposalCount',
++  'editedTextBlockCount',
++  'employeeFileEditCount',
+ ];
+ 
+ /** Замеры режима: файлы в чате, правки редактора, ожидание ответа и предложение цен. */
+@@ -237,5 +325,15 @@
+       }
+       return null;
+     },
++    // Позиций в неподтверждённых предложениях поставщика (аргумент - supplierId): 0 - нет.
++    proposalCount: async (arg) => {
++      const proposals = await listProposals(state, arg ?? '');
++      return proposals.reduce((total, proposal) => total + proposal.items.length, 0);
++    },
++    // Сколько правок ушло с локатором текстового блока слайда (число вне таблицы).
++    editedTextBlockCount: () => editor.allEdits().filter((edit) => edit.slide !== undefined).length,
++    // Записей реестра правок сотрудника у поставщика (их пишет writeEditedPricesToDb).
++    employeeFileEditCount: async (arg) =>
++      Object.keys(await loadEmployeeFileEdits(state, arg ?? '')).length,
+   };
+ }

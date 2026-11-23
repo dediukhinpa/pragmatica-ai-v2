@@ -1,0 +1,184 @@
+--- /dev/null
++++ eval/cases/order-calc/order-calc-discovery-add-cards.json
+@@ -0,0 +1,181 @@
++{
++  "id": "order-calc-discovery-add-cards",
++  "agent": "order-calc",
++  "description": "Этап 8z (пополнение базы): «найди поставщиков ёлочных игрушек для базы» - findSuppliersForBase без заявки и шорт-листа; кто уже в базе (по ИНН), в список не попадает, контакты и тексты страниц модели не отдаются. «Заведи 1 и 3» - prepareDiscoveredSupplierCards: карточки показываются сотруднику с подсказкой ответа, в базу ничего не пишется до ответа; в карточку идут только сведения, дословно подтверждённые страницей (ИНН с неверной суммой, личная почта и ФИО не переносятся), адрес источника - в заметке.",
++  "request": "Найди поставщиков ёлочных игрушек для базы. Ответственная — Елена Орлова, +7 (900) 100-20-30.",
++  "followUps": [
++    "Заведи 1 и 3."
++  ],
++  "state": {
++    "requests": [
++      {
++        "id": "req-40",
++        "dealRef": "D-40",
++        "items": [
++          {
++            "name": "Ёлочные игрушки",
++            "quantity": 500,
++            "unit": "шт"
++          }
++        ],
++        "createdAt": "2026-01-01T00:00:00.000Z",
++        "slaDeadline": "2026-01-02T00:00:00.000Z"
++      }
++    ],
++    "suppliers": [
++      {
++        "id": "s-known",
++        "name": "Давно в базе",
++        "inn": "5001007329"
++      }
++    ],
++    "supplierCards": true,
++    "supplierDiscovery": true,
++    "web": [
++      {
++        "title": "Ёлочная Фабрика",
++        "url": "https://elka-fabrika.test",
++        "snippet": "Ёлочные игрушки оптом от производителя"
++      },
++      {
++        "title": "Северная Игрушка",
++        "url": "https://elka-sever.test",
++        "snippet": "Ёлочные игрушки оптом от производителя"
++      },
++      {
++        "title": "Лучистая Ель",
++        "url": "https://elka-luch.test",
++        "snippet": "Ёлочные игрушки оптом от производителя"
++      },
++      {
++        "title": "Звезда Опт",
++        "url": "https://elka-zvezda.test",
++        "snippet": "Ёлочные игрушки оптом от производителя"
++      }
++    ],
++    "webPages": {
++      "elka-fabrika.test": "ООО «Ёлочная Фабрика». Ёлочные игрушки оптом от производителя. г. Тверь, ул. Тестовая, д. 1. Тел. +7 (495) 100-10-01. Почта: info@elka-fabrika.test. ИНН 5001007329.",
++      "elka-sever.test": "ООО «Северная Игрушка». Ёлочные игрушки оптом от производителя. г. Казань, ул. Тестовая, д. 1. Тел. +7 (843) 100-10-02. Почта: info@elka-sever.test. ИНН 7707083893. Директор Руководов Иван Петрович, личная почта ivanov@elka-sever.test.",
++      "elka-luch.test": "ООО «Лучистая Ель». Ёлочные игрушки оптом от производителя. г. Пермь, ул. Тестовая, д. 1. Тел. +7 (342) 100-10-03. Почта: sales@elka-luch.test.",
++      "elka-zvezda.test": "ООО «Звезда Опт». Ёлочные игрушки оптом от производителя. г. Тула, ул. Тестовая, д. 1. Тел. +7 (487) 100-10-04. Почта: zakaz@elka-zvezda.test. ИНН 7707083894."
++    }
++  },
++  "expect": {
++    "maxSteps": 5,
++    "requiredTools": [
++      "findSuppliersForBase",
++      "prepareDiscoveredSupplierCards"
++    ],
++    "toolOrder": "ordered",
++    "forbiddenTools": [
++      "buildShortlist",
++      "askManagerToChoose",
++      "searchWeb",
++      "searchKnowledgeSuppliers",
++      "searchInternet",
++      "prepareSupplierCard",
++      "createSupplierFromAttachment"
++    ],
++    "outputContains": [
++      "карточк"
++    ],
++    "stateChecks": [
++      {
++        "probe": "supplierCardCount",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Нашёл кандидатов для базы",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Ёлочная Фабрика",
++        "value": 0
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Северная Игрушка",
++        "value": 2
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Звезда Опт",
++        "value": 2
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Лучистая Ель",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Карточка поставщика (как будет сохранена)",
++        "value": 2
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Сохранить карточку в общую базу?",
++        "value": 2
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "Найден в интернете по запросу",
++        "value": 2
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "ИНН: 7707083893",
++        "value": 1
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "7707083894",
++        "value": 0
++      },
++      {
++        "probe": "chatTextContains",
++        "arg": "ivanov@",
++        "value": 0
++      },
++      {
++        "probe": "webSearchCount",
++        "value": 2
++      },
++      {
++        "probe": "webSearchContains",
++        "arg": "оптом",
++        "value": 1
++      },
++      {
++        "probe": "mailSent",
++        "value": 0
++      },
++      {
++        "probe": "scheduledTasks",
++        "value": 0
++      }
++    ],
++    "turnChecks": [
++      {
++        "probe": "supplierCardCount",
++        "value": 1,
++        "turn": 1
++      }
++    ],
++    "noPiiInRequests": true
++  },
++  "pii": {
++    "names": [
++      "Орлова",
++      "Елена"
++    ],
++    "phones": [
++      "+7 (900) 100-20-30"
++    ],
++    "emails": [
++      "ivanov@elka-sever.test"
++    ]
++  }
++}

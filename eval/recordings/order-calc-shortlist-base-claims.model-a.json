@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "caseId": "order-calc-shortlist-base-claims",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-check",
+          "name": "checkRequestCompleteness",
+          "arguments": {
+            "requestId": "req-26",
+            "kind": "custom_product",
+            "values": {
+              "product": "мёд в банках",
+              "quantity": "30",
+              "production_date": "до 20.11.2026",
+              "budget": "до 150",
+              "dimensions": "диаметр 8, высота 10",
+              "material_color": "керамика, белая",
+              "personalization_tech": "сублимация, 2 цвета",
+              "personalization_size": "6 x 6",
+              "sample": "нет",
+              "task_link": "https://portal.example.test/company/personal/user/7/tasks/task/view/2041/"
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5888,
+        "outputTokens": 117
+      },
+      "latencyMs": 400,
+      "requestHash": "b21d85358d6abe21ec82b8337f006ef96e1e90720f030d1c2c2916232666709d"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-web",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-26"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6051,
+        "outputTokens": 18
+      },
+      "latencyMs": 400,
+      "requestHash": "e88936d57453f18999c127abf3334ca076ff59cc6b39961a93e2641d47cc52c0"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-26"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6110,
+        "outputTokens": 20
+      },
+      "latencyMs": 400,
+      "requestHash": "45528c4ef45e634e8a7d47d09a8f2f39ab01c5a9afc110b590ac712b2865f50d"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-26",
+            "version": "pmqtqvnmskwpmyxk"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6275,
+        "outputTokens": 27
+      },
+      "latencyMs": 400,
+      "requestHash": "8516064fddb66c85b9b000e1daa9f601fd166e1383fee24cd97933fb5a7c12e0"
+    }
+  ],
+  "synthetic": true
+}

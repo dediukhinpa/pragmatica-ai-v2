@@ -1,0 +1,18 @@
+--- src/application/agents/order-calc/run-data-script.ts
++++ src/application/agents/order-calc/run-data-script.ts
+@@ -1,6 +1,7 @@
+ import { DomainError } from '@business-ai/core';
+ import { createRunDataScriptTool, openIntakeDataSource, parseReplyRef, type DataScriptSource } from '@business-ai/core';
+ import { requirePort } from '@business-ai/core';
++import { priceItemsSummaryKind } from '../shared/price-items-kind.owned';
+ import type { OrderCalcDeps } from './deps';
+ import { loadReplyAttachment } from './reply-reading';
+ import type { ToolContext } from '@business-ai/core';
+@@ -29,4 +30,6 @@
+ }
+ 
+ /** `runDataScript` агента заказов. */
+-export const runDataScript = createRunDataScriptTool<OrderCalcDeps>(openOrderCalcDataSource);
++export const runDataScript = createRunDataScriptTool<OrderCalcDeps>(openOrderCalcDataSource, {
++  resultKinds: [priceItemsSummaryKind<OrderCalcDeps>()],
++});

@@ -1,0 +1,61 @@
+# Карта прежних версий миграций Прагматики (schema_migrations без префикса потока) в версии
+# потоков platform и app. Формат: старая<TAB>новая; одна старая на несколько новых - смешанная
+# миграция, разделённая по потокам. Правило раннера: новая версия применена, если в учёте есть
+# она сама или любая отображаемая на неё старая. Покрыты все 42 миграции репозитория на
+# коммите 5ea7f2d3 (001-040 есть на бою, 041-042 появились позже). Файл лежит в db/app/ (раннер
+# в контейнере видит только этот каталог); db/legacy-map.tsv - символьная ссылка. Платформенные строки
+# дублируют db/platform/legacy-map.tsv там, где имена совпали (001-004): повтор безвреден.
+
+# --- Смешанные: платформенная половина + предметная половина -------------------------------
+001_core	platform/001_core
+001_core	app/001_suppliers_prices_requests
+018_supplier_cards	platform/013_agent_pair_notes
+018_supplier_cards	app/007_supplier_cards
+020_knowledge_fts_query_suppliers_hnsw	platform/015_knowledge_fts_query
+020_knowledge_fts_query_suppliers_hnsw	app/008_suppliers_search_hnsw
+
+# --- Платформенные: двойник уже есть в db/platform ---------------------------------------
+002_threads	platform/002_threads
+003_knowledge	platform/003_knowledge
+004_adapter_state	platform/004_adapter_state
+006_workflow_state	platform/005_workflow_state
+007_metrics_feedback	platform/006_metrics_feedback
+010_workflow_state_retention	platform/007_workflow_state_retention
+011_jobs_reliable_queue	platform/008_jobs_reliable_queue
+012_threads_retention	platform/009_threads_retention
+013_hybrid_search_per_document	platform/010_hybrid_search_per_document
+015_hybrid_search_relevance	platform/011_hybrid_search_relevance
+017_hybrid_search_plpgsql	platform/012_hybrid_search_plpgsql
+019_hybrid_search_iterative_scan	platform/014_hybrid_search_iterative_scan
+021_metrics_cache_tokens	platform/016_metrics_cache_tokens
+022_idempotency_purge_index	platform/017_idempotency_purge_index
+028_cost_trace	platform/018_cost_trace
+029_thread_sessions	platform/019_thread_sessions
+030_message_search	platform/020_message_search
+
+# --- Предметные: поток app ------------------------------------------------------------------
+005_import_staging	app/002_import_staging
+008_supplier_requisites	app/003_supplier_requisites
+009_supplier_quotes	app/004_supplier_quotes
+014_price_numeric_scale	app/005_price_numeric_scale
+016_price_search_index	app/006_price_search_index
+023_supplier_location_assessment	app/009_supplier_location_assessment
+024_supplier_card_full	app/010_supplier_card_full
+025_supplier_card_numeric_fields	app/011_supplier_card_numeric_fields
+026_supplier_rating_cache	app/012_supplier_rating_cache
+027_contract_numbers	app/013_contract_numbers
+031_supplier_turnover_draft	app/014_supplier_turnover_draft
+032_price_tiers	app/015_price_tiers
+033_price_qualifier	app/016_price_qualifier
+034_price_tier_basis	app/017_price_tier_basis
+035_supplier_price_scripts	app/018_supplier_price_scripts
+036_price_items_source_file_idx	app/019_price_items_source_file_idx
+037_contract_number_document_date	app/020_contract_number_document_date
+038_price_items_hybrid_search	app/021_price_items_hybrid_search
+039_price_items_vat	app/022_price_items_vat
+040_contract_number_shared_counter	app/023_contract_number_shared_counter
+041_own_legal_entities	app/024_own_legal_entities
+042_suppliers_no_draft	app/025_suppliers_no_draft
+
+# app/026_knowledge_scope_compat - новая миграция проекта без старой версии: здесь не
+# перечислена намеренно (на боевой базе она будет в статусе pending и применится).

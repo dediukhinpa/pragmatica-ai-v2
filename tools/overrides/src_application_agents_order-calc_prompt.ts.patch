@@ -1,0 +1,10 @@
+--- src/application/agents/order-calc/prompt.ts
++++ src/application/agents/order-calc/prompt.ts
+@@ -1,6 +1,6 @@
+ import { allowedVatRatesText } from '../../../domain/vat';
+ import { HISTORY_SEARCH_PROMPT } from '@business-ai/core';
+-import { WEB_SEARCH_PROMPT } from '@business-ai/core';
++import { WEB_SEARCH_PROMPT } from '../shared/web-search-prompt.owned';
+ 
+ /**
+  * Ответы поставщиков вне почты и статус заказа: дописывается к обоим вариантам промпта (ответ

@@ -1,0 +1,22 @@
+--- tests/application/agents/documents-supplier-bypass.test.ts
++++ tests/application/agents/documents-supplier-bypass.test.ts
+@@ -18,7 +18,18 @@
+ 
+ /** Чужой расчётный счёт, который инъекция в письме поставщика просит вписать в договор. */
+ const FOREIGN_ACCOUNT = '40702810900000000099';
+-const DIGITS = [FULL_SUPPLIER.inn ?? '', FULL_SUPPLIER.ogrn ?? '', ACCOUNT, CORR, FOREIGN_ACCOUNT];
++/** ИНН с неверной контрольной суммой из теста «неверная контрольная сумма реквизита». */
++const INVALID_CHECKSUM_INN = '1234567890';
++// В исходном репозитории (коммит 3cebe14) перечень этого ИНН не содержал, и тест падал на
++// инварианте серий цифр (support/setup.ts): серия здесь - содержимое документа, не идентификатор.
++const DIGITS = [
++  FULL_SUPPLIER.inn ?? '',
++  FULL_SUPPLIER.ogrn ?? '',
++  ACCOUNT,
++  CORR,
++  FOREIGN_ACCOUNT,
++  INVALID_CHECKSUM_INN,
++];
+ const TEMPLATE = 'templates/Договор поставки.docx';
+ const TEMPLATE_TEXT = 'Договор {{number}}\nПоставщик {{seller}}\nИтого {{total}} {{currency}}';
+ 

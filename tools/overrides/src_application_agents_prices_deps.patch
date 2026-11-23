@@ -1,0 +1,20 @@
+--- src/application/agents/prices/deps.ts
++++ src/application/agents/prices/deps.ts
+@@ -8,7 +8,7 @@
+ import type { SupplierPriceScriptRepository } from '../../../ports/supplier-price-scripts';
+ import type { PriceFileEditor } from '../../../ports/price-file-editor';
+ import type { SupplierCardsDeps } from '../suppliers/deps';
+-import type { FailureLog } from '@business-ai/core';
++import type { FailureLog, ScriptResultKindHandler } from '@business-ai/core';
+ import type { MailSenderTrustSettings } from '@business-ai/core';
+ import type { ConversationHistoryHost } from '@business-ai/core';
+ import type { CreateFileHost } from '@business-ai/core';
+@@ -29,6 +29,8 @@
+     CreateFileHost {
+   /** Журнал сбоев побочных чтений (владелец работы): только коды. Не задан - не пишется. */
+   log?: FailureLog | undefined;
++  /** Обработчик вида результата `price_items` (тесты подменяют сверку). Не задан - штатный. */
++  priceItemsHandler?: ScriptResultKindHandler | undefined;
+   /** Сетевой диск с прайсами. */
+   files: FileSource;
+   /**

@@ -1,0 +1,96 @@
+{
+  "id": "handoff-need-stale-prices",
+  "description": "Просьба без слова «Актуализация прайса (ИИ агент)»: в базе цены годовой давности, а расчёт нужен по актуальным. Модель должна сама понять, что освежить цены может только «Актуализация прайса (ИИ агент)», и передать задачу.",
+  "request": "Заявка req-2 по сделке D-2: считать арматуру нужно по актуальным ценам, а в базе поставщиков цены за январь прошлого года. Подготовь расчёт. Ответственный — Мария Волкова, +7 (999) 222-33-44.",
+  "state": {
+    "requests": [
+      {
+        "id": "req-2",
+        "dealRef": "D-2",
+        "items": [
+          {
+            "name": "Арматура",
+            "quantity": 100,
+            "unit": "м"
+          }
+        ],
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "slaDeadline": "2026-01-02T00:00:00.000Z"
+      }
+    ],
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг",
+        "email": "zakaz-metall@metall.test"
+      },
+      {
+        "id": "s2",
+        "name": "Болтик",
+        "email": "zakaz-boltik@boltik.test"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Арматура 12 мм",
+        "price": 50,
+        "date": "2025-01-10T00:00:00.000Z"
+      },
+      {
+        "supplierId": "s2",
+        "productName": "Арматура 12 мм",
+        "price": 52,
+        "date": "2025-01-10T00:00:00.000Z"
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Арматура: условия поставки"
+    },
+    "web": [
+      {
+        "title": "МеталлТорг",
+        "url": "https://metall.test",
+        "snippet": "Арматура от склада"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 4,
+    "requiredTools": [
+      "handoffToPrices"
+    ],
+    "forbiddenTools": [
+      "prepareSupplierRequestText",
+      "recordSelection"
+    ],
+    "outputMatches": [
+      "передан|передал|поставлен"
+    ],
+    "stateChecks": [
+      {
+        "probe": "handoffsQueued",
+        "value": 1
+      },
+      {
+        "probe": "mailSent",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Волкова",
+      "Мария"
+    ],
+    "phones": [
+      "+7 (999) 222-33-44"
+    ]
+  },
+  "handoff": {
+    "category": "need",
+    "access": "allowed",
+    "allowedHandoffCalls": 1
+  }
+}

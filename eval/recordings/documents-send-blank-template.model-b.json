@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "caseId": "documents-send-blank-template",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "findTemplate",
+          "arguments": {
+            "query": "Договор поставки МГ"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6188,
+        "outputTokens": 20
+      },
+      "latencyMs": 650,
+      "requestHash": "b95c06336c41e831196e1d74f634d89a3173e30b5b3fb67c9f0d717cb3727273"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "sendTemplateFile",
+          "arguments": {
+            "templatePath": "2026_МГ_Шаблон_Договора_на_поставку_контрактной_продукции.docx"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6364,
+        "outputTokens": 34
+      },
+      "latencyMs": 650,
+      "requestHash": "68f56555fb3944a8bf93b83dd59f75862b442404d2ce1fcdba2333b5a33e12ea"
+    },
+    {
+      "content": "Отправил пустой шаблон договора файлом.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6450,
+        "outputTokens": 11
+      },
+      "latencyMs": 650,
+      "requestHash": "cff8c902d2dc52cdc0e83917eb51dc6039d4ca9b87a56bfd914b65d721250716"
+    }
+  ],
+  "synthetic": true
+}

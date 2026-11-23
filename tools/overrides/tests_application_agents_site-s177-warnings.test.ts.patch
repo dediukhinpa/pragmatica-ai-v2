@@ -1,0 +1,11 @@
+--- tests/application/agents/site-s177-warnings.test.ts
++++ tests/application/agents/site-s177-warnings.test.ts
+@@ -129,7 +129,7 @@
+ 
+   test('описание с короткой длиной и фразой сохраняется, ПДн/ссылка - нет', async () => {
+     const deps = await buildSiteDeps();
+-    const { applyExportTemplate } = await import('../../../src/application/index.shim');
++    const { applyExportTemplate } = await import('../../../src/application/agents/site-export/apply-export-template');
+     const page = await readCards.execute({ query: 'Болт', cursor: 0, limit: 50 }, deps, CTX);
+     await applyExportTemplate.execute(
+       { exportId: EXPORT_ID, part: 0, reset: true, cards: page.cards },

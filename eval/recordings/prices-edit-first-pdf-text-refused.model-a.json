@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-pdf-text-refused",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8277,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "0c262287eb0a2d8a6d0be704f866a360b7b9deaf9a57ef747b466d3142581651"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-spots",
+          "name": "listPriceSpots",
+          "arguments": {
+            "path": "xstgmkmptppvkspm/vqsgpmqskzprnwvttvtvwhzkvwzykwhm_Offer_autumn.pdf",
+            "page": 1
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8367,
+        "outputTokens": 36
+      },
+      "latencyMs": 400,
+      "requestHash": "33324b7c18f146d02a20b192f864860a6ab31ec3bde05f96079a89ac311677ae"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-edit",
+          "name": "editPriceInFile",
+          "arguments": {
+            "path": "xstgmkmptppvkspm/vqsgpmqskzprnwvttvtvwhzkvwzykwhm_Offer_autumn.pdf",
+            "edits": [
+              {
+                "oldPrice": 1250,
+                "newPrice": 1250000,
+                "page": 1,
+                "rowText": "Итого"
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8601,
+        "outputTokens": 52
+      },
+      "latencyMs": 400,
+      "requestHash": "482c9f938be8c4c4a46f9074fc62077fc6799c3f73c813b1898c19cd198f8f92"
+    },
+    {
+      "content": "Файл не изменён и не отправлен: страница 1, текст «Итого за единицу: 1 250,00 USD» - новое число длиннее старого и не помещается на его месте. Могу подготовить xlsx-копию с новой ценой, если вы согласны.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8851,
+        "outputTokens": 52
+      },
+      "latencyMs": 400,
+      "requestHash": "1b5dbd1b6ba1b3eb118907575f9b184f83da86461e542678f193a048071bf7a0"
+    }
+  ],
+  "synthetic": true
+}

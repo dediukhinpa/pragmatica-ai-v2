@@ -1,0 +1,57 @@
+# Надстройка compose v2 для СИНТЕТИЧЕСКОГО стенда проверки патча G8 на Fornex (tools/patch-synth.sh).
+# На бою не используется. Три сервиса патча (documents, alloy, app) запускаются из настоящих
+# образов lock, но без зависимостей боя: у app вместо ядра заглушка /ready (4 «бота»), у alloy нет
+# зависимости от docker-socket-proxy и нет монтирования корня хоста. documents - настоящий сервис.
+# Переменные: STAND_ALLOY_CONF (каталог конфигурации alloy), STAND_ALLOY_ROOT (пустой каталог
+# вместо корня хоста), STAND_DOCUMENTS_HOST (адрес, на
+# котором слушает documents: 127.0.0.1 ломает доступ соседей и нужен для проверки отката).
+services:
+  documents:
+    environment:
+      DOCUMENTS_HOST: ${STAND_DOCUMENTS_HOST:-0.0.0.0}
+  app:
+    entrypoint:
+      - bun
+      - -e
+      - |
+        Bun.serve({ hostname: "127.0.0.1", port: 8088, fetch() {
+          return new Response(JSON.stringify({ bots: { ready: 4 } }),
+            { headers: { "content-type": "application/json" } });
+        } });
+        process.on("SIGTERM", () => process.exit(0));
+        setInterval(() => {}, 1 << 30);
+    depends_on: !override {}
+    networks: !override [backend]
+    volumes: !override []
+  alloy:
+    depends_on: !override {}
+    volumes: !override
+      - type: bind
+        source: ${STAND_ALLOY_CONF:?}
+        target: /etc/alloy
+        read_only: true
+      - type: volume
+        source: alloy-data
+        target: /var/lib/alloy/data
+      # Как в базе платформы, но корень хоста заменён пустым каталогом стенда: на общем хосте
+      # alloy не получает чтения всего диска. /proc и /sys - только чтение, как на бою.
+      - type: bind
+        source: ${STAND_ALLOY_ROOT:?}
+        target: /host/root
+        read_only: true
+      - type: bind
+        source: /proc
+        target: /host/proc
+        read_only: true
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+      - type: bind
+        source: ${MTLS_DIR:?}
+        target: /etc/gateway-mtls
+        read_only: true
+      - type: bind
+        source: ${TEXTFILE_METRICS_DIR:?}
+        target: /var/lib/agentplatform/metrics
+        read_only: true

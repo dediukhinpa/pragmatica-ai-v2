@@ -1,0 +1,11 @@
+--- tests/application/agents/suppliers-attachment-create.test.ts
++++ tests/application/agents/suppliers-attachment-create.test.ts
+@@ -125,7 +125,7 @@
+ });
+ 
+ async function mk(name: string, inn: string | undefined) {
+-  const { cardFromFields, newCardId } = await import('../../../src/application/index.shim');
++  const { cardFromFields, newCardId } = await import('../../../src/application/agents/suppliers/card-fields');
+   const fields = { name, ...(inn === undefined ? {} : { inn }) };
+   return cardFromFields(
+     fields,

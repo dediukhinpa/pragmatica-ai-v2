@@ -1,0 +1,14 @@
+--- e2e/tests/m-agent-call.test.ts
++++ e2e/tests/m-agent-call.test.ts
+@@ -202,8 +202,9 @@
+   test('флаг только подключает порты: декларации и инструменты прежние', () => {
+     const off = build({});
+     const on = build({ AGENT_CALL_ENABLED: 'true' });
+-    expect(off.app.agentCallEnabled).toBe(false);
+-    expect(on.app.agentCallEnabled).toBe(true);
++    // Флаг проекта читается из конфигурации (в ProductionApp платформы поля `agentCallEnabled` нет).
++    expect(off.config.project['AGENT_CALL_ENABLED']).toBe('false');
++    expect(on.config.project['AGENT_CALL_ENABLED']).toBe('true');
+     const names = (app: ProductionApp): string[] =>
+       app.registry
+         .list()

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "caseId": "order-calc-business-card-photo",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "readChatAttachments",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6904,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "4cfe118170cb42f3c41d46a21a401f03dfe0ab5c71eb4cbf9326261c5deadff5"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c2",
+          "name": "findSupplierCard",
+          "arguments": {
+            "query": "Бета Трейд"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7031,
+        "outputTokens": 19
+      },
+      "latencyMs": 400,
+      "requestHash": "3ef22734c0b3409b9264a178c05f0fb6c8beb5d1e059808e978f4e00b95a0043"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c3",
+          "name": "createSupplierFromAttachment",
+          "arguments": {
+            "name": "ООО «Бета Трейд»",
+            "sourceText": "Текст с фото: ООО «Бета Трейд»\n[PERSON_2] [PERSON_3] [PERSON_1]\nКоммерческий директор\nТел. [PHONE_1]\n[EMAIL_1]\nwww.beta-trade.example"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7080,
+        "outputTokens": 62
+      },
+      "latencyMs": 400,
+      "requestHash": "d4efe1cb4fe0416a9b4124af45afa699b0a5525a446488c0df6e87a0a2c0cacb"
+    },
+    {
+      "content": "Завёл карточку поставщика по визитке. Проверьте её в общей базе.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7222,
+        "outputTokens": 17
+      },
+      "latencyMs": 400,
+      "requestHash": "186e75a7f35f1723ed2229b4ad7feda2bc847fb4ce0211f4eda196906834900d"
+    }
+  ],
+  "synthetic": true
+}

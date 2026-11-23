@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "caseId": "order-calc-session-recall-72h",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "По сделке D-1: запрос КП ушёл МеталлТорг 23.10, ждём ответ и срок поставки",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 3929,
+        "outputTokens": 19
+      },
+      "latencyMs": 650,
+      "requestHash": "44ec15155478fa0f7326fb6555ff137ef4062f0c250a596d5767b883a9202713"
+    }
+  ],
+  "synthetic": true
+}

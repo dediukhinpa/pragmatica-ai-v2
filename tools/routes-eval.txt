@@ -1,0 +1,24 @@
+# Маршруты символов sync-eval-e2e: файл старого репо, символ (`*` - весь модуль), назначение
+# (пакет `@...` или псевдо-путь ручного файла, см. HAND_WRITTEN в sync_eval_e2e.py) и
+# необязательный шаблон файлов-импортёров (путь старого репо): без него маршрут для всех.
+# Колонки разделены табуляцией.
+eval/src/synthetic/index.ts	recordSynthetic	eval/__hand__/synthetic.ts
+core/src/app/chat-pump.ts	CHAT_HANDOFF_CLOSED_TEXT	e2e/__hand__/project-env.ts
+core/src/app/chat-pump.ts	CHAT_HANDOFF_EXPIRED_TEXT	e2e/__hand__/project-env.ts
+core/src/adapters/bitrix24/channel.ts	EVENT_SKIPPED_NOTICE	e2e/__hand__/project-env.ts
+core/src/app/service.ts	StopReport	e2e/__hand__/project-env.ts
+e2e/lib/env.ts	*	e2e/__hand__/project-env.ts
+eval/src/case-schema.ts	PricesCase	eval/__hand__/cases.ts
+eval/src/case-schema.ts	DocumentsCase	eval/__hand__/cases.ts
+eval/src/case-schema.ts	OrderCalcCase	eval/__hand__/cases.ts
+eval/src/case-schema.ts	SiteExportCase	eval/__hand__/cases.ts
+eval/src/environments/types.ts	ProposalView	eval/__hand__/cases.ts
+eval/src/constants.ts	AGENT_IDS	eval/__hand__/paths.ts
+eval/src/constants.ts	DEFAULT_CASES_DIR	eval/__hand__/paths.ts
+eval/src/constants.ts	DEFAULT_RECORDINGS_DIR	eval/__hand__/paths.ts
+eval/src/constants.ts	DEFAULT_HANDOFF_CASES_DIR	eval/__hand__/paths.ts
+eval/src/constants.ts	DEFAULT_HANDOFF_RECORDINGS_DIR	eval/__hand__/paths.ts
+core/src/app/chat-pump.ts	CHAT_FEEDBACK_PROMPT	e2e/__hand__/project-env.ts
+core/src/app/compose-production.ts	composeProduction	e2e/__hand__/project-env.ts
+core/src/app/production-config.ts	loadProductionConfig	@business-ai/testing
+core/src/adapters/memory/crm.ts	MemoryCrm	@business-ai/adapters	e2e/**

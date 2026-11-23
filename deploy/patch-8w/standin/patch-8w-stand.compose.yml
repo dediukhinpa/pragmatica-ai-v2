@@ -1,0 +1,53 @@
+# Надстройка compose v2 для СИНТЕТИЧЕСКОГО стенда проверки патча G8w (tools/patch-8w-synth.sh).
+# На бою не используется. Два сервиса, которые нужны патчу (app и documents), запускаются из
+# образов lock, но без зависимостей боя: у app вместо ядра заглушка /ready (4 «бота»), у documents
+# заглушка, отвечающая 200 на любой запрос (образ documents в lock стенда - образ с bun, см.
+# синтетический прогон). Порты публикуются только на 127.0.0.1 в диапазоне стенда 21200-21249:
+# так прогон измеряет простой app и непрерывность documents со стороны хоста.
+# Переменные: STAND_APP_PORT, STAND_DOCS_PORT (порты хоста), STAND_APP_DOCUMENTS_URL (адрес
+# documents в окружении app: documents-router имитирует «патч G8 не применён»), STAND_APP_EXTRA_ENV
+# (одна строка ИМЯ=ЗНАЧЕНИЕ в окружение app: подмена значения переменной Яндекса ломает проверку
+# новой конфигурации в предусловиях патча - отказ с кодом 3).
+services:
+  documents:
+    entrypoint:
+      - bun
+      - -e
+      - |
+        Bun.serve({ hostname: "0.0.0.0", port: 8310, fetch() {
+          return new Response("{}", { headers: { "content-type": "application/json" } });
+        } });
+        process.on("SIGTERM", () => process.exit(0));
+        setInterval(() => {}, 1 << 30);
+    command: !override []
+    healthcheck: !override
+      disable: true
+    depends_on: !override {}
+    volumes: !override []
+    # Сеть backend платформы internal: порты контейнеров в ней наружу не публикуются, поэтому
+    # заглушки сидят ещё и в обычной сети стенда stand-pub (иначе проба с хоста не дойдёт).
+    networks: !override [backend, stand-pub]
+    ports:
+      - "127.0.0.1:${STAND_DOCS_PORT:-21201}:8310"
+  app:
+    entrypoint:
+      - bun
+      - -e
+      - |
+        Bun.serve({ hostname: "0.0.0.0", port: 8088, fetch() {
+          return new Response(JSON.stringify({ bots: { ready: 4 } }),
+            { headers: { "content-type": "application/json" } });
+        } });
+        process.on("SIGTERM", () => process.exit(0));
+        setInterval(() => {}, 1 << 30);
+    environment:
+      - DOCUMENTS_URL=${STAND_APP_DOCUMENTS_URL:-http://documents:8310}
+      - ${STAND_APP_EXTRA_ENV:-STAND_APP_EXTRA=none}
+    depends_on: !override {}
+    networks: !override [backend, stand-pub]
+    volumes: !override []
+    ports:
+      - "127.0.0.1:${STAND_APP_PORT:-21200}:8088"
+
+networks:
+  stand-pub: {}

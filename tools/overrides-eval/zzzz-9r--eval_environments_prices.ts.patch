@@ -1,0 +1,26 @@
+--- eval/environments/prices.ts
++++ eval/environments/prices.ts
+@@ -27,6 +27,7 @@
+   DeckMarkdownParser,
+   DeckPriceEditor,
+   StubPriceSpotReader,
++  toPriceSpots,
+   chatFileBytes,
+   priceEditProbes,
+ } from './price-edit-first';
+@@ -96,12 +97,13 @@
+   // Файлы чата и правка файла сразу (этап 9p): состояние сценариев, приём файлов, парсер
+   // презентаций и редактор-заглушка - только у кейсов с флагом или файлами чата; у остальных
+   // зависимости прежние.
+-  const { chatFiles, priceEditFirst, priceEditDbWrite, priceTextBlocks, priceSpots } =
++  const { chatFiles, priceEditFirst, priceEditDbWrite, priceTextBlocks, priceEditRefusal } =
+     testCase.state;
++  const priceSpots = toPriceSpots(testCase.state.priceSpots);
+   const withChat = priceEditFirst || chatFiles.length > 0;
+   const state = new MemoryWorkflowStateStore();
+   const intake = new MemoryIntakeStore(clock);
+-  const editor = new DeckPriceEditor(priceSpots);
++  const editor = new DeckPriceEditor(priceSpots, priceEditRefusal);
+   await seedEmployeeFileEdits(state, testCase, clock.now());
+   const deps: PricesDeps = {
+     files,

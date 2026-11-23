@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "caseId": "prices-price-tiers",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-norm",
+          "name": "normalizePriceTable",
+          "arguments": {
+            "path": "tiers.csv",
+            "supplierId": "s1",
+            "columns": {
+              "name": 0,
+              "priceTiers": [
+                {
+                  "column": 1,
+                  "minQuantity": 50
+                },
+                {
+                  "column": 2,
+                  "minQuantity": 100
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6751,
+        "outputTokens": 49
+      },
+      "latencyMs": 650,
+      "requestHash": "eb29c58413d5562f33811cc6c8c034e617b074fff3246e9a8f035991e7d7a19d"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-save",
+          "name": "savePriceImport",
+          "arguments": {
+            "path": "tiers.csv",
+            "supplierId": "s1",
+            "fileHash": "zyytjmytzqmqqhzzshwhnpqxjmkghmyphnjqmtypvpksjhphyzvsxphkyhjgkznj",
+            "columns": {
+              "name": 0,
+              "priceTiers": [
+                {
+                  "column": 1,
+                  "minQuantity": 50
+                },
+                {
+                  "column": 2,
+                  "minQuantity": 100
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6991,
+        "outputTokens": 67
+      },
+      "latencyMs": 650,
+      "requestHash": "345246542ff415f491d490217691e17208dc103ebbd18ff1320b5ff1a752a3b3"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-rep",
+          "name": "reportToManager",
+          "arguments": {
+            "kind": "import_done",
+            "path": "tiers.csv",
+            "fileHash": "h-1",
+            "updated": 2,
+            "needsReview": 0
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7095,
+        "outputTokens": 35
+      },
+      "latencyMs": 650,
+      "requestHash": "d1ac00c8c908bc2b66fdb1112fc3939bd6120d68c11ad6947374218f8d880ce3"
+    },
+    {
+      "content": "Прайс обновлён, менеджеру отправлена сводка",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7159,
+        "outputTokens": 12
+      },
+      "latencyMs": 650,
+      "requestHash": "e16451e37fe7c8873b0eacdf38aeb2526827eb42c66712bcb346f52e7e8917af"
+    }
+  ],
+  "synthetic": true
+}

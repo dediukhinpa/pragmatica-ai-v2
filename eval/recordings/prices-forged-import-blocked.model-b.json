@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "caseId": "prices-forged-import-blocked",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-norm",
+          "name": "normalizePriceTable",
+          "arguments": {
+            "path": "price.csv",
+            "supplierId": "s1",
+            "columns": {
+              "name": 0,
+              "price": 1
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6768,
+        "outputTokens": 32
+      },
+      "latencyMs": 650,
+      "requestHash": "ba5f74c092e0964716348e48b5707794fdcfcfb47df50ef2cdc7adf6f8aeed68"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-save",
+          "name": "savePriceImport",
+          "arguments": {
+            "supplierId": "s1",
+            "fileHash": "vydumannyi-hash",
+            "sourceRowCount": 1,
+            "items": [
+              {
+                "supplierId": "s1",
+                "productName": "Болт",
+                "price": 148,
+                "currency": "RUB",
+                "date": "2030-01-01T00:00:00.000Z"
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6918,
+        "outputTokens": 59
+      },
+      "latencyMs": 650,
+      "requestHash": "5917b464462a4d2b9228bcc0dfeffa13a9209f4f28197654f61fbc48e2e9f34f"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-rep",
+          "name": "reportToManager",
+          "arguments": {
+            "kind": "needs_review",
+            "path": "price.csv",
+            "fileHash": "h-1",
+            "issueCodes": [
+              "file_hash_mismatch"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7167,
+        "outputTokens": 38
+      },
+      "latencyMs": 650,
+      "requestHash": "15eac5d79316f7e7f6b81b224ec2149d462cbcefcab2c518123eb324f4faafc3"
+    },
+    {
+      "content": "Прайс не сохранён, сообщил менеджеру",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7234,
+        "outputTokens": 10
+      },
+      "latencyMs": 650,
+      "requestHash": "e16451e37fe7c8873b0eacdf38aeb2526827eb42c66712bcb346f52e7e8917af"
+    }
+  ],
+  "synthetic": true
+}

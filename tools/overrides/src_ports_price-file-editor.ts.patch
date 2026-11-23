@@ -1,0 +1,40 @@
+--- src/ports/price-file-editor.ts
++++ src/ports/price-file-editor.ts
+@@ -46,6 +46,11 @@
+   changed: number;
+   /** Ячейки, которые не тронуты (текстовые цены, формулы, вне таблицы). */
+   skipped: readonly SkippedPriceEdit[];
++  /**
++   * Исходный формат, если результат в другом: `ppt` - старый файл приведён к pptx, правка и
++   * отправка идут в pptx (обратная конвертация теряет вёрстку). Нет - формат прежний.
++   */
++  convertedFrom?: string | undefined;
+ }
+ 
+ /** Запрос правки цен в файле на диске (этап 231): файл в память целиком не читается. */
+@@ -64,6 +69,8 @@
+   file: TempDiskFile;
+   changed: number;
+   skipped: readonly SkippedPriceEdit[];
++  /** См. {@link EditedPriceFile.convertedFrom}. */
++  convertedFrom?: string | undefined;
+ }
+ 
+ /**
+@@ -72,10 +79,12 @@
+  */
+ export interface PriceFileEditor {
+   /**
+-   * Применить правки. Формат, который на месте не правится (xls, pdf, скан), -
+-   * UnsupportedPriceFormatError; файл больше предела сервиса - PriceFileTooLargeError (повтор
+-   * бесполезен); пустой список правок и неверная ячейка вне файла - в `skipped` либо
+-   * DomainError('invalid_input').
++   * Применить правки. Формат, который на месте не правится (xls, скан, pdf или pptx при
++   * выключенной правке), - UnsupportedPriceFormatError; файл, который сервис отказался править
++   * строгими проверками (pdf: цена не найдена однозначно, нет глифов, не помещается; старый
++   * .ppt после конвертации), - PriceEditRefusedError с причинами по местам; файл больше
++   * предела сервиса - PriceFileTooLargeError (повтор бесполезен); пустой список правок и
++   * неверная ячейка вне файла - в `skipped` либо DomainError('invalid_input').
+    */
+   editPrices(request: EditPricesRequest): Promise<EditedPriceFile>;
+   /**

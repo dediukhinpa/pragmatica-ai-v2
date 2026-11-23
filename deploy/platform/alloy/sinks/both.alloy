@@ -1,0 +1,24 @@
+// Режим TELEMETRY_TARGETS=both: данные дублируются в оба приёмника, у каждого свой буфер на диске.
+// Экспортирует списки получателей, которые подставляет config.alloy.
+
+import.file "lib" {
+  filename = "/etc/alloy/sinks/lib.alloy"
+}
+
+declare "out" {
+  lib.local_sink "l" {}
+
+  lib.remote_sink "r" {}
+
+  export "metrics" {
+    value = [lib.local_sink.l.metrics, lib.remote_sink.r.metrics]
+  }
+
+  export "logs" {
+    value = [lib.local_sink.l.logs, lib.remote_sink.r.logs]
+  }
+
+  export "traces" {
+    value = [lib.local_sink.l.traces, lib.remote_sink.r.traces]
+  }
+}

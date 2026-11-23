@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-pptx-text-block",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8272,
+        "outputTokens": 15
+      },
+      "latencyMs": 650,
+      "requestHash": "7923a8bfc53281f1c9eaa014458665f7ebd75b1de02c915de45b2391e204fc00"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-read",
+          "name": "readPriceFile",
+          "arguments": {
+            "path": "mwggpkvmrsyrzshs/wmqwkmmxxwgtjmprnqzmykytspmhtmgv_Акции_осень.pptx"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8361,
+        "outputTokens": 33
+      },
+      "latencyMs": 650,
+      "requestHash": "df512ed4b4994eb835f93817d71c1d3d0548a8298334cf7cc4d9690efe80e51f"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-spots",
+          "name": "listPriceSpots",
+          "arguments": {
+            "path": "mwggpkvmrsyrzshs/wmqwkmmxxwgtjmprnqzmykytspmhtmgv_Акции_осень.pptx",
+            "slide": 4
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8539,
+        "outputTokens": 36
+      },
+      "latencyMs": 650,
+      "requestHash": "2a784ca360e516902e1f2b4df4a4c3d4b29cebb8b2504f9e72c9901f1da3d608"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-edit",
+          "name": "editPriceInFile",
+          "arguments": {
+            "path": "mwggpkvmrsyrzshs/wmqwkmmxxwgtjmprnqzmykytspmhtmgv_Акции_осень.pptx",
+            "edits": [
+              {
+                "oldPrice": 680,
+                "newPrice": 700,
+                "slide": 4,
+                "rowText": "Акция"
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8730,
+        "outputTokens": 51
+      },
+      "latencyMs": 650,
+      "requestHash": "cfd5221bcca8e67c74708a0dfc909b14b9b0b20dfdb70e6c962ff61177da15ee"
+    },
+    {
+      "content": "Готово, файл отправил вам. Что изменено: слайд 4, текст «Акция: 680 ₽ на саморез»: было 680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 9011,
+        "outputTokens": 42
+      },
+      "latencyMs": 650,
+      "requestHash": "2a3334aa5de9fb949644fb868400aa1c4c0b68515c2a914f61090f7dde4036cb"
+    }
+  ],
+  "synthetic": true
+}

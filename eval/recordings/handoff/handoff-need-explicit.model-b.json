@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "caseId": "handoff-need-explicit",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "h-1",
+          "name": "handoffToPrices",
+          "arguments": {
+            "requestId": "req-1",
+            "positions": [
+              "Арматура 12 мм"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3932,
+        "outputTokens": 26
+      },
+      "latencyMs": 650,
+      "requestHash": "35781c2b1bf11319cab2cac6e631cf0211366653649aebebee4ac465e5ab6e24"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "h-2",
+          "name": "handoffToPrices",
+          "arguments": {
+            "requestId": "req-1",
+            "positions": [
+              "Арматура 12 мм"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4049,
+        "outputTokens": 26
+      },
+      "latencyMs": 650,
+      "requestHash": "c5ced5aead0faf0e819e052199ffcc3a6b0addd21f6c8d74ba05db4a97ddd4e8"
+    },
+    {
+      "content": "Передача помощнику «Актуализация прайса (ИИ агент)» поставлена: итог придёт сообщением.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4171,
+        "outputTokens": 23
+      },
+      "latencyMs": 650,
+      "requestHash": "83f5ded96bb9ce86e67e3864e70c400cd905e72a9f412a4b42150971afc22480"
+    }
+  ],
+  "synthetic": true
+}

@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-confirm-yes",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8273,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "b2cd1536296c8c3afe7ca977a66aa1148318da6c6215ee317050ebb8a17e2fd7"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-edit",
+          "name": "editPriceInFile",
+          "arguments": {
+            "path": "jhrqkjvnjymymxjw/rmznmmqxxmsxyyntnkqgxkpyvqhtrpww_Спецпредложение.pptx",
+            "edits": [
+              {
+                "oldPrice": 680,
+                "newPrice": 700,
+                "slide": 11
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8364,
+        "outputTokens": 48
+      },
+      "latencyMs": 400,
+      "requestHash": "2baa947796ead4d6932fd7335b4b6e11872a59c5d8e5025d40cdb969d524133c"
+    },
+    {
+      "content": "Готово, исправленный файл отправил вам. Что изменено: слайд 11, строка «Саморез»: было 680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8641,
+        "outputTokens": 42
+      },
+      "latencyMs": 400,
+      "requestHash": "5031820ab80c8cfd1d435da356132739084c91a90a71a679d75315c8819a70a7"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-pending",
+          "name": "getPendingPriceEdit",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8334,
+        "outputTokens": 16
+      },
+      "latencyMs": 400,
+      "requestHash": "1f507148e409701c3f9c9ad3ec622055ef14b6fcd9878a45aee781ef424d0ada"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-find",
+          "name": "searchSuppliers",
+          "arguments": {
+            "query": "МеталлТорг"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8540,
+        "outputTokens": 20
+      },
+      "latencyMs": 400,
+      "requestHash": "10d4ac0139d344460c3f470aa2903a3e64b45a74e5abbd0b0eea3ad6ba97c5b7"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-write",
+          "name": "writeEditedPricesToDb",
+          "arguments": {
+            "supplierId": "s1",
+            "matches": [
+              {
+                "change": 0,
+                "productName": "Саморез"
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8598,
+        "outputTokens": 33
+      },
+      "latencyMs": 400,
+      "requestHash": "3b80a9554b169938687211f928cb40d82e9174bbd364202944435406cdf5754c"
+    },
+    {
+      "content": "Принял: поставщик МеталлТорг. Цены записаны в базу: Саморез был 680, стал 700 (источник «сотрудник, правка файла»). Остальной прайс не менялся.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8765,
+        "outputTokens": 37
+      },
+      "latencyMs": 400,
+      "requestHash": "30a70deb8c216b39418dfe47c3fa2c44aa66017ccc16bfe44f56c34a21f58de4"
+    }
+  ],
+  "synthetic": true
+}

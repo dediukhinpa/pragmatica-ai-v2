@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "caseId": "order-calc-discovery-add-cards",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-find",
+          "name": "findSuppliersForBase",
+          "arguments": {
+            "query": "ёлочные игрушки"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5721,
+        "outputTokens": 22
+      },
+      "latencyMs": 400,
+      "requestHash": "4abd67839adac64592f6e606a7dbb7f36316484f84bf7dd9e9899549670dc91f"
+    },
+    {
+      "content": "Нашёл новых кандидатов, список показан выше. Назовите номера, кого завести в базу.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5928,
+        "outputTokens": 21
+      },
+      "latencyMs": 400,
+      "requestHash": "db311a4ce177d594d2b0325cb5d760018319f11870e668e45d04cb219d07bbda"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-prepare",
+          "name": "prepareDiscoveredSupplierCards",
+          "arguments": {
+            "numbers": [
+              1,
+              3
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5760,
+        "outputTokens": 23
+      },
+      "latencyMs": 400,
+      "requestHash": "deb6dc54613d3b6989af34170e9b6c07d5feeddc18b378cc8544bec533dcb30f"
+    },
+    {
+      "content": "Показал карточки 1 и 3: запишу в базу только после вашего ответа.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 5946,
+        "outputTokens": 17
+      },
+      "latencyMs": 400,
+      "requestHash": "b01465e2228573f57f9f7e0220b3ddadbdd60fff564548f6beefd71a11d5c461"
+    }
+  ],
+  "synthetic": true
+}

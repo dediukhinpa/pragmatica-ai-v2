@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "caseId": "documents-amend-number-caption-with-file",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "amendCounterpartyContract",
+          "arguments": {
+            "numberOnly": true,
+            "numberEdit": {
+              "mode": "append",
+              "text": "17/10"
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 7479,
+        "outputTokens": 32
+      },
+      "latencyMs": 650,
+      "requestHash": "88d4d49ee44b52f67d5322fdcf2d42cad8c81e3abcf59a0b3d8319b59bf35f04"
+    },
+    {
+      "content": "Готово: номер дополнен, было «103/11-26», стало «103/11-26 / 17/10». Реквизиты не менял.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 7655,
+        "outputTokens": 23
+      },
+      "latencyMs": 650,
+      "requestHash": "f994b126b35d789516b1c4eb87ebf133e16ac0068c24133d649e7474d32ddba6"
+    }
+  ],
+  "synthetic": true
+}

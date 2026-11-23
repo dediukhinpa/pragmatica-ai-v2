@@ -1,0 +1,230 @@
+--- eval/environments/documents.ts
++++ eval/environments/documents.ts
+@@ -9,6 +9,11 @@
+   MemoryWorkflowStateStore,
+ } from '@business-ai/adapters';
+ import { MemoryContractAmender } from '../../src/kit/adapters/memory/contract-amender';
++import { MemoryOwnLegalEntityRepository } from '../../src/kit/adapters/memory/own-legal-entity-repository';
++import { ownRequisitesFromRepository } from '../../src/agents/documents/own-requisites';
++import { ownEntityRequisiteLines } from '../../src/kit/domain/own-legal-entity';
++import type { OwnLegalEntityData } from '../../src/kit/domain/own-legal-entity';
++import type { SignatoryInflector } from '../../src/kit/ports/signatory-inflector';
+ import { MemoryKnowledgeSearch } from '../../src/kit/adapters/memory/knowledge-search.owned';
+ import { MemorySupplierRepository } from '../../src/kit/adapters/memory/repositories.owned';
+ import { SUPPLIER_LOOKUP_OFFER_NAMESPACE } from '../../src/agents/suppliers/deps';
+@@ -19,12 +24,19 @@
+   recordWebConfirmation,
+ } from '../../src/agents/documents/web-confirmation';
+ import { type DocumentsDeps } from '../../src/agents/documents/deps';
++import {
++  clearPragmatikaRuntime,
++  pragmatikaRuntime,
++  setPragmatikaRuntime,
++  type PragmatikaRuntime,
++} from '../../src/runtime';
+ import { ACTION_CONFIRM_SUPPLIER_CARD } from '../../src/kit/domain/access.owned';
+ import type { DocumentsCase } from '../cases';
+ import { chatFileContainsCount, seedFiles, seedSuppliers } from './common';
+ import { chatFileCount, chatMessageCount } from '@business-ai/eval';
+ import { runProbe, splitArg, type ProbeFn } from '@business-ai/eval';
+ import type { EvalEnvironment } from '@business-ai/eval';
++import type { ConversationHistoryQuery, HistoryMessage } from '@business-ai/core';
+ 
+ /** Условный сотрудник, «нажавший» кнопку подтверждения данных из интернета. */
+ const EVAL_EMPLOYEE_USER = 'eval-employee';
+@@ -34,6 +46,8 @@
+   testCase: DocumentsCase,
+   model: string,
+ ): Promise<EvalEnvironment> {
++  // Кейсы идут параллельно: подмену рантайма снимает только окружение, которое её поставило.
++  const owner: CaptionRuntimeOwner = {};
+   const suppliers = new MemorySupplierRepository();
+   const files = new MemoryFileSource();
+   const chat = new MemoryChatChannel();
+@@ -41,6 +55,7 @@
+   seedFiles(files, testCase.state.files);
+   const state = new MemoryWorkflowStateStore();
+   const clock = new FixedClock();
++  const ownSignatory = testCase.state.ownSignatory ? await buildOwnSignatory(files) : undefined;
+   const chatFiles = testCase.state.chatFiles;
+   const deps: DocumentsDeps = {
+     files,
+@@ -53,6 +68,16 @@
+     // Состояние и часы нужны подтверждению данных из интернета кнопкой.
+     state,
+     clock,
++    // Наши реквизиты из базы и склонение подписанта (этап 9q, п. 5).
++    ...(ownSignatory === undefined
++      ? {}
++      : {
++          contractAmender: new MemoryContractAmender(),
++          ownRequisites: ownRequisitesFromRepository(ownSignatory.repository),
++          ownEntities: ownSignatory.repository,
++          signatoryInflector: ownSignatory.inflector,
++          log: (event: string) => void ownSignatory.events.push(event),
++        }),
+     // Режим дополнения присланного договора (этап 227): заглушка сервиса и файлы чата.
+     ...(testCase.state.counterpartyAmend
+       ? {
+@@ -95,6 +120,11 @@
+     chatFiles: () => chatFileCount(chat),
+     // Файлов в чате с подстрокой `arg`: сохранён ли текст исполнителя и добавлено ли наше.
+     chatFileContains: (arg) => chatFileContainsCount(chat, arg ?? ''),
++    // События подстановки подписанта нашей стороны: сколько раз подставлен и сколько отказов.
++    ownSignatorySubstituted: async () =>
++      ownSignatory?.events.filter((event) => event === 'own_signatory_substituted').length ?? 0,
++    ownSignatoryRefused: async () =>
++      ownSignatory?.events.filter((event) => event === 'own_signatory_refused').length ?? 0,
+     // Открытые предложения «Добавить в базу?»: 1 - вопрос зарегистрирован, 0 - не предлагали.
+     openSupplierOffers: async () => {
+       const entries = await state.list(SUPPLIER_LOOKUP_OFFER_NAMESPACE, null, SCAN_LIMIT);
+@@ -118,7 +148,11 @@
+         : {}),
+     }),
+     toolDeps: deps,
+-    probe: (name, arg) => runProbe('documents', probes, name, arg),
++    probe: (name, arg) => {
++      // Замеры снимаются после прогона: подмену рантайма подписи возвращаем здесь.
++      releaseCaptionRuntime(owner);
++      return runProbe('documents', probes, name, arg);
++    },
+     // Ход начат сотрудником в чате: ответ «подтверждаю» модель записывает
+     // recordWebFieldsDecision (только в таком ходе), реплика - новый ход после вопроса.
+     runContext: { initiator: { kind: 'user' as const, userId: EVAL_EMPLOYEE_USER } },
+@@ -127,7 +161,17 @@
+     // подтверждение кодом до запуска агента.
+     // Как обработчик входящих сообщений чата: текст сотрудника запоминается для сверки
+     // реквизитов (отметка источника от модели доверия не имеет).
+-    beforeRun: (threadId, request) => noteEmployeeMessage(state, threadId, request),
++    // Запрос-подпись к файлу (этап 9q) хук не получает: его видит только история треда.
++    beforeRun: (threadId, request) =>
++      testCase.state.captionWithFile
++        ? installCaptionRuntime(
++            owner,
++            threadId,
++            request,
++            chatFiles[0]?.path ?? DEFAULT_CAPTION_FILE,
++            clock,
++          )
++        : noteEmployeeMessage(state, threadId, request),
+     beforeFollowUp: async (threadId, followUp) => {
+       await noteEmployeeMessage(state, threadId, followUp);
+       // Вопрос этого треда: запрос подтверждения записан под токеном (тред + отпечаток).
+@@ -144,6 +188,117 @@
+   };
+ }
+ 
++/** Шаблон договора Прагматики из реестра шаблонов: путь на «диске». */
++export const OWN_SIGNATORY_TEMPLATE = 'Шаблон_ПР_Договора_на_поставку_готовой_продукции.docx';
++const OWN_SIGNATORY_RECORDED_AT = '2026-11-10T10:00:00.000Z';
++/** Прежний подписант в базе и напечатанный в шаблоне (вымышленный). */
++const OLD_SIGNATORY = 'Зотов Иван Петрович';
++
++/** Наши реквизиты (вымышленные): запись базы Прагматики. */
++const OWN_RECORD: OwnLegalEntityData = {
++  fullName: 'Общество с ограниченной ответственностью «Тест-Альфа»',
++  shortName: 'ООО «Тест-Альфа»',
++  inn: '1234567005',
++  kpp: '123401001',
++  legalAddress: '100001, г. Тестоград, ул. Пробная, д. 1, оф. 10',
++  postalAddress: '100002, г. Тестоград, ул. Почтовая, д. 2',
++  actualAddress: '100003, г. Тестоград, ул. Фактическая, д. 3',
++  bankName: 'Тестовый банк ПАО «Пример», г. Тестоград',
++  bik: '041234501',
++  settlementAccount: '40702810000000000000',
++  correspondentAccount: '30101810000000000009',
++  signatoryPosition: 'Генеральный директор',
++  signatoryName: OLD_SIGNATORY,
++  signatoryBasis: 'Устава',
++  phone: '(900) 111-22-33',
++};
++
++/** Словарь склонения: только именительный падеж, как у настоящего сервиса (иначе `null`). */
++const SIGNATORY_GENITIVE: Readonly<Record<string, string>> = {
++  [OLD_SIGNATORY]: 'генерального директора Зотова Ивана Петровича',
++  'Смирнова Елена Викторовна': 'генерального директора Смирновой Елены Викторовны',
++};
++
++interface OwnSignatoryWorld {
++  repository: MemoryOwnLegalEntityRepository;
++  inflector: SignatoryInflector;
++  /** Имена событий журнала подстановки подписанта. */
++  events: string[];
++}
++
++/** База наших реквизитов, склонение-подмена и шаблон договора Прагматики на диске. */
++async function buildOwnSignatory(files: MemoryFileSource): Promise<OwnSignatoryWorld> {
++  const repository = new MemoryOwnLegalEntityRepository();
++  await repository.save('pragmatika', OWN_RECORD, {
++    updatedBy: 'eval',
++    at: OWN_SIGNATORY_RECORDED_AT,
++  });
++  const text = [
++    `Договор. ${OWN_RECORD.shortName}, именуемое «Заказчик», в лице генерального директора ` +
++      'Зотова Ивана Петровича, действующего на основании Устава, и {{seller}}.',
++    'Заказчик:',
++    OWN_RECORD.shortName,
++    ...ownEntityRequisiteLines(OWN_RECORD).filter((line) => !line.startsWith('в ')),
++    `в ${OWN_RECORD.bankName}`,
++    'Генеральный директор\tЗотов И.П.\tМ.П.',
++    'Приложение. Заказчик в лице генерального директора Зотова И.П., действующего на основании.',
++    'Генеральный директор ______/Зотов И.П.',
++    '______/И.П. Зотов',
++  ].join('\n');
++  seedFiles(files, [{ path: OWN_SIGNATORY_TEMPLATE, text }]);
++  const inflector: SignatoryInflector = {
++    signatoryGenitive: async (_position, fullName) => SIGNATORY_GENITIVE[fullName] ?? null,
++  };
++  return { repository, inflector, events: [] };
++}
++
++/** Имя файла в служебной строке, если у кейса нет файлов чата. */
++const DEFAULT_CAPTION_FILE = 'Договор.docx';
++
++/** Рантайм приложения до подмены кейсом «подпись к файлу»; нет подмены - `undefined`. */
++let captionRuntimeSwap:
++  | { owner: CaptionRuntimeOwner; previous: PragmatikaRuntime | undefined }
++  | undefined;
++
++/** Владелец подмены рантайма: окружение одного кейса. */
++type CaptionRuntimeOwner = Record<string, never>;
++
++/**
++ * Поставить в рантайм проекта историю треда с запросом сотрудника как репликой хода с файлом
++ * (так запрос формирует насос чата: подпись, пустая строка, служебная строка о файле) и часы
++ * кейса. Хук входящих сообщений для такого запроса не вызывается, текст сверки берётся из истории.
++ */
++async function installCaptionRuntime(
++  owner: CaptionRuntimeOwner,
++  threadId: string,
++  caption: string,
++  fileName: string,
++  clock: FixedClock,
++): Promise<void> {
++  const message: HistoryMessage = {
++    role: 'user',
++    text: `${caption}\n\nСотрудник прислал файл «${fileName}», путь intake/${fileName}`,
++    at: clock.now(),
++  };
++  const history = {
++    async search(query: ConversationHistoryQuery) {
++      if (query.threadId !== threadId) return [];
++      return [{ message, before: [], after: [], score: 1 }];
++    },
++  };
++  captionRuntimeSwap = { owner, previous: pragmatikaRuntime() };
++  setPragmatikaRuntime({ clock, conversationHistory: history } as unknown as PragmatikaRuntime);
++}
++
++/** Вернуть рантайм, каким он был до подмены кейса «подпись к файлу». */
++function releaseCaptionRuntime(owner: CaptionRuntimeOwner): void {
++  const swap = captionRuntimeSwap;
++  if (swap === undefined || swap.owner !== owner) return;
++  captionRuntimeSwap = undefined;
++  if (swap.previous === undefined) clearPragmatikaRuntime();
++  else setPragmatikaRuntime(swap.previous);
++}
++
+ /** Сколько запросов подтверждения просматриваем в поисках вопроса треда. */
+ const WEB_REQUESTS_SCAN_LIMIT = 100;
+ 

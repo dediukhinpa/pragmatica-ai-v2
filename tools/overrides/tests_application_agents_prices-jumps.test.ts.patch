@@ -1,0 +1,18 @@
+--- tests/application/agents/prices-jumps.test.ts
++++ tests/application/agents/prices-jumps.test.ts
+@@ -1,6 +1,6 @@
+ import { beforeEach, describe, expect, test } from 'bun:test';
+ import { MemoryAccessPolicy, MemoryAgentRuntime } from '@business-ai/adapters';
+-import { CHAT_JUMP_NOT_REQUIRED_TEXT } from '../../../src/app/chat-pump.owned';
++import { CHAT_JUMP_NOT_REQUIRED_TEXT, retiredPriceJumpButton } from '../../../src/app/chat-pump.owned';
+ import { JUMP_DECISION_NAMESPACE, JUMP_REQUEST_NAMESPACE, PRICES_AGENT_ID } from '../../../src/application/agents/prices/deps';
+ import { mailRecordId, readPriceMail } from '../../../src/application/agents/prices/price-mail';
+ import { stagePriceRows } from '../../../src/application/agents/prices/stage-price-rows';
+@@ -99,6 +99,7 @@
+       access,
+       runtime,
+       agent: toRunSpec({ ...declaration, id: PRICES_AGENT_ID }),
++      buttonHandlers: [retiredPriceJumpButton],
+       ...(withState ? { state: deps.state } : {}),
+     });
+     return { pump, runtime };

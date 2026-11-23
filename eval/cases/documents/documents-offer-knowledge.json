@@ -1,0 +1,51 @@
+{
+  "id": "documents-offer-knowledge",
+  "agent": "documents",
+  "description": "КП клиенту: покупатель и цены берутся из базы знаний (карточка, прайс), источник отмечен как knowledge, подтверждения не нужно.",
+  "request": "Сделай КП на 10 болтов М8 для ООО Заказчик по цене из прайса. Ответственный — Алексей Сидоров, +7 (913) 555-12-34.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "files": [
+      {
+        "path": "templates/КП шаблон.docx",
+        "text": "tpl"
+      }
+    ],
+    "knowledge": {
+      "kb-1": "Шаблон договора поставки"
+    }
+  },
+  "expect": {
+    "maxSteps": 5,
+    "requiredTools": [
+      "findTemplate",
+      "saveDocument"
+    ],
+    "toolOrder": "ordered",
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true,
+    "outputContains": [
+      "КП"
+    ]
+  },
+  "pii": {
+    "names": [
+      "Сидоров",
+      "Алексей",
+      "Николаевич"
+    ],
+    "phones": [
+      "+7 (913) 555-12-34"
+    ]
+  }
+}

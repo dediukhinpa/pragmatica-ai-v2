@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "caseId": "order-calc-prepare-text",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "search-0",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        },
+        {
+          "id": "search-1",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5006,
+        "outputTokens": 40
+      },
+      "latencyMs": 400,
+      "requestHash": "ddc3807744285620d08dd69b196d6577f96fd273a585c2fd43546e099f7645b4"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5136,
+        "outputTokens": 19
+      },
+      "latencyMs": 400,
+      "requestHash": "6f0eecbbfd9af2a5b62d298212b4d704655dd6c8fbe69fc5152c929b38f34686"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-1",
+            "version": "sjgjqhhhprrhkxjt"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5381,
+        "outputTokens": 27
+      },
+      "latencyMs": 400,
+      "requestHash": "b6afdc11d47e2fce92bfa1b53e096f26e37f225af2ae674e469a93b4a1055f26"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-choice",
+          "name": "recordManagerChoice",
+          "arguments": {
+            "requestId": "req-1",
+            "decision": "picked",
+            "picks": [
+              "МеталлТорг",
+              "Болтик"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5314,
+        "outputTokens": 34
+      },
+      "latencyMs": 400,
+      "requestHash": "7f78757e96c31b769d1c11a5005db08cc7a36eaead5a83286ec30a9033e75a84"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-select",
+          "name": "recordSelection",
+          "arguments": {
+            "requestId": "req-1",
+            "supplierIds": [
+              "s1",
+              "s2"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5389,
+        "outputTokens": 26
+      },
+      "latencyMs": 400,
+      "requestHash": "b6fcee1e1e112e755d2f4bde0090c4950643e10977c4c8377f457df211758789"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-text",
+          "name": "prepareSupplierRequestText",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5455,
+        "outputTokens": 22
+      },
+      "latencyMs": 400,
+      "requestHash": "d30a707e353982afe0c976225de897b591147a4924307f2469ea8c9583accf96"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-remind",
+          "name": "scheduleReminder",
+          "arguments": {
+            "requestId": "req-1"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 5647,
+        "outputTokens": 20
+      },
+      "latencyMs": 400,
+      "requestHash": "a2d1ebfb6b53594174308a1128d193c6c0e4443124b955694dacc96d9882ab88"
+    }
+  ],
+  "synthetic": true
+}

@@ -1,0 +1,96 @@
+{
+  "id": "prices-edit-first-pdf-text-refused",
+  "agent": "prices",
+  "description": "Этап 9r (отказ сервиса по числу в тексте pdf): сотрудник просит заменить цену 1250 в строке «Итого» страницы 1 на 1250000. Сервис отказывает (no_fit: новое число длиннее старого и не помещается), файл не выдан. Агент называет причину по месту («страница 1», «не помещается»), ничего не отправляет и предлагает xlsx-копию только с согласия сотрудника; в базу ничего не пишется, ожидания ответа нет.",
+  "request": "Прислал предложение Offer_autumn.pdf. На странице 1 в строке «Итого» цену 1250 замени на 1250000. Ответственный — Игорь Тихонов, +7 (916) 288-40-15.",
+  "state": {
+    "suppliers": [],
+    "prices": [],
+    "priceEditFirst": true,
+    "priceEditDbWrite": true,
+    "priceTextBlocks": true,
+    "chatFiles": [
+      {
+        "path": "Offer_autumn.pdf",
+        "text": "# Offer autumn\n\n## Страница 1\n\nКоммерческое предложение\n\nИтого за единицу: 1 250,00 USD при заказе партии.\n\nItem A | 1 250,00 | USD\n\nItem B | 980,50 | USD\n\n## Страница 2\n\n| Item | Price |\n| --- | --- |\n| Bolt | 400,00 |"
+      }
+    ],
+    "priceSpots": [
+      {
+        "page": 1,
+        "spot": 0,
+        "text": "1 250,00",
+        "context": "Итого за единицу: 1 250,00 USD при заказе партии."
+      },
+      {
+        "page": 1,
+        "spot": 1,
+        "text": "1 250,00",
+        "context": "Item A | 1 250,00 | USD",
+        "header": "Price"
+      },
+      {
+        "page": 1,
+        "spot": 2,
+        "text": "980,50",
+        "context": "Item B | 980,50 | USD",
+        "header": "Price"
+      }
+    ],
+    "priceEditRefusal": "no_fit"
+  },
+  "expect": {
+    "maxSteps": 6,
+    "requiredTools": [
+      "listIntakeFiles",
+      "listPriceSpots",
+      "editPriceInFile"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "searchSuppliers",
+      "stagePriceRows",
+      "normalizePriceTable",
+      "savePriceImport",
+      "editPricesInSourceFile",
+      "writeEditedPricesToDb",
+      "recordEmployeePriceUpdates",
+      "previewPriceChanges",
+      "commitPriceImport",
+      "createFile"
+    ],
+    "outputContains": [
+      "страница 1",
+      "не помещается",
+      "xlsx"
+    ],
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 0
+      },
+      {
+        "probe": "editedCellCount",
+        "value": 1
+      },
+      {
+        "probe": "pendingPriceEdit",
+        "value": 0
+      },
+      {
+        "probe": "storedPriceCount",
+        "value": 0
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Тихонов",
+      "Игорь"
+    ],
+    "phones": [
+      "+7 (916) 288-40-15"
+    ]
+  }
+}

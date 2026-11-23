@@ -1,0 +1,19 @@
+--- src/application/agents/order-calc/declaration.ts
++++ src/application/agents/order-calc/declaration.ts
+@@ -1,5 +1,5 @@
+ import { SESSION_SUMMARY_PROMPT } from '@business-ai/core';
+-import { FILE_TOOL_PROMPT, createFileTool } from '@business-ai/core';
++import { FILE_TOOL_PROMPT, createFileWarningsTool } from '@business-ai/core';
+ import type { AgentDeclaration } from '@business-ai/core';
+ import { askManagerToChoose, recordManagerChoice } from './ask-manager-to-choose';
+ import { recordSupplierCardDecision } from './supplier-card-offer';
+@@ -111,7 +111,8 @@
+       searchWeb,
+       searchInternet,
+       searchConversationHistory,
+-      createFileTool,
++      // Режим предупреждений: пределы файла - обрезка с замечаниями, а не отказ (этап 177).
++      createFileWarningsTool,
+       buildShortlist,
+       askManagerToChoose,
+       recordManagerChoice,

@@ -1,0 +1,20 @@
+--- tests/application/agents/run-data-script.test.ts
++++ tests/application/agents/run-data-script.test.ts
+@@ -4,7 +4,7 @@
+ import { fileRefOf } from '../../../src/application/agents/prices/file-ref';
+ import { runDataScript as documentsRunDataScript } from '../../../src/application/agents/documents/run-data-script';
+ import { runDataScript as runDataScriptForPrices } from '../../../src/application/agents/prices/run-data-script';
+-import { isDomainError } from '@business-ai/core';
++import { DomainError, isDomainError } from '@business-ai/core';
+ import type { JsonValue, ScriptRunOutcome, ScriptRunRequest, ScriptSandbox } from '@business-ai/core';
+ import { CTX, FILE_REF_SECRET, buildDocumentsDeps, buildPricesDeps, putFile } from './support';
+ 
+@@ -143,7 +143,7 @@
+   });
+ 
+   test('песочница недоступна: исключение external_failure и событие без данных', async () => {
+-    const down = new (await import('../../../src/domain/index.shim')).DomainError('external_failure', 'нет');
++    const down = new DomainError('external_failure', 'нет');
+     deps.scriptSandbox = new FakeSandbox(() => down);
+     const error = await run({ fileRef: PRICE_FILE, resultKind: 'value' }).catch((e: unknown) => e);
+     expect(isDomainError(error) && error.code === 'external_failure').toBe(true);

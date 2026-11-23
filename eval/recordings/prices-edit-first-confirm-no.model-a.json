@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "caseId": "prices-edit-first-confirm-no",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-list",
+          "name": "listIntakeFiles",
+          "arguments": {}
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8273,
+        "outputTokens": 15
+      },
+      "latencyMs": 400,
+      "requestHash": "2d8baadcba80f79e96b6e1734b9c6e9d340f6d39006c550d77e345d2ffc8a4a4"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-edit",
+          "name": "editPriceInFile",
+          "arguments": {
+            "path": "ttzsynnrsghvkgnz/rmznmmqxxmsxyyntnkqgxkpyvqhtrpww_Спецпредложение.pptx",
+            "edits": [
+              {
+                "oldPrice": 680,
+                "newPrice": 700,
+                "slide": 11
+              }
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8364,
+        "outputTokens": 48
+      },
+      "latencyMs": 400,
+      "requestHash": "ebe572bf7651bdaa7310b5bd89fb0a0c12cbeee35f0cd00b32ba43aba2df6410"
+    },
+    {
+      "content": "Готово, исправленный файл отправил вам. Что изменено: слайд 11, строка «Саморез»: было 680, стало 700. Как называется поставщик? Обновить цены этих позиций в базе?",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8641,
+        "outputTokens": 42
+      },
+      "latencyMs": 400,
+      "requestHash": "5031820ab80c8cfd1d435da356132739084c91a90a71a679d75315c8819a70a7"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-close",
+          "name": "closePendingPriceEdit",
+          "arguments": {
+            "decision": "declined"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 8334,
+        "outputTokens": 22
+      },
+      "latencyMs": 400,
+      "requestHash": "a052e38a73930d87b5d00d118373ba8b41ae64de6eafbdce3e01a4b090bf021e"
+    },
+    {
+      "content": "Хорошо, цены в базе остались прежними: Саморез по-прежнему 680.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 8411,
+        "outputTokens": 17
+      },
+      "latencyMs": 400,
+      "requestHash": "d00c578fa9278dc7902da2600b58c477ca71a167b85e1e345c6b43c238e706d7"
+    }
+  ],
+  "synthetic": true
+}

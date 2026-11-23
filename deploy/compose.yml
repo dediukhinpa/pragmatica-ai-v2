@@ -1,0 +1,20 @@
+# Compose Прагматики v2: имя проекта задаёт проект, платформенные сервисы приходят из закреплённой
+# базы (platform/compose.base.yml, версия — platform/PLATFORM-VERSION).
+#
+# Запуск (образы платформы и app берутся по digest из images.lock):
+#   docker compose --env-file images.lock --env-file .env -f deploy/compose.yml up -d
+#
+# `name: pragmatika` НЕЛЬЗЯ менять: от него зависят имена контейнеров (`pragmatika-app-1`), томов
+# (`pragmatika_pseudonymizer-data`, ...) и сетей (`pragmatika_backend`, ...). Другое имя создаст
+# новые пустые тома, и боевые данные (Postgres, хранилище псевдонимизатора) окажутся отрезанными.
+name: pragmatika
+
+include:
+  # Второй файл списка объединяется с базой как `-f base -f override`: так проект меняет сервисы
+  # базы (include не позволяет переопределить сервис иначе). Относительные пути обоих файлов
+  # отсчитываются от каталога первого файла, то есть от deploy/platform/.
+  - path:
+      - platform/compose.base.yml
+      - compose.project.yml
+    env_file:
+      - compat.env

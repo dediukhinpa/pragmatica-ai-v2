@@ -1,0 +1,89 @@
+{
+  "id": "prices-edit-first-pptx-list-spots",
+  "agent": "prices",
+  "description": "Этап 9q (числа вне таблиц): сотрудник спрашивает «какие цены на слайде 4?». Агент вызывает listPriceSpots со слайдом 4 и перечисляет числа вне таблиц с текстом вокруг (680 ₽ и 1 200,50 руб.), ничего не правит: файл в чат не уходит, ожидания и записей в базу нет.",
+  "request": "Прислала презентацию Акции_осень.pptx. Какие цены на слайде 4? Ответственная — Анна Орлова, +7 (916) 555-12-34.",
+  "state": {
+    "suppliers": [],
+    "prices": [],
+    "priceEditFirst": true,
+    "priceEditDbWrite": true,
+    "priceTextBlocks": true,
+    "chatFiles": [
+      {
+        "path": "Акции_осень.pptx",
+        "text": "# Акции осень\n\n## Слайд 2: Крепёж\n\n| Позиция | Цена |\n| --- | --- |\n| Болт М8 | 45 |\n| Гайка М8 | 12 |\n\n## Слайд 4: Акция\n\nАкция: 680 ₽ на саморез\n\nНабор 1 200,50 руб. при заказе от 10 шт"
+      }
+    ],
+    "priceSpots": [
+      {
+        "slide": 4,
+        "shape": "5",
+        "paragraph": 0,
+        "start": 7,
+        "text": "680 ₽",
+        "context": "Акция: 680 ₽ на саморез"
+      },
+      {
+        "slide": 4,
+        "shape": "7/12",
+        "paragraph": 0,
+        "start": 6,
+        "text": "1 200,50 руб.",
+        "context": "Набор 1 200,50 руб. при заказе от 10 шт"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 4,
+    "requiredTools": [
+      "listIntakeFiles",
+      "listPriceSpots"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "editPriceInFile",
+      "searchSuppliers",
+      "stagePriceRows",
+      "normalizePriceTable",
+      "savePriceImport",
+      "editPricesInSourceFile",
+      "writeEditedPricesToDb",
+      "recordEmployeePriceUpdates",
+      "previewPriceChanges",
+      "commitPriceImport"
+    ],
+    "outputContains": [
+      "слайд 4",
+      "680",
+      "1 200,50"
+    ],
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 0
+      },
+      {
+        "probe": "editedCellCount",
+        "value": 0
+      },
+      {
+        "probe": "pendingPriceEdit",
+        "value": 0
+      },
+      {
+        "probe": "storedPriceCount",
+        "value": 0
+      }
+    ]
+  },
+  "pii": {
+    "names": [
+      "Орлова",
+      "Анна"
+    ],
+    "phones": [
+      "+7 (916) 555-12-34"
+    ]
+  }
+}

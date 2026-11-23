@@ -1,0 +1,118 @@
+{
+  "id": "prices-edit-first-slide-n",
+  "agent": "prices",
+  "description": "Этап 9p (правка файла сразу): в презентации одна и та же цена 680 на слайдах 2, 4 и 7, сотрудник называет «слайд 4». Правится ровно ячейка слайда 4 (таблица 1, строка 2, столбец 1, в expected старая цена 680), слайды 2 и 7 остаются прежними, вопросов до правки нет.",
+  "request": "Прислал презентацию Прайс_акция.pptx. На слайде 4 цену 680 замени на 720. Ответственный — Дмитрий Соколов, +7 (911) 280-47-95.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "prices": [
+      {
+        "supplierId": "s1",
+        "productName": "Саморез",
+        "price": 680
+      }
+    ],
+    "priceEditFirst": true,
+    "priceEditDbWrite": true,
+    "priceTextBlocks": true,
+    "chatFiles": [
+      {
+        "path": "Прайс_акция.pptx",
+        "text": "# Спецпредложение\n\n## Слайд 2: Крепёж\n\n| Позиция | Цена |\n| --- | --- |\n| Болт М8 | 680 |\n| Гайка М8 | 25 |\n\n## Слайд 4: Метизы\n\n| Позиция | Цена |\n| --- | --- |\n| Шайба | 12.5 |\n| Саморез | 680 |\n\n## Слайд 7: Анкеры\n\n| Позиция | Цена |\n| --- | --- |\n| Анкер | 680 |\n| Дюбель | 9 |"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 4,
+    "requiredTools": [
+      "listIntakeFiles",
+      "editPriceInFile"
+    ],
+    "toolOrder": "ordered",
+    "forbiddenTools": [
+      "searchSuppliers",
+      "stagePriceRows",
+      "normalizePriceTable",
+      "savePriceImport",
+      "editPricesInSourceFile",
+      "recordEmployeePriceUpdates",
+      "previewPriceChanges",
+      "commitPriceImport",
+      "sendPriceChangeFile"
+    ],
+    "outputContains": [
+      "слайд 4",
+      "680",
+      "720",
+      "в базе"
+    ],
+    "stateChecks": [
+      {
+        "probe": "chatFiles",
+        "value": 1
+      },
+      {
+        "probe": "editedCellCount",
+        "value": 1
+      },
+      {
+        "probe": "editedValue",
+        "arg": "1:2:1",
+        "value": 720
+      },
+      {
+        "probe": "editedExpected",
+        "arg": "1:2:1",
+        "value": 680
+      },
+      {
+        "probe": "chatFileContains",
+        "arg": "Саморез | 720",
+        "value": 1
+      },
+      {
+        "probe": "chatFileContains",
+        "arg": "Саморез | 680",
+        "value": 0
+      },
+      {
+        "probe": "chatFileContains",
+        "arg": "Болт М8 | 680",
+        "value": 1
+      },
+      {
+        "probe": "chatFileContains",
+        "arg": "Анкер | 680",
+        "value": 1
+      },
+      {
+        "probe": "pendingPriceEdit",
+        "value": 1
+      },
+      {
+        "probe": "storedPrice",
+        "arg": "s1:Саморез",
+        "value": 680
+      },
+      {
+        "probe": "storedPriceCount",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Соколов",
+      "Дмитрий"
+    ],
+    "phones": [
+      "+7 (911) 280-47-95"
+    ]
+  }
+}

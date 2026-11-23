@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "caseId": "order-calc-empty-search",
+  "model": "model-b",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "search-0",
+          "name": "searchKnowledgeSuppliers",
+          "arguments": {
+            "requestId": "req-9"
+          }
+        },
+        {
+          "id": "search-1",
+          "name": "searchWeb",
+          "arguments": {
+            "requestId": "req-9"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3812,
+        "outputTokens": 40
+      },
+      "latencyMs": 650,
+      "requestHash": "707d147433dc0aa0dd6ecacc28c49955600841dafc36c7bccff0351ca43264a8"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-build",
+          "name": "buildShortlist",
+          "arguments": {
+            "requestId": "req-9"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3926,
+        "outputTokens": 19
+      },
+      "latencyMs": 650,
+      "requestHash": "f8acdd79f09516fbef8ba6d6b59f33f28b3aab9c62e554d50dfb19332937d46c"
+    },
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c-ask",
+          "name": "askManagerToChoose",
+          "arguments": {
+            "requestId": "req-9",
+            "version": "vvywxgmrwysgmmyy"
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 4044,
+        "outputTokens": 27
+      },
+      "latencyMs": 650,
+      "requestHash": "d2e5d630ca9936178b91e29d276b7e4308816792ac6524fcfe1a60458684e261"
+    },
+    {
+      "content": "Повторю поиск по уточнению менеджера",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 3877,
+        "outputTokens": 10
+      },
+      "latencyMs": 650,
+      "requestHash": "96f064897611baba503d12aecf2caeba448f87a728133a3cce53d54d45f8daf0"
+    }
+  ],
+  "synthetic": true
+}

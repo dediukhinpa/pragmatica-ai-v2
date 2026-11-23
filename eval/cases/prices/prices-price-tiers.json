@@ -1,0 +1,68 @@
+{
+  "id": "prices-price-tiers",
+  "agent": "prices",
+  "description": "Цены за тиражи в нескольких столбцах: агент передаёт priceTiers, основной ценой пишется цена минимального тиража, тиражи сохраняются в позиции.",
+  "request": "Проверь прайсы. Ответственный — Тимур Лаптев, +7 (917) 666-77-88.",
+  "state": {
+    "suppliers": [
+      {
+        "id": "s1",
+        "name": "МеталлТорг"
+      }
+    ],
+    "prices": [],
+    "files": [
+      {
+        "path": "tiers.csv",
+        "text": "Наименование,от 50 шт,от 100 шт\nРучка,12,10\nБлокнот,30,25"
+      }
+    ]
+  },
+  "expect": {
+    "maxSteps": 6,
+    "requiredTools": [
+      "normalizePriceTable",
+      "savePriceImport",
+      "reportToManager"
+    ],
+    "toolOrder": "ordered",
+    "outputContains": [
+      "обновлён"
+    ],
+    "stateChecks": [
+      {
+        "probe": "storedPriceCount",
+        "value": 2
+      },
+      {
+        "probe": "storedPrice",
+        "arg": "s1:Ручка",
+        "value": 12
+      },
+      {
+        "probe": "storedPriceTiers",
+        "arg": "s1:Ручка",
+        "value": 2
+      },
+      {
+        "probe": "storedPriceTiers",
+        "arg": "s1:Блокнот",
+        "value": 2
+      },
+      {
+        "probe": "chatMessages",
+        "value": 1
+      }
+    ],
+    "noPiiInRequests": true
+  },
+  "pii": {
+    "names": [
+      "Лаптев",
+      "Тимур"
+    ],
+    "phones": [
+      "+7 (917) 666-77-88"
+    ]
+  }
+}

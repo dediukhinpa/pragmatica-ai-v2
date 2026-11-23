@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "caseId": "handoff-need-stale-prices",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "h-1",
+          "name": "handoffToPrices",
+          "arguments": {
+            "requestId": "req-2",
+            "positions": [
+              "Арматура 12 мм"
+            ]
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 3934,
+        "outputTokens": 26
+      },
+      "latencyMs": 400,
+      "requestHash": "41228f68faba8707ae86073ac0ffba0933b493f056596480651867d87d29e8dd"
+    },
+    {
+      "content": "Передача помощнику «Актуализация прайса (ИИ агент)» поставлена: итог придёт сообщением.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 4051,
+        "outputTokens": 23
+      },
+      "latencyMs": 400,
+      "requestHash": "f49bc4c09a0784c8fa9a6c65ec2583307dc9f750584d076533c6499bcd443d40"
+    }
+  ],
+  "synthetic": true
+}

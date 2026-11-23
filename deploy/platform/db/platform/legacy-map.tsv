@@ -1,0 +1,24 @@
+# Платформенная карта старых версий: до разделения на потоки платформенные миграции
+# записывались в schema_migrations под своими именами файлов (без префикса потока).
+# Формат: старая_версия<TAB>новая_версия. Новые платформенные миграции сюда не вносятся:
+# старой записи у них быть не может.
+001_core	platform/001_core
+002_threads	platform/002_threads
+003_knowledge	platform/003_knowledge
+004_adapter_state	platform/004_adapter_state
+005_workflow_state	platform/005_workflow_state
+006_metrics_feedback	platform/006_metrics_feedback
+007_workflow_state_retention	platform/007_workflow_state_retention
+008_jobs_reliable_queue	platform/008_jobs_reliable_queue
+009_threads_retention	platform/009_threads_retention
+010_hybrid_search_per_document	platform/010_hybrid_search_per_document
+011_hybrid_search_relevance	platform/011_hybrid_search_relevance
+012_hybrid_search_plpgsql	platform/012_hybrid_search_plpgsql
+013_agent_pair_notes	platform/013_agent_pair_notes
+014_hybrid_search_iterative_scan	platform/014_hybrid_search_iterative_scan
+015_knowledge_fts_query	platform/015_knowledge_fts_query
+016_metrics_cache_tokens	platform/016_metrics_cache_tokens
+017_idempotency_purge_index	platform/017_idempotency_purge_index
+018_cost_trace	platform/018_cost_trace
+019_thread_sessions	platform/019_thread_sessions
+020_message_search	platform/020_message_search
