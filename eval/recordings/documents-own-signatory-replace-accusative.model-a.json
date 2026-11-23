@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "caseId": "documents-own-signatory-replace-accusative",
+  "model": "model-a",
+  "recordedAt": "2026-01-01T00:00:00.000Z",
+  "steps": [
+    {
+      "content": "",
+      "toolCalls": [
+        {
+          "id": "c1",
+          "name": "fillTemplate",
+          "arguments": {
+            "templatePath": "Шаблон_ПР_Договора_на_поставку_готовой_продукции.docx",
+            "document": {
+              "id": "doc-5",
+              "kind": "contract",
+              "number": "Д-1",
+              "buyer": "ООО Прагматика",
+              "seller": "МеталлТорг",
+              "supplierId": "s1",
+              "lines": [
+                {
+                  "name": "Болт М8",
+                  "quantity": 10,
+                  "unitPrice": 12
+                }
+              ],
+              "total": 120,
+              "currency": "RUB",
+              "issuedAt": "2026-01-05T00:00:00.000Z",
+              "fieldSources": {
+                "buyer": "employee",
+                "seller": "knowledge",
+                "lines": "employee",
+                "total": "employee"
+              },
+              "templateFields": {
+                "own_signatory_name": "Смирнова Елена Викторовна"
+              }
+            }
+          }
+        }
+      ],
+      "stopReason": "tool_use",
+      "usage": {
+        "inputTokens": 6229,
+        "outputTokens": 133
+      },
+      "latencyMs": 400,
+      "requestHash": "079229b573ed595e0862b32e66e9eeb9fc7217461ee214921c2bf7c242b9fe90"
+    },
+    {
+      "content": "Договор собран, подписант нашей стороны заменён в этом договоре.",
+      "toolCalls": [],
+      "stopReason": "end_turn",
+      "usage": {
+        "inputTokens": 6786,
+        "outputTokens": 17
+      },
+      "latencyMs": 400,
+      "requestHash": "6863e69b322ceb426bc0a38486a3245a76fbfc26d41247974f9d873ef64f9f00"
+    }
+  ],
+  "synthetic": true
+}

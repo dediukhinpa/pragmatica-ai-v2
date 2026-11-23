@@ -19,6 +19,9 @@ export const pragmatikaEval: ProjectEval = {
       'supplierCardFieldFilled',
       // Сколько файлов, отправленных в чат, содержат подстроку (текст исполнителя цел).
       'chatFileContains',
+      // Подстановка подписанта нашей стороны: сколько раз подставлен и сколько отказов (п. 5).
+      'ownSignatorySubstituted',
+      'ownSignatoryRefused',
     ],
     'order-calc': [
       'chatMessages',

@@ -106,6 +106,7 @@ describe('описание eval', () => {
     const counts = Object.fromEntries(
       AGENT_IDS.map((id) => [id, pragmatikaEval.probeNames[id]?.length ?? 0]),
     );
-    expect(counts).toEqual({ prices: 4, documents: 6, 'order-calc': 20, 'site-export': 4 });
+    // documents: 6 прежних + 2 проверки подстановки подписанта нашей стороны (этап 9q, п. 5).
+    expect(counts).toEqual({ prices: 4, documents: 8, 'order-calc': 20, 'site-export': 4 });
   });
 });

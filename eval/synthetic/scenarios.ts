@@ -428,6 +428,33 @@ const documentsEmployeeRequisite = sequence([
   say('Договор передан на проверку; подписант вписан с ваших слов, сверьте его с документами'),
 ]);
 
+/**
+ * Этап 9q (п. 5): «замени генерального директора Прагматики на Смирнову Елену Викторовну». model-a
+ * по промпту передаёт ФИО в именительном падеже; model-b - как в просьбе, в винительном: код
+ * сам приводит его к именительному, отказа own_signatory_refused нет.
+ */
+const OWN_SIGNATORY_TEMPLATE = 'Шаблон_ПР_Договора_на_поставку_готовой_продукции.docx';
+/** Договор без реквизитов поставщика: длинных числовых серий в запросах к модели нет. */
+const { requisites: _skipped, ...OWN_SIGNATORY_DOCUMENT } = EMPLOYEE_CONTRACT;
+const ownSignatoryCall = (name: string) =>
+  callTool('c1', 'fillTemplate', {
+    templatePath: OWN_SIGNATORY_TEMPLATE,
+    document: {
+      ...OWN_SIGNATORY_DOCUMENT,
+      fieldSources: { buyer: 'employee', seller: 'knowledge', lines: 'employee', total: 'employee' },
+      templateFields: { own_signatory_name: name },
+    },
+  });
+const OWN_SIGNATORY_DONE = say('Договор собран, подписант нашей стороны заменён в этом договоре.');
+const documentsOwnSignatoryNominative = sequence([
+  ownSignatoryCall('Смирнова Елена Викторовна'),
+  OWN_SIGNATORY_DONE,
+]);
+const documentsOwnSignatoryAccusative = sequence([
+  ownSignatoryCall('Смирнову Елену Викторовну'),
+  OWN_SIGNATORY_DONE,
+]);
+
 const documentsMissingA = sequence([
   callTool('c1', 'findTemplate', { query: 'акт сверки' }),
   say('Шаблона «акт сверки» нет. Какой шаблон взять или положить его на диск?'),
@@ -926,6 +953,10 @@ export const SCENARIOS: Readonly<Record<string, Readonly<Record<SyntheticModel, 
   'documents-contract-amend-counterparty': pair(documentsContractAmend),
   'documents-amend-number-append': pair(documentsAmendNumberAppend),
   'documents-amend-number-caption-with-file': pair(documentsAmendNumberCaption),
+  'documents-own-signatory-replace-accusative': {
+    'model-a': documentsOwnSignatoryNominative,
+    'model-b': documentsOwnSignatoryAccusative,
+  },
   'documents-send-blank-template': pair(documentsSendBlankTemplate),
   'order-calc-shortlist-pick': { 'model-a': orderShortlistA, 'model-b': orderShortlistB },
   'order-calc-prepare-text': { 'model-a': orderPrepareText, 'model-b': orderPrepareText },

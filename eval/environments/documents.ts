@@ -9,6 +9,11 @@ import {
   MemoryWorkflowStateStore,
 } from '@business-ai/adapters';
 import { MemoryContractAmender } from '../../src/kit/adapters/memory/contract-amender';
+import { MemoryOwnLegalEntityRepository } from '../../src/kit/adapters/memory/own-legal-entity-repository';
+import { ownRequisitesFromRepository } from '../../src/agents/documents/own-requisites';
+import { ownEntityRequisiteLines } from '../../src/kit/domain/own-legal-entity';
+import type { OwnLegalEntityData } from '../../src/kit/domain/own-legal-entity';
+import type { SignatoryInflector } from '../../src/kit/ports/signatory-inflector';
 import { MemoryKnowledgeSearch } from '../../src/kit/adapters/memory/knowledge-search.owned';
 import { MemorySupplierRepository } from '../../src/kit/adapters/memory/repositories.owned';
 import { SUPPLIER_LOOKUP_OFFER_NAMESPACE } from '../../src/agents/suppliers/deps';
@@ -50,6 +55,7 @@ export async function buildDocumentsEnvironment(
   seedFiles(files, testCase.state.files);
   const state = new MemoryWorkflowStateStore();
   const clock = new FixedClock();
+  const ownSignatory = testCase.state.ownSignatory ? await buildOwnSignatory(files) : undefined;
   const chatFiles = testCase.state.chatFiles;
   const deps: DocumentsDeps = {
     files,
@@ -62,6 +68,16 @@ export async function buildDocumentsEnvironment(
     // Состояние и часы нужны подтверждению данных из интернета кнопкой.
     state,
     clock,
+    // Наши реквизиты из базы и склонение подписанта (этап 9q, п. 5).
+    ...(ownSignatory === undefined
+      ? {}
+      : {
+          contractAmender: new MemoryContractAmender(),
+          ownRequisites: ownRequisitesFromRepository(ownSignatory.repository),
+          ownEntities: ownSignatory.repository,
+          signatoryInflector: ownSignatory.inflector,
+          log: (event: string) => void ownSignatory.events.push(event),
+        }),
     // Режим дополнения присланного договора (этап 227): заглушка сервиса и файлы чата.
     ...(testCase.state.counterpartyAmend
       ? {
@@ -104,6 +120,11 @@ export async function buildDocumentsEnvironment(
     chatFiles: () => chatFileCount(chat),
     // Файлов в чате с подстрокой `arg`: сохранён ли текст исполнителя и добавлено ли наше.
     chatFileContains: (arg) => chatFileContainsCount(chat, arg ?? ''),
+    // События подстановки подписанта нашей стороны: сколько раз подставлен и сколько отказов.
+    ownSignatorySubstituted: async () =>
+      ownSignatory?.events.filter((event) => event === 'own_signatory_substituted').length ?? 0,
+    ownSignatoryRefused: async () =>
+      ownSignatory?.events.filter((event) => event === 'own_signatory_refused').length ?? 0,
     // Открытые предложения «Добавить в базу?»: 1 - вопрос зарегистрирован, 0 - не предлагали.
     openSupplierOffers: async () => {
       const entries = await state.list(SUPPLIER_LOOKUP_OFFER_NAMESPACE, null, SCAN_LIMIT);
@@ -165,6 +186,70 @@ export async function buildDocumentsEnvironment(
       });
     },
   };
+}
+
+/** Шаблон договора Прагматики из реестра шаблонов: путь на «диске». */
+export const OWN_SIGNATORY_TEMPLATE = 'Шаблон_ПР_Договора_на_поставку_готовой_продукции.docx';
+const OWN_SIGNATORY_RECORDED_AT = '2026-11-10T10:00:00.000Z';
+/** Прежний подписант в базе и напечатанный в шаблоне (вымышленный). */
+const OLD_SIGNATORY = 'Зотов Иван Петрович';
+
+/** Наши реквизиты (вымышленные): запись базы Прагматики. */
+const OWN_RECORD: OwnLegalEntityData = {
+  fullName: 'Общество с ограниченной ответственностью «Тест-Альфа»',
+  shortName: 'ООО «Тест-Альфа»',
+  inn: '1234567005',
+  kpp: '123401001',
+  legalAddress: '100001, г. Тестоград, ул. Пробная, д. 1, оф. 10',
+  postalAddress: '100002, г. Тестоград, ул. Почтовая, д. 2',
+  actualAddress: '100003, г. Тестоград, ул. Фактическая, д. 3',
+  bankName: 'Тестовый банк ПАО «Пример», г. Тестоград',
+  bik: '041234501',
+  settlementAccount: '40702810000000000000',
+  correspondentAccount: '30101810000000000009',
+  signatoryPosition: 'Генеральный директор',
+  signatoryName: OLD_SIGNATORY,
+  signatoryBasis: 'Устава',
+  phone: '(900) 111-22-33',
+};
+
+/** Словарь склонения: только именительный падеж, как у настоящего сервиса (иначе `null`). */
+const SIGNATORY_GENITIVE: Readonly<Record<string, string>> = {
+  [OLD_SIGNATORY]: 'генерального директора Зотова Ивана Петровича',
+  'Смирнова Елена Викторовна': 'генерального директора Смирновой Елены Викторовны',
+};
+
+interface OwnSignatoryWorld {
+  repository: MemoryOwnLegalEntityRepository;
+  inflector: SignatoryInflector;
+  /** Имена событий журнала подстановки подписанта. */
+  events: string[];
+}
+
+/** База наших реквизитов, склонение-подмена и шаблон договора Прагматики на диске. */
+async function buildOwnSignatory(files: MemoryFileSource): Promise<OwnSignatoryWorld> {
+  const repository = new MemoryOwnLegalEntityRepository();
+  await repository.save('pragmatika', OWN_RECORD, {
+    updatedBy: 'eval',
+    at: OWN_SIGNATORY_RECORDED_AT,
+  });
+  const text = [
+    `Договор. ${OWN_RECORD.shortName}, именуемое «Заказчик», в лице генерального директора ` +
+      'Зотова Ивана Петровича, действующего на основании Устава, и {{seller}}.',
+    'Заказчик:',
+    OWN_RECORD.shortName,
+    ...ownEntityRequisiteLines(OWN_RECORD).filter((line) => !line.startsWith('в ')),
+    `в ${OWN_RECORD.bankName}`,
+    'Генеральный директор\tЗотов И.П.\tМ.П.',
+    'Приложение. Заказчик в лице генерального директора Зотова И.П., действующего на основании.',
+    'Генеральный директор ______/Зотов И.П.',
+    '______/И.П. Зотов',
+  ].join('\n');
+  seedFiles(files, [{ path: OWN_SIGNATORY_TEMPLATE, text }]);
+  const inflector: SignatoryInflector = {
+    signatoryGenitive: async (_position, fullName) => SIGNATORY_GENITIVE[fullName] ?? null,
+  };
+  return { repository, inflector, events: [] };
 }
 
 /** Имя файла в служебной строке, если у кейса нет файлов чата. */
