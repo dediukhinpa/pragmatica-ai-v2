@@ -21,6 +21,7 @@ import type { PriceRepository, SupplierRepository } from '../../kit/ports/reposi
 import type { SupplierPriceScriptRepository } from '../../kit/ports/supplier-price-scripts';
 import type { PriceFileEditor } from '../../kit/ports/price-file-editor';
 import type { DocxLayoutClient } from '../../docx-pages-client';
+import type { PriceSpotReader } from '../../price-spots-client';
 import type { SupplierCardsDeps } from '../suppliers/deps';
 import type { FailureLog, ScriptResultKindHandler } from '@business-ai/core';
 import type { MailSenderTrustSettings } from '@business-ai/core';
@@ -178,6 +179,12 @@ export interface PricesDeps extends
    * у таблиц и текста docx/doc/rtf. Нет - страница в таких файлах «не определена».
    */
   docxLayout?: DocxLayoutClient | undefined;
+  /**
+   * Чтение чисел вне таблиц презентации (`PRICE_EDIT_TEXT_BLOCKS_ENABLED`, этап 9q): по нему
+   * `editPriceInFile` ищет цену и в текстовых блоках слайдов, а `listPriceSpots` их показывает.
+   * Нет - цены правятся только в таблицах, как в 9p.
+   */
+  priceSpots?: PriceSpotReader | undefined;
   /**
    * Тред ответственного за прайсы: запасной адресат файла изменений, когда
    * владельца работы нет (плановый запуск, почта); по умолчанию менеджер.

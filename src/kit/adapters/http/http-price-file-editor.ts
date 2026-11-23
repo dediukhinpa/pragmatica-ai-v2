@@ -47,6 +47,8 @@ const BYTES_PER_MIB = 1024 * 1024;
 const LEGACY_JSON_MAX_FILE_BYTES = 5 * BYTES_PER_MIB;
 /** Код отказа сервиса: формат не правится на месте. */
 const UNSUPPORTED_FORMAT_CODE = 'unsupported_format';
+/** Из скольких частей состоит локатор числа в текстовом блоке: слайд, фигура, абзац, смещение. */
+const LOCATOR_PARTS = 4;
 /** Код отказа сервиса: строгие проверки правки не прошли, файл не выдан (причины в теле). */
 const EDIT_REFUSED_CODE = 'edit_refused';
 
@@ -56,6 +58,11 @@ const skippedResponse = z.object({
   row: z.number().int(),
   col: z.number().int(),
   reason: z.string(),
+  // Локатор текстового блока pptx: сервис возвращает его у пропущенных правок такого вида.
+  slide: z.number().int().nullish(),
+  shape: z.string().nullish(),
+  paragraph: z.number().int().nullish(),
+  start: z.number().int().nullish(),
 });
 
 /** Ответ сервиса без самого файла: имя, тип, число правок и пропуски. */
@@ -218,6 +225,10 @@ function skippedOf(item: z.output<typeof skippedResponse>): SkippedPriceEdit {
     row: item.row,
     col: item.col,
     reason: item.reason,
+    ...(item.slide == null ? {} : { slide: item.slide }),
+    ...(item.shape == null ? {} : { shape: item.shape }),
+    ...(item.paragraph == null ? {} : { paragraph: item.paragraph }),
+    ...(item.start == null ? {} : { start: item.start }),
   };
 }
 
@@ -249,6 +260,25 @@ function legacyBody(
   return { file_name: fileName, content_base64: base64Of(bytes), edits };
 }
 
+/**
+ * Локатор числа в текстовом блоке pptx в форме тела сервиса: все четыре поля или ничего. Часть
+ * полей сервис отклонил бы целиком (422 на весь запрос), поэтому неполный локатор - отказ до
+ * запроса. У правок таблиц локатора нет, и тело остаётся прежним (полей `slide` и т. п. нет).
+ */
+function locatorOf(edit: EditPricesRequest['edits'][number]): Record<string, unknown> {
+  const { slide, shape, paragraph, start } = edit;
+  const given = [slide, shape, paragraph, start].filter((part) => part !== undefined).length;
+  if (given === 0) return {};
+  if (given !== LOCATOR_PARTS) {
+    throw new DomainError(
+      'invalid_input',
+      'Место числа в текстовом блоке слайда задано не полностью: нужны слайд, фигура, абзац и ' +
+        'смещение.',
+    );
+  }
+  return { slide, shape, paragraph, start };
+}
+
 /** Правки в форме тела сервиса. */
 function serviceEdits(edits: EditPricesRequest['edits']): Array<Record<string, unknown>> {
   return edits.map((edit) => ({
@@ -258,6 +288,7 @@ function serviceEdits(edits: EditPricesRequest['edits']): Array<Record<string, u
     col: edit.col,
     value: edit.value,
     expected: edit.expected ?? null,
+    ...locatorOf(edit),
   }));
 }
 

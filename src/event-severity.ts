@@ -18,6 +18,8 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   // Этап 9p: раскладка docx по страницам - подсказка, сбой сервиса не останавливает чтение файла
   // (страница «не определена»).
   docx_pages_unavailable: 'warning',
+  // Этап 9q: карта чисел вне таблиц pptx - подсказка, сбой сервиса оставляет правку по таблицам.
+  price_spots_unavailable: 'warning',
   shortlist_paging: 'info',
   shortlist_paging_base_research: 'info',
   shortlist_paging_web_step: 'info',

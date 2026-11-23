@@ -9,7 +9,7 @@ import {
 } from '@business-ai/core';
 import type { ParsedDocument } from '@business-ai/core';
 import { isPriceFileTooLargeError, isUnsupportedPriceFormatError } from './kit/domain/errors.owned';
-import type { PriceCellEdit } from './kit/ports/price-file-editor';
+import type { PriceCellEdit, SkippedPriceEdit } from './kit/ports/price-file-editor';
 import { isPriceEditRefusedError } from './price-edit-refusal';
 import type { PricesDeps } from './agents/prices/deps';
 import { parseSource } from './agents/prices/parse-cache';
@@ -26,7 +26,6 @@ import {
   type EditedFile,
 } from './agents/prices/price-edit-source';
 import { openPriceSource } from './agents/prices/price-sources';
-import { parsePriceCell } from './agents/prices/table-rows';
 import {
   FOLLOWUP_CELL_MAX_CHARS,
   FOLLOWUP_CHANGES_MAX,
@@ -36,6 +35,16 @@ import {
   type FollowupChange,
 } from './price-edit-followup';
 import { labelTables, type TableLabel } from './price-table-places';
+import {
+  findSpotCandidates,
+  isPlainPrice,
+  loadSpotMap,
+  normalizeText as normalize,
+  slidePlace,
+  spotExcerpt,
+  spotKey,
+} from './price-spots';
+import type { PriceSpot } from './price-spots-client';
 
 /**
  * Правка цены в файле сотрудника СРАЗУ, без поставщика и без черновика импорта (этап 9p).
@@ -55,10 +64,10 @@ export const DIRECT_EDITS_MAX = 50;
 export const VARIANTS_MAX = 10;
 /** Сколько пропущенных ячеек перечисляем агенту (остальные только числом). */
 const MAX_SKIPPED_LISTED = 50;
-/** Допуск сравнения цен: разбор округляет цену до долей копейки. */
-const PRICE_EPSILON = 1e-6;
 /** Длина строки-подсказки о месте (ячейки строки через « | »). */
 const ROW_PREVIEW_MAX_CHARS = 90;
+/** Длина отрывка текста вокруг числа в текстовом блоке слайда (вместо строки таблицы). */
+const SPOT_EXCERPT_MAX_CHARS = 90;
 /** Длина основы имени файла результата. */
 const STEM_MAX_CHARS = 100;
 /** Недопустимые в имени файла знаки. */
@@ -111,19 +120,27 @@ const STATUSES = [
 const changeOutputSchema = z.object({
   place: z.string().nullable(),
   header: z.string().optional(),
+  /** Строка таблицы; для числа в текстовом блоке слайда - отрывок текста вокруг числа. */
   row: z.string(),
+  /** Правка числа в текстовом блоке слайда (вне таблицы): `row` - текст вокруг числа. */
+  textBlock: z.boolean().optional(),
   oldPrice: z.number(),
   newPrice: z.number(),
 });
 const variantSchema = z.object({
   place: z.string().nullable(),
-  table: z.number().int(),
-  row: z.number().int(),
+  /** Таблица и строка с нуля; у числа в текстовом блоке слайда их нет (`textBlock`). */
+  table: z.number().int().optional(),
+  row: z.number().int().optional(),
   header: z.string().optional(),
+  /** Строка таблицы или, у текстового блока, отрывок текста вокруг числа. */
   rowPreview: z.string(),
+  /** Число в текстовом блоке слайда (вне таблицы). */
+  textBlock: z.boolean().optional(),
 });
 const skippedSchema = z.object({
   position: z.string(),
+  /** Строка таблицы; у числа в текстовом блоке слайда не задаётся. */
   row: z.number().int().optional(),
   reason: z.string(),
 });
@@ -153,11 +170,11 @@ interface Candidate {
   header?: string | undefined;
   rowCells: string[];
   rowPreview: string;
-}
-
-/** Нормализация текста для сравнения: регистр и пробелы не важны. */
-function normalize(text: string): string {
-  return text.toLowerCase().replace(/\s+/gu, ' ').trim();
+  /**
+   * Число в текстовом блоке слайда (вне таблицы): правка уходит с локатором, а `table`, `row` и
+   * `col` равны 0 только как заглушка состояния ожидания (сервис видит row=0, col=0 без table).
+   */
+  spot?: PriceSpot | undefined;
 }
 
 /** Ячейки строки без пустых: подсказка о месте и узнавание позиции. */
@@ -167,17 +184,6 @@ function cellsOf(row: readonly string[]): string[] {
 
 function clip(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
-}
-
-/** Совпадает ли ячейка с ценой: обычная цена без «от»/диапазона/тиража. */
-function isPlainPrice(raw: string, price: number): boolean {
-  const cell = parsePriceCell(raw);
-  return (
-    cell.kind === 'ok' &&
-    cell.qualifier === undefined &&
-    cell.minQuantity === undefined &&
-    Math.abs(cell.value - price) < PRICE_EPSILON
-  );
 }
 
 /** Подходит ли таблица под указание места (слайд, страница, лист, номер таблицы). */
@@ -201,6 +207,7 @@ function findCandidates(
   parsed: ParsedDocument,
   labels: readonly TableLabel[],
   spec: EditSpec,
+  spots: readonly PriceSpot[],
 ): Candidate[] {
   const found: Candidate[] = [];
   const wantedText = spec.rowText === undefined ? null : normalize(spec.rowText);
@@ -231,6 +238,19 @@ function findCandidates(
       });
     });
   });
+  // Числа вне таблиц (текстовые блоки, группы слайдов): тот же поиск по цене, слайду и словам
+  for (const spot of findSpotCandidates(spots, spec)) {
+    const excerpt = spotExcerpt(spot, SPOT_EXCERPT_MAX_CHARS);
+    found.push({
+      table: 0,
+      row: 0,
+      col: 0,
+      label: { kind: 'slide', number: spot.slide, text: slidePlace(spot.slide) },
+      rowCells: [clip(excerpt, FOLLOWUP_CELL_MAX_CHARS)],
+      rowPreview: excerpt,
+      spot,
+    });
+  }
   return found;
 }
 
@@ -252,8 +272,9 @@ function describeSpec(spec: EditSpec): string {
 function variantsOf(found: readonly Candidate[]): DirectOutput['variants'] {
   return found.slice(0, VARIANTS_MAX).map((item) => ({
     place: item.label.text,
-    table: item.table,
-    row: item.row,
+    ...(item.spot === undefined
+      ? { table: item.table, row: item.row }
+      : { textBlock: true }),
     ...(item.header === undefined ? {} : { header: item.header }),
     rowPreview: item.rowPreview,
   }));
@@ -297,6 +318,71 @@ function dottedExtension(name: string): string {
   return extension === '' || extension.startsWith('.') ? extension : `.${extension}`;
 }
 
+/** Ключ места правки: ячейка таблицы или число в текстовом блоке слайда. */
+function placeKey(item: Candidate): string {
+  return item.spot === undefined
+    ? `${item.table}:${item.row}:${item.col}`
+    : `spot:${spotKey(item.spot)}`;
+}
+
+/** Ключ места пропуска, который вернул сервис: тот же вид, что у {@link placeKey}. */
+function skippedPlaceKey(item: SkippedPriceEdit): string {
+  if (item.slide !== undefined && item.shape !== undefined) {
+    return `spot:${spotKey({
+      slide: item.slide,
+      shape: item.shape,
+      paragraph: item.paragraph ?? 0,
+      start: item.start ?? 0,
+    })}`;
+  }
+  return `${item.table ?? ''}:${item.row}:${item.col}`;
+}
+
+/** Пропущенная правка для агента: число в текстовом блоке слайда называется слайдом и текстом. */
+function skippedOf(
+  item: SkippedPriceEdit,
+  keyAt: ReadonlyMap<string, string>,
+  spotAt: ReadonlyMap<string, string>,
+): z.infer<typeof skippedSchema> {
+  if (item.slide === undefined || item.shape === undefined) {
+    return skippedFromService(item, keyAt);
+  }
+  const key = skippedPlaceKey(item).slice('spot:'.length);
+  return { position: spotAt.get(key) ?? slidePlace(item.slide), reason: item.reason };
+}
+
+/** Адрес правки для сервиса: ячейка таблицы или локатор числа в текстовом блоке слайда. */
+function locationOf(item: Candidate): Pick<
+  PriceCellEdit,
+  'sheet' | 'table' | 'row' | 'col' | 'slide' | 'shape' | 'paragraph' | 'start'
+> {
+  if (item.spot !== undefined) {
+    const { slide, shape, paragraph, start } = item.spot;
+    // Сервис: у числа в тексте row=0, col=0, table не задаётся
+    return { row: 0, col: 0, slide, shape, paragraph, start };
+  }
+  return {
+    ...(item.label.kind === 'sheet' && item.label.name !== undefined
+      ? { sheet: item.label.name }
+      : {}),
+    table: item.table,
+    row: item.row,
+    col: item.col,
+  };
+}
+
+/** Поля ожидания ответа для числа в текстовом блоке слайда: локатор и отрывок текста. */
+function followupLocator(
+  spot: PriceSpot,
+  excerpt: string,
+): Pick<FollowupChange, 'slide' | 'shape' | 'paragraph' | 'start' | 'context'> {
+  const { slide, shape, paragraph, start } = spot;
+  return { slide, shape, paragraph, start, context: excerpt };
+}
+
+const SPOTS_TRUNCATED_NOTE =
+  'Карту чисел вне таблиц сервис обрезал по пределу: часть текстовых блоков не просмотрена.';
+
 const NO_NUMBERS_MESSAGE =
   'Номера страниц в этом файле определить не удалось (раскладка недоступна): не придумывай ' +
   'номер. Попроси сотрудника назвать позицию или артикул из строки и повтори с rowText.';
@@ -322,10 +408,12 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
     'После status=sent в ТОМ ЖЕ ответе: перечисли изменения из changes (было → стало, место); ' +
     'если supplier=null - спроси «это поставщик X?» или «как называется поставщик?»; спроси ' +
     '«обновить цены этих позиций в базе?». В базу ничего не пиши без явного «да» сотрудника ' +
-    '(потом getPendingPriceEdit и прежний путь recordEmployeePriceUpdates). Те же строгие ' +
+    '(потом getPendingPriceEdit и запись способом из инструкции). Те же строгие ' +
     'проверки, что у editPricesInSourceFile: pdf при любом сомнении не отправляется (' +
-    'status=unsupported_format, причины в message), pptx - цены в таблицах слайдов, старый ppt ' +
-    'уходит как pptx. Сообщай сотруднику message и числа из ответа дословно. supplierId ' +
+    'status=unsupported_format, причины в message), pptx - цены в таблицах слайдов и в текстовых ' +
+    'блоках и группах (у такого числа в variants и changes стоит textBlock=true, а вместо ' +
+    'строки таблицы - текст вокруг числа; слайд называй как «Слайд N»), старый ppt уходит как ' +
+    'pptx. Сообщай сотруднику message и числа из ответа дословно. supplierId ' +
     'передавай только если поставщик точно найден в базе.',
   inputSchema,
   outputSchema,
@@ -350,6 +438,9 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
       };
     }
     const labels = await labelTables(deps, source, parsed);
+    // Числа вне таблиц слайдов (этап 9q); нет клиента, не презентация или сбой - только таблицы
+    const spotMap = await loadSpotMap(deps, source);
+    const spots = spotMap?.spots ?? [];
     const planned: Candidate[] = [];
     const specs: EditSpec[] = [];
     const taken = new Set<string>();
@@ -357,7 +448,7 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
       if (spec.oldPrice === spec.newPrice) {
         throw new DomainError('invalid_input', 'Новая цена равна старой: править нечего.');
       }
-      const found = findCandidates(parsed, labels, spec);
+      const found = findCandidates(parsed, labels, spec, spots);
       if (found.length === 0) {
         const noPageNumbers =
           spec.page !== undefined && !labels.some((label) => label.kind === 'page');
@@ -369,7 +460,8 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
             : `В файле не найдена ${describeSpec(spec)}. Файл не изменён и не отправлен. Не ` +
               'угадывай: скажи сотруднику, что такой цены на этом месте нет, и спроси, где ' +
               'искать (слайд, страница, строка). Ячейки первой строки таблицы ищутся, только ' +
-              'если передать row=0.',
+              'если передать row=0.' +
+              (spotMap?.truncated === true ? ` ${SPOTS_TRUNCATED_NOTE}` : ''),
         };
       }
       if (found.length > 1) {
@@ -387,7 +479,7 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
       }
       const [only] = found;
       if (only === undefined) continue;
-      const cellKey = `${only.table}:${only.row}:${only.col}`;
+      const cellKey = placeKey(only);
       if (taken.has(cellKey)) {
         throw new DomainError('invalid_input', 'Две правки указывают на одну и ту же ячейку.');
       }
@@ -396,20 +488,21 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
       specs.push(spec);
     }
     const edits: PriceCellEdit[] = planned.map((item, index) => ({
-      ...(item.label.kind === 'sheet' && item.label.name !== undefined
-        ? { sheet: item.label.name }
-        : {}),
-      table: item.table,
-      row: item.row,
-      col: item.col,
+      ...locationOf(item),
       value: specs[index]?.newPrice ?? 0,
       // Старая цена из файла: сервис не запишет, если в ячейке сейчас другое значение
+      // (у числа в текстовом блоке слайда без неё не верит и координатам)
       expected: specs[index]?.oldPrice ?? 0,
     }));
     const keyAt = new Map<string, string>();
+    const spotAt = new Map<string, string>();
     for (const item of planned) {
       const place = item.label.text === null ? '' : `${item.label.text}, `;
-      keyAt.set(`${item.table}:${item.row}`, `${place}строка «${item.rowPreview}»`);
+      if (item.spot === undefined) {
+        keyAt.set(`${item.table}:${item.row}`, `${place}строка «${item.rowPreview}»`);
+      } else {
+        spotAt.set(spotKey(item.spot), `${place}текст «${item.rowPreview}»`);
+      }
     }
     const day = deps.clock.now().toISOString().slice(0, ISO_DATE_LENGTH);
     let edited: EditedFile;
@@ -444,7 +537,7 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
       return { ...none, status: 'unsupported_format' as const, message: UNSUPPORTED_MESSAGE };
     }
     try {
-      const skipped = edited.skipped.map((item) => skippedFromService(item, keyAt));
+      const skipped = edited.skipped.map((item) => skippedOf(item, keyAt, spotAt));
       const summary = {
         skippedCount: skipped.length,
         skipped: skipped.slice(0, MAX_SKIPPED_LISTED),
@@ -457,11 +550,9 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
           message: 'Ни одна ячейка не изменена, файл не отправлен: причины в skipped.',
         };
       }
-      const skippedCells = new Set(
-        edited.skipped.map((item) => `${item.table ?? ''}:${item.row}:${item.col}`),
-      );
+      const skippedCells = new Set(edited.skipped.map(skippedPlaceKey));
       const applied = planned.flatMap((item, index) => {
-        if (skippedCells.has(`${item.table}:${item.row}:${item.col}`)) return [];
+        if (skippedCells.has(placeKey(item))) return [];
         const spec = specs[index];
         return spec === undefined ? [] : [{ item, spec }];
       });
@@ -510,6 +601,7 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
         place: item.label.text,
         ...(item.header === undefined ? {} : { header: item.header }),
         row: item.rowPreview,
+        ...(item.spot === undefined ? {} : { textBlock: true }),
         oldPrice: spec.oldPrice,
         newPrice: spec.newPrice,
       }));
@@ -523,6 +615,7 @@ export const editPriceInFile = defineTool<DirectInput, DirectOutput, PricesDeps>
             row: item.row,
             col: item.col,
             ...(item.header === undefined ? {} : { header: item.header }),
+            ...(item.spot === undefined ? {} : followupLocator(item.spot, item.rowPreview)),
             rowCells: item.rowCells,
             oldPrice: spec.oldPrice,
             newPrice: spec.newPrice,

@@ -1,0 +1,23 @@
+--- src/application/agents/prices/deps.ts
++++ src/application/agents/prices/deps.ts
+@@ -8,6 +8,7 @@
+ import type { SupplierPriceScriptRepository } from '../../../ports/supplier-price-scripts';
+ import type { PriceFileEditor } from '../../../ports/price-file-editor';
+ import type { DocxLayoutClient } from '../../docx-pages-client';
++import type { PriceSpotReader } from '../../price-spots-client';
+ import type { SupplierCardsDeps } from '../suppliers/deps';
+ import type { FailureLog, ScriptResultKindHandler } from '@business-ai/core';
+ import type { MailSenderTrustSettings } from '@business-ai/core';
+@@ -166,6 +167,12 @@
+    */
+   docxLayout?: DocxLayoutClient | undefined;
+   /**
++   * Чтение чисел вне таблиц презентации (`PRICE_EDIT_TEXT_BLOCKS_ENABLED`, этап 9q): по нему
++   * `editPriceInFile` ищет цену и в текстовых блоках слайдов, а `listPriceSpots` их показывает.
++   * Нет - цены правятся только в таблицах, как в 9p.
++   */
++  priceSpots?: PriceSpotReader | undefined;
++  /**
+    * Тред ответственного за прайсы: запасной адресат файла изменений, когда
+    * владельца работы нет (плановый запуск, почта); по умолчанию менеджер.
+    */

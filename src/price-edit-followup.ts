@@ -35,8 +35,21 @@ export const followupChangeSchema = z.object({
   col: z.number().int().nonnegative(),
   /** Заголовок столбца цены (первая строка таблицы), если он есть. */
   header: z.string().optional(),
-  /** Ячейки строки (без служебных), чтобы узнать позицию: название, артикул. */
+  /**
+   * Ячейки строки (без служебных), чтобы узнать позицию: название, артикул. У числа в текстовом
+   * блоке слайда - один элемент: отрывок текста вокруг числа.
+   */
   rowCells: z.array(z.string()),
+  /**
+   * Число в текстовом блоке слайда pptx (этап 9q): локатор правки и отрывок текста. Есть только у
+   * такой правки (`table`, `row`, `col` у неё нули-заглушки); в ожидании, записанном до 9q,
+   * этих полей нет, и оно читается как прежде.
+   */
+  slide: z.number().int().positive().optional(),
+  shape: z.string().min(1).optional(),
+  paragraph: z.number().int().nonnegative().optional(),
+  start: z.number().int().nonnegative().optional(),
+  context: z.string().optional(),
   oldPrice: z.number(),
   newPrice: z.number(),
 });
@@ -125,8 +138,8 @@ const pendingOutputSchema = z.object({
 
 /**
  * Показать правку файла, ждущую ответа сотрудника («да»/«нет» про базу, название поставщика).
- * Только чтение: запись в базу идёт прежним путём (recordEmployeePriceUpdates) и только после
- * явного «да» сотрудника.
+ * Только чтение: запись в базу идёт отдельным инструментом по правилам промпта (с этапа 9q -
+ * writeEditedPricesToDb) и только после явного «да» сотрудника.
  */
 export const getPendingPriceEdit = defineTool<Record<string, never>, PendingOutput, PricesDeps>({
   name: 'getPendingPriceEdit',
@@ -134,7 +147,7 @@ export const getPendingPriceEdit = defineTool<Record<string, never>, PendingOutp
     'Показать правку цен в файле, по которой ты ждёшь ответа сотрудника в этом чате: что ' +
     'изменено (место, было, стало, ячейки строки) и имя файла. Вызови, когда сотрудник отвечает ' +
     'на твой вопрос «обновить цены этих позиций в базе?» или называет поставщика. Ответ ' +
-    '«да» - запиши цены прежним путём (recordEmployeePriceUpdates с найденным поставщиком), ' +
+    '«да» - запиши цены способом из инструкции (поставщик должен быть найден в базе), ' +
     '«нет» - closePendingPriceEdit. Без явного «да» в базу ничего не пиши.',
   inputSchema: z.object({}),
   outputSchema: pendingOutputSchema,

@@ -19,6 +19,16 @@ export interface PriceCellEdit {
    * не пишет (пропуск `mismatch`): координата не должна попасть в чужую ячейку.
    */
   expected?: number | string | null | undefined;
+  /**
+   * Число в текстовом блоке слайда pptx (вне таблицы): слайд с 1, путь фигуры (id через «/»),
+   * абзац с 0 и смещение числа в абзаце с 0, как их отдаёт `/parse` с `locations=true`. Либо
+   * все четыре, либо ни одного. С локатором `row` и `col` равны 0, `table` не задаётся, а
+   * `expected` обязателен: координатам текстового блока сервис без старого значения не верит.
+   */
+  slide?: number | undefined;
+  shape?: string | undefined;
+  paragraph?: number | undefined;
+  start?: number | undefined;
 }
 
 /** Ячейка, которую сервис не изменил, и причина. */
@@ -28,6 +38,11 @@ export interface SkippedPriceEdit {
   row: number;
   col: number;
   reason: string;
+  /** Локатор текстового блока pptx из правки, которую сервис не тронул (см. PriceCellEdit). */
+  slide?: number | undefined;
+  shape?: string | undefined;
+  paragraph?: number | undefined;
+  start?: number | undefined;
 }
 
 /** Запрос правки цен в копии исходного файла. */

@@ -197,6 +197,7 @@ export const SERVICE_TABLE: Readonly<Record<string, FileRule>> = z
     'platform:bitrix24/client.ts': { default: BITRIX24 },
     'project:adapters/http-signatory-inflector.ts': { default: PSEUDONYMIZER },
     'project:docx-pages-client.ts': { default: DOCUMENTS },
+    'project:price-spots-client.ts': { default: DOCUMENTS },
     'project:kit/adapters/http/http-contract-amender.ts': { default: DOCUMENTS },
     'project:kit/adapters/http/http-price-file-editor.ts': { default: DOCUMENTS },
     'project:kit/adapters/http/http-telegram-channel-source.ts': { default: GATEWAY },
