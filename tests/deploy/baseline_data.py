@@ -46,7 +46,7 @@ SERVICES: dict[str, ServiceFacts] = {
     "postgres": ServiceFacts("4g", (), ("backend",)),
     "pseudonymizer": ServiceFacts("1400m", (), ("pseudonymizer-net",)),
     "sandbox": ServiceFacts("768m", ("agent-sandbox",), ()),
-    "speech": ServiceFacts("1152m", ("speech",), ("backend",)),
+    "speech": ServiceFacts("1664m", ("speech",), ("backend",)),
 }
 
 # Тома верхнего уровня (volumes-networks.tsv). Имена на бою: pragmatika_<имя>.

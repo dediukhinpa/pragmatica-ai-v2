@@ -25,9 +25,9 @@
 # telemetry (14416) укладывается с запасом 944 МиБ; превышение бюджета compose-security.test.py
 # считает ошибкой, а check-host.sh отказывает ВМ, на которой не помещается сама сумма лимитов.
 # Реально ВМ «16 ГБ» видит ~15,6 ГиБ (~15993 МиБ): запас хосту при базе + telemetry ~1577 МиБ.
-# Профили agent-sandbox (+768m) и speech (+1152m) выключены по умолчанию и в эту сумму не
+# Профили agent-sandbox (+768m) и speech (+1664m) выключены по умолчанию и в эту сумму не
 # входят: ядро без них работает. Они считаются отдельно: база + песочница + запас = 15824 МиБ
-# (с telemetry 16208), база + speech + запас = 16208 МиБ - на ВМ «16 ГБ» впритык или не
+# (с telemetry 16208), база + speech + запас = 16720 МиБ - на ВМ «16 ГБ» впритык или не
 # помещаются (check-host.sh и compose-security.test.py печатают нужный объём; RUNBOOK,
 # «Песочница»).
 # Лимиты pseudonymizer и embeddings сняты замером пиков (16.10.2026, см. их блоки ниже);
@@ -463,6 +463,7 @@ services:
       DOCUMENTS_EDIT_PPTX: ${DOCUMENTS_EDIT_PPTX:-}
       DOCUMENTS_EDIT_PDF: ${DOCUMENTS_EDIT_PDF:-}
       DOCUMENTS_EDIT_PDF_FALLBACK_FONT: ${DOCUMENTS_EDIT_PDF_FALLBACK_FONT:-}
+      DOCUMENTS_EDIT_PDF_TEXT: ${DOCUMENTS_EDIT_PDF_TEXT:-}
       DOCUMENTS_PPT_CONVERT: ${DOCUMENTS_PPT_CONVERT:-}
       DOCUMENTS_TEMPLATE_ENDPOINTS: ${DOCUMENTS_TEMPLATE_ENDPOINTS:-}
       DOCUMENTS_UNAMBIGUOUS_FRACTIONS: ${DOCUMENTS_UNAMBIGUOUS_FRACTIONS:-}
@@ -625,6 +626,15 @@ services:
       SPEECH_BATCH_RESULT_TTL_SECONDS: ${SPEECH_BATCH_RESULT_TTL_SECONDS:-86400}
       # Исходник упавшего задания хранится для повтора до успеха, DELETE или этого срока (7 суток)
       SPEECH_BATCH_AUDIO_TTL_SECONDS: ${SPEECH_BATCH_AUDIO_TTL_SECONDS:-604800}
+      # Диаризация (разметка говорящих) пакетного режима, ВКЛЮЧЕНА по умолчанию; действует только
+      # вместе с SPEECH_BATCH_ENABLED (образ по умолчанию собран с SPEECH_WITH_DIARIZATION=1).
+      # Расчёт, память и модели - services/speech/README.md, «Диаризация».
+      SPEECH_DIARIZATION_ENABLED: ${SPEECH_DIARIZATION_ENABLED:-true}
+      SPEECH_DIARIZATION_MODEL_DIR: /models/diarization
+      SPEECH_DIARIZATION_THREADS: ${SPEECH_DIARIZATION_THREADS:-1}
+      SPEECH_DIARIZATION_CHUNK_SECONDS: ${SPEECH_DIARIZATION_CHUNK_SECONDS:-900}
+      SPEECH_DIARIZATION_MAX_SECONDS: ${SPEECH_DIARIZATION_MAX_SECONDS:-10800}
+      SPEECH_DIARIZATION_CLUSTER_THRESHOLD: ${SPEECH_DIARIZATION_CLUSTER_THRESHOLD:-0.7}
       SPEECH_REAPER_INTERVAL_SECONDS: "15"
       SPEECH_FFMPEG_BIN: ffmpeg
       # faster-whisper; fake - заглушка для стендов без весов (текст фиксированный)
@@ -656,11 +666,12 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-    # mem_limit 1152m (расчёт - services/speech/README.md, «Память»): пик процесса с моделью
-    # small, int8 и тремя одновременными записями по 5 мин по замеру 877 МиБ (VmHWM; одна запись
-    # 590, каждая следующая +150: общие веса, свои буферы) + три ffmpeg по ~25 МиБ = ~950 МиБ;
+    # Под распознавание 1152 МиБ (расчёт - services/speech/README.md, «Память»): пик процесса
+    # с моделью small, int8 и тремя одновременными записями по 5 мин по замеру 877 МиБ (VmHWM;
+    # одна запись 590, каждая следующая +150: общие веса, свои буферы) + три ffmpeg по ~25 МиБ = ~950 МиБ;
     # запас 21% на страничный кэш и разброс. Модель medium (пик 1544 МиБ) сюда не помещается.
-    mem_limit: 1152m
+    # +512 МиБ под диаризацию пакетного режима (пик 330-490 МиБ по замеру, включена по умолчанию).
+    mem_limit: 1664m
 
   indexer:
     <<: *hardened
@@ -919,7 +930,8 @@ services:
       CHAT_TURN_WAIT_CREDIT_MS: ${CHAT_TURN_WAIT_CREDIT_MS:-1800000}
       # Канал чата Bitrix24: адрес входящего вебхука (секрет в пути), токен ботов и таблица
       # ботов - либо все три, либо ни одной (частичная настройка = ошибка старта). Пусто = чат
-      # остаётся заглушкой. Значения секретов в журналы и ошибки не попадают.
+      # остаётся заглушкой. Один BITRIX24_WEBHOOK_URL = «вебхук без ботов»: справочник, календарь,
+      # задачи и файлы работают, канала чата нет. Значения секретов в журналы и ошибки не попадают.
       BITRIX24_WEBHOOK_URL: ${BITRIX24_WEBHOOK_URL:-}
       BITRIX24_BOT_TOKEN: ${BITRIX24_BOT_TOKEN:-}
       # JSON {"<botId>": {"id": <числовой id бота на портале>, "agent": "<agentId>"}}; при
@@ -935,6 +947,9 @@ services:
       # ядра от его размера не растёт.
       BITRIX24_MAX_FILE_BYTES: ${BITRIX24_MAX_FILE_BYTES:-104857600}
       B24_ATTACHMENT_MAX_BYTES: ${B24_ATTACHMENT_MAX_BYTES:-20971520}
+      # Запись видеозвонка (порт чата звонка): предел размера, байт, и срок скачивания, мс.
+      B24_CALL_RECORDING_MAX_BYTES: ${B24_CALL_RECORDING_MAX_BYTES:-104857600}
+      B24_CALL_RECORDING_TIMEOUT_MS: ${B24_CALL_RECORDING_TIMEOUT_MS:-600000}
       B24_ATTACHMENT_MAX_FILES: ${B24_ATTACHMENT_MAX_FILES:-10}
       B24_ATTACHMENT_TIMEOUT_MS: ${B24_ATTACHMENT_TIMEOUT_MS:-30000}
       B24_ATTACHMENT_MAX_CHARS: ${B24_ATTACHMENT_MAX_CHARS:-20000}
