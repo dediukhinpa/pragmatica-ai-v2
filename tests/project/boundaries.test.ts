@@ -24,6 +24,7 @@ const OWNED_ROOT_FILES = [
   'price-edit-db-write.ts',
   'price-edit-direct.ts',
   'employee-file-edits.ts',
+  'turn-captions.ts',
   'price-edit-followup.ts',
   'price-edit-prompt.ts',
   'price-spots-client.ts',
