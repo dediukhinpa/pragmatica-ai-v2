@@ -1,0 +1,88 @@
+# Надстройка compose для СИНТЕТИЧЕСКОГО стенда патча G9w (tools/patch-9w-synth.sh). На бою не
+# используется. Настоящие образы postgres, pseudonymizer, mask, documents и app из lock; вместо
+# шлюза моделей - заглушка model-stub (на образе app). Каналов нет, у app нет выхода наружу
+# (сеть egress снята), порты на хост не публикуются. Данные postgres - в именованном томе стенда
+# (на бою - каталог хоста). Все контейнеры, сети и тома помечены bai.stage=pd.
+# Переменные: STANDIN_DIR - каталог с model-stub.ts, STUB_IMAGE - образ с bun для заглушки.
+x-stand-labels: &stand_labels
+  bai.stage: pd
+
+services:
+  model-stub:
+    # Образ задаётся отдельно и не меняется вместе с lock: патч отказывает, если новый lock
+    # меняет образ любого сервиса, кроме четырёх заменяемых.
+    image: ${STUB_IMAGE:?}
+    labels: *stand_labels
+    networks: [backend]
+    entrypoint: ["bun", "run", "/stub/model-stub.ts"]
+    environment:
+      MODEL_STUB_PORT: "4000"
+    volumes:
+      - type: bind
+        source: ${STANDIN_DIR:?}/model-stub.ts
+        target: /stub/model-stub.ts
+        read_only: true
+    read_only: true
+    tmpfs: ["/tmp:size=16m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 128m
+    restart: "no"
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1),
+          ()=>process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 3s
+  postgres:
+    labels: *stand_labels
+    volumes: !override
+      - pgdata-stand:/var/lib/postgresql/data
+  migrate:
+    labels: *stand_labels
+  pseudonymizer:
+    labels: *stand_labels
+  mask:
+    labels: *stand_labels
+  documents:
+    labels: *stand_labels
+  app:
+    labels: *stand_labels
+    networks: !override [backend, pseudonymizer-net]
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      pseudonymizer:
+        condition: service_healthy
+      model-stub:
+        condition: service_healthy
+    environment:
+      LITELLM_BASE_URL: http://model-stub:4000
+      HEALTH_PORT: "8088"
+
+networks:
+  backend:
+    labels: *stand_labels
+  pseudonymizer-net:
+    labels: *stand_labels
+
+volumes:
+  pgdata-stand:
+    labels: *stand_labels
+  pseudonymizer-data:
+    labels: *stand_labels
+  intake-data:
+    labels: *stand_labels
+  file-spool:
+    labels: *stand_labels
+  documents-exchange:
+    labels: *stand_labels
+  documents-spool:
+    labels: *stand_labels
+  sandbox-socket:
+    labels: *stand_labels
