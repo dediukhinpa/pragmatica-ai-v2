@@ -241,7 +241,39 @@ export interface ShortlistEntry extends SupplierDetails {
   locationGroup?: string | undefined;
   /** Почему модель взяла поставщика в список (коротко); нет - порядок дало правило. */
   rankReason?: string | undefined;
+  /**
+   * «Почему в списке», собранное кодом после обогащения (`withShortlistReasons`): в показе
+   * вместо `rankReason` модели. Нет - запись сохранена раньше, показывается `rankReason`.
+   */
+  reason?: string | undefined;
+  /** Проверка сайта перед показом (`checkShownSites`): открывается ли ссылка. */
+  siteCheck?: SiteCheck | undefined;
 }
+
+/** Предел длины строки «Почему в списке», собранной кодом. */
+export const SHORTLIST_CODE_REASON_MAX_CHARS = 600;
+/** Предел длины адреса проверенного сайта. */
+const SITE_CHECK_URL_MAX_CHARS = 300;
+
+/** Исход проверки сайта: открывается, не открывается или проверить не удалось. */
+export const SITE_CHECK_STATUSES = ['ok', 'broken', 'unknown'] as const;
+export type SiteCheckStatus = (typeof SITE_CHECK_STATUSES)[number];
+
+/** Проверенный сайт строки: адрес, который открывался (или проверялся), исход и время. */
+export interface SiteCheck {
+  /** Абсолютный адрес: у сайта без схемы - тот вариант (https/http), что открылся. */
+  url: string;
+  status: SiteCheckStatus;
+  /** Откуда сайт: карточка базы или найденный обогащением из интернета. */
+  origin: 'card' | 'web';
+  checkedAt: string;
+}
+const siteCheckSchema: z.ZodType<SiteCheck, z.ZodTypeDef, unknown> = z.object({
+  url: z.string().min(1).max(SITE_CHECK_URL_MAX_CHARS),
+  status: z.enum(SITE_CHECK_STATUSES),
+  origin: z.enum(['card', 'web']),
+  checkedAt: z.string().min(1),
+});
 const shortlistEntrySchema: z.ZodType<ShortlistEntry, z.ZodTypeDef, unknown> = z.object({
   supplierId: z.string().min(1),
   name: z.string().min(1),
@@ -253,6 +285,8 @@ const shortlistEntrySchema: z.ZodType<ShortlistEntry, z.ZodTypeDef, unknown> = z
   namedInactive: z.literal(true).optional(),
   locationGroup: z.string().min(1).optional(),
   rankReason: z.string().min(1).max(SHORTLIST_REASON_MAX_CHARS).optional(),
+  reason: z.string().min(1).max(SHORTLIST_CODE_REASON_MAX_CHARS).optional(),
+  siteCheck: siteCheckSchema.optional(),
   ...supplierDetailsShape,
 });
 

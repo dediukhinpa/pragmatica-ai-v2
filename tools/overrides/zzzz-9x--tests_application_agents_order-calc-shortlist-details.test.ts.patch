@@ -1,0 +1,15 @@
+--- tests/application/agents/order-calc-shortlist-details.test.ts
++++ tests/application/agents/order-calc-shortlist-details.test.ts
+@@ -219,7 +219,11 @@
+       '   Город: нет данных',
+       '   Контакты: нет данных',
+     ]);
+-    expect(web[at + 6]).toMatch(/Сайт: https?:\/\//u);
++    // Причину собирает код: цен нет - где найден, с пометкой источника.
++    expect(web[at + 6]).toBe(
++      '   Почему в списке: найден поиском по товару заявки, цен на странице нет (ИЗ ИНТЕРНЕТА)',
++    );
++    expect(web[at + 7]).toMatch(/Сайт: https?:\/\//u);
+   });
+ 
+   test('список нумерован, без кнопок, подсказка ответа жирным', async () => {

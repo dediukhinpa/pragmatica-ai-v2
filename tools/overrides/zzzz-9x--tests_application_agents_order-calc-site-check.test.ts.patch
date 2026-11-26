@@ -1,0 +1,212 @@
+--- /dev/null
++++ tests/application/agents/order-calc-site-check.test.ts
+@@ -0,0 +1,209 @@
++import { describe, expect, test } from 'bun:test';
++import { stableHash } from '@business-ai/core';
++import type { WebPageReader, WebPageReadOutcome } from '@business-ai/core';
++import {
++  checkShownSites,
++  classifySiteOutcome,
++  SITE_CHECK_NAMESPACE,
++  siteUrlVariants,
++} from '../../../src/application/agents/order-calc/site-check';
++import {
++  SITE_BROKEN_NOTE,
++  SITE_UNCHECKED_NOTE,
++  entryLines,
++  siteOf,
++} from '../../../src/application/agents/order-calc/shortlist-message';
++import type { ShortlistEntry } from '../../../src/domain/shortlist';
++import { buildOrderDeps, type OrderTestDeps } from './order-support';
++import { CTX } from './support';
++
++const DAY_MS = 86_400_000;
++
++function outcome(failureCode?: string): WebPageReadOutcome {
++  const usage = { reads: 1, sourceDomains: [], estimatedCostUsd: 0 };
++  if (failureCode === undefined) {
++    return {
++      status: 'ok',
++      pages: [{ url: 'x', text: 'главная' }],
++      errorCodes: [],
++      interrupted: false,
++      usage,
++    };
++  }
++  return { status: 'failed', pages: [], failureCode, errorCodes: [], interrupted: false, usage };
++}
++
++/** Читатель: исход по адресу (нет в таблице - «не открывается»), все вызовы записываются. */
++class SiteReader implements WebPageReader {
++  readonly calls: string[] = [];
++  constructor(private readonly outcomes: Readonly<Record<string, string | null>>) {}
++  async readSite(): Promise<WebPageReadOutcome> {
++    throw new Error('readSite не ожидается');
++  }
++  async readUrl(url: string): Promise<WebPageReadOutcome> {
++    this.calls.push(url);
++    const code = url in this.outcomes ? this.outcomes[url] : 'dns_failed';
++    return outcome(code ?? undefined);
++  }
++}
++
++const entry = (extra: Partial<ShortlistEntry> = {}): ShortlistEntry => ({
++  supplierId: 's1',
++  name: 'Маркли',
++  sources: ['knowledge'],
++  score: 1,
++  references: [],
++  ...extra,
++});
++
++async function depsWith(reader: SiteReader): Promise<OrderTestDeps> {
++  const deps = await buildOrderDeps();
++  deps.webPageReader = reader;
++  return deps;
++}
++
++describe('проверка сайта: исход чтения главной', () => {
++  test('ответил без текста (редирект на другой домен, файл, пустая) - открывается', () => {
++    expect(classifySiteOutcome(outcome())).toBe('ok');
++    for (const code of ['redirect_off_site', 'unsupported_content_type', 'no_content']) {
++      expect(classifySiteOutcome(outcome(code))).toBe('ok');
++    }
++  });
++
++  test('домена нет, соединения нет, адрес негодный - не открывается', () => {
++    for (const code of ['dns_failed', 'url_not_accessible', 'invalid_domain', 'url_not_allowed']) {
++      expect(classifySiteOutcome(outcome(code))).toBe('broken');
++    }
++  });
++
++  test('HTTP-ошибка (в том числе 403 защиты от роботов) и таймаут - не удалось проверить', () => {
++    for (const code of ['http_error', 'timeout', 'too_many_redirects', 'aborted']) {
++      expect(classifySiteOutcome(outcome(code))).toBe('unknown');
++    }
++  });
++
++  test('варианты адреса: без схемы - https, потом http; первый из нескольких; мусор - нет', () => {
++    expect(siteUrlVariants('markli.ru')).toEqual(['https://markli.ru/', 'http://markli.ru/']);
++    expect(siteUrlVariants('http://a.ru/x')).toEqual(['http://a.ru/x', 'https://a.ru/x']);
++    expect(siteUrlVariants(' a.ru, b.ru ')).toEqual(['https://a.ru/', 'http://a.ru/']);
++    expect(siteUrlVariants('нет сайта')).toEqual([]);
++    expect(siteUrlVariants('')).toEqual([]);
++  });
++});
++
++describe('checkShownSites', () => {
++  test('сайт карточки открылся по https: ссылка в списке, исход в кэше на неделю', async () => {
++    const reader = new SiteReader({ 'https://markli.ru/': null });
++    const deps = await depsWith(reader);
++    const [checked] = await checkShownSites(deps, CTX, [entry({ website: 'markli.ru' })]);
++    expect(checked?.siteCheck).toMatchObject({
++      url: 'https://markli.ru/',
++      status: 'ok',
++      origin: 'card',
++    });
++    expect(siteOf(checked ?? entry())).toEqual({
++      url: 'https://markli.ru/',
++      text: 'https://markli.ru/',
++    });
++    // Повтор в пределах недели - из кэша, без чтения.
++    deps.clock.advance(6 * DAY_MS);
++    await checkShownSites(deps, CTX, [entry({ website: 'markli.ru' })]);
++    expect(reader.calls).toEqual(['https://markli.ru/']);
++    deps.clock.advance(2 * DAY_MS);
++    await checkShownSites(deps, CTX, [entry({ website: 'markli.ru' })]);
++    expect(reader.calls).toHaveLength(2);
++  });
++
++  test('https не открылся, http открылся - ссылка на http', async () => {
++    const reader = new SiteReader({ 'http://old.ru/': null });
++    const deps = await depsWith(reader);
++    const [checked] = await checkShownSites(deps, CTX, [entry({ website: 'old.ru' })]);
++    expect(checked?.siteCheck?.url).toBe('http://old.ru/');
++    expect(reader.calls).toEqual(['https://old.ru/', 'http://old.ru/']);
++  });
++
++  test('битая ссылка: без ссылки, с датой проверки и просьбой исправить адрес', async () => {
++    const deps = await depsWith(new SiteReader({}));
++    const [checked] = await checkShownSites(deps, CTX, [entry({ website: 'dead.ru' })]);
++    expect(checked?.siteCheck?.status).toBe('broken');
++    const site = siteOf(checked ?? entry());
++    expect(site?.url).toBeUndefined();
++    expect(site?.text).toBe(`dead.ru — ${SITE_BROKEN_NOTE} (${dateOf(deps)})`);
++    expect(entryLines(checked ?? entry(), 0).join('\n')).toContain(SITE_BROKEN_NOTE);
++    // «Не открывается» верим сутки: адрес в карточке могут исправить.
++    const key = stableHash('https://dead.ru/');
++    expect(await deps.state.get(SITE_CHECK_NAMESPACE, key)).not.toBeNull();
++  });
++
++  test('защита от роботов: ссылка с пометкой «не удалось проверить», без кэша', async () => {
++    const reader = new SiteReader({
++      'https://guard.ru/': 'http_error',
++      'http://guard.ru/': 'http_error',
++    });
++    const deps = await depsWith(reader);
++    const [checked] = await checkShownSites(deps, CTX, [entry({ website: 'guard.ru' })]);
++    expect(checked?.siteCheck?.status).toBe('unknown');
++    expect(siteOf(checked ?? entry())).toEqual({
++      url: 'https://guard.ru/',
++      text: `https://guard.ru/ (${SITE_UNCHECKED_NOTE})`,
++    });
++    await checkShownSites(deps, CTX, [entry({ website: 'guard.ru' })]);
++    expect(reader.calls).toHaveLength(4);
++  });
++
++  test('сайт из интернета битый - не показывается вовсе', async () => {
++    const deps = await depsWith(new SiteReader({}));
++    const [checked] = await checkShownSites(deps, CTX, [
++      entry({ webEnrichment: { match: 'inn', site: 'https://found.ru' } }),
++    ]);
++    expect(checked?.siteCheck).toMatchObject({ status: 'broken', origin: 'web' });
++    expect(siteOf(checked ?? entry())).toBeUndefined();
++  });
++
++  test('сайт из интернета открылся - ссылка с пометкой источника', async () => {
++    const deps = await depsWith(new SiteReader({ 'https://found.ru/': null }));
++    const [checked] = await checkShownSites(deps, CTX, [
++      entry({ webEnrichment: { match: 'inn', site: 'https://found.ru' } }),
++    ]);
++    expect(siteOf(checked ?? entry())).toEqual({
++      url: 'https://found.ru/',
++      text: 'https://found.ru/ (ИЗ ИНТЕРНЕТА)',
++    });
++  });
++
++  test('веб-кандидат (страница из поиска) и строка без сайта не проверяются', async () => {
++    const reader = new SiteReader({});
++    const deps = await depsWith(reader);
++    const rows = await checkShownSites(deps, CTX, [
++      entry({ sources: ['web'], references: ['https://page.ru/item'] }),
++      entry({ supplierId: 's2' }),
++    ]);
++    expect(reader.calls).toEqual([]);
++    expect(rows.every((row) => row.siteCheck === undefined)).toBe(true);
++  });
++
++  test('сбой читателя - «не удалось проверить», строка остаётся', async () => {
++    const reader = new SiteReader({});
++    reader.readUrl = async () => {
++      throw new Error('boom');
++    };
++    const deps = await depsWith(reader);
++    const [checked] = await checkShownSites(deps, CTX, [entry({ website: 'x.ru' })]);
++    expect(checked?.siteCheck?.status).toBe('unknown');
++  });
++
++  test('без читателя страниц сайт карточки показывается как записан', async () => {
++    const deps = await buildOrderDeps();
++    delete deps.webPageReader;
++    const [row] = await checkShownSites(deps, CTX, [entry({ website: 'markli.ru' })]);
++    expect(row?.siteCheck).toBeUndefined();
++    expect(siteOf(row ?? entry())).toEqual({ url: 'https://markli.ru', text: 'https://markli.ru' });
++  });
++});
++
++/** Дата проверки, как её показывает список: ДД.ММ.ГГГГ по часам теста. */
++function dateOf(deps: OrderTestDeps): string {
++  const iso = deps.clock.now().toISOString();
++  const [year = '', month = '', day = ''] = iso.slice(0, 10).split('-');
++  return `${day}.${month}.${year}`;
++}

@@ -1,0 +1,90 @@
+--- src/application/agents/order-calc/shortlist-message.ts
++++ src/application/agents/order-calc/shortlist-message.ts
+@@ -408,16 +408,53 @@
+   const line = entry.webEnrichment === undefined ? '' : enrichmentContactsLine(entry.webEnrichment);
+   return contactsText(entry) !== '' || line === '' ? '' : withWebNote(line);
+ }
++/** Сайт карточки не открылся при проверке: ссылки нет, есть просьба исправить адрес. */
++export const SITE_BROKEN_NOTE = 'не открывается, проверьте адрес в карточке';
++/** Проверить сайт не удалось (защита от роботов, таймаут): ссылка есть, с пометкой. */
++export const SITE_UNCHECKED_NOTE = 'не удалось проверить, открывается ли';
++
++/** Абсолютная ссылка из адреса без схемы («markli.ru» -> «https://markli.ru»). */
++function absoluteSite(raw: string): string | undefined {
++  const first = raw.trim().split(/[\s,;]+/u)[0] ?? '';
++  if (first === '') return undefined;
++  const url = ABSOLUTE_URL.test(first) ? first : `https://${first}`;
++  return ABSOLUTE_URL.test(url) ? url : undefined;
++}
++
++/** Дата проверки для людей: «26.11.2026». */
++function checkedDate(iso: string): string {
++  const [year = '', month = '', day = ''] = iso.slice(0, 10).split('-');
++  return `${day}.${month}.${year}`;
++}
++
+ /**
+  * Сайт поставщика: ссылка и текст для показа. Ссылка из `references` (кандидат из интернета)
+- * помечена по `webFields`; сайт обогащения карточки базы - всегда из интернета. Ссылка из
+- * `references` важнее найденной обогащением.
++ * помечена по `webFields`. Затем сайт карточки (без пометки) и сайт, найденный обогащением
++ * (всегда «из интернета»). Проверенный сайт (`siteCheck`): открывается - ссылка; не
++ * открывается - сайт карточки без ссылки с просьбой исправить адрес, найденный в интернете не
++ * показывается; проверить не удалось - ссылка с пометкой. Без проверки (запись до неё или
++ * читатель страниц не настроен) - сайт карточки как записан.
+  */
+-export function siteOf(entry: Entry): { url: string; text: string } | undefined {
++export function siteOf(entry: Entry): { url?: string; text: string } | undefined {
+   const reference = entry.references.find((item) => ABSOLUTE_URL.test(item));
+   if (reference !== undefined) {
+     return { url: reference, text: marked(entry, 'site', reference) };
+   }
++  const check = entry.siteCheck;
++  if (check !== undefined) {
++    const fromWeb = check.origin === 'web';
++    if (check.status === 'broken') {
++      if (fromWeb) return undefined;
++      const date = checkedDate(check.checkedAt);
++      return { text: `${entry.website ?? check.url}${DASH}${SITE_BROKEN_NOTE} (${date})` };
++    }
++    const text = check.status === 'ok' ? check.url : `${check.url} (${SITE_UNCHECKED_NOTE})`;
++    return { url: check.url, text: fromWeb ? withWebNote(text) : text };
++  }
++  if (entry.website !== undefined) {
++    const url = absoluteSite(entry.website);
++    return url === undefined ? { text: entry.website } : { url, text: url };
++  }
+   const found = entry.webEnrichment?.site;
+   return found === undefined ? undefined : { url: found, text: withWebNote(found) };
+ }
+@@ -466,6 +503,8 @@
+ const ALERT_LABEL = 'Внимание';
+ /** Подпись ссылки на сайт. */
+ const SITE_LABEL = 'Сайт';
++/** Подпись причины выбора поставщика. */
++const REASON_LABEL = 'Почему в списке';
+ /** Подписи источников в карточке. */
+ const CARD_BASE_LABEL = 'из базы';
+ /**
+@@ -552,12 +591,17 @@
+   add('Рейтинг', entry.rating === null || entry.rating === undefined ? '' : ratingText(entry));
+   add('Город', placeText(entry) || webPlaceText(entry));
+   add('Контакты', contactsText(entry) || webContactsText(entry));
+-  // Причину выбора пишет модель ранжирования; без неё (правило кода) поля нет, а не «нет данных».
+-  if (entry.rankReason !== undefined) {
+-    add('Почему в списке', rankReasonText(entry, entry.rankReason));
++  // «Почему в списке» собирает код после обогащения (`reason`, пометки источника - у частей).
++  // Записи, сохранённые раньше, показывают фразу модели ранжирования, как прежде.
++  if (entry.reason !== undefined) {
++    add(REASON_LABEL, entry.reason);
++  } else if (entry.rankReason !== undefined) {
++    add(REASON_LABEL, rankReasonText(entry, entry.rankReason));
+   }
+   const site = siteOf(entry);
+-  if (site !== undefined) add(SITE_LABEL, site.text, { link: site.url });
++  if (site !== undefined) {
++    add(SITE_LABEL, site.text, site.url === undefined ? {} : { link: site.url });
++  }
+   const matchWarning = webMatchWarning(entry);
+   if (matchWarning !== undefined) add('', matchWarning, { tone: 'alert', cardLabel: ALERT_LABEL });
+   // Пометок «не проверено» и «нет контактов» в шорт-листе нет (решение владельца
