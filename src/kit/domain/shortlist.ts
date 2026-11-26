@@ -242,16 +242,17 @@ export interface ShortlistEntry extends SupplierDetails {
   /** Почему модель взяла поставщика в список (коротко); нет - порядок дало правило. */
   rankReason?: string | undefined;
   /**
-   * «Почему в списке», собранное кодом после обогащения (`withShortlistReasons`): в показе
-   * вместо `rankReason` модели. Нет - запись сохранена раньше, показывается `rankReason`.
+   * Подробность о цене к «Почему в списке»: цена против средней с числами, считает код
+   * (`withPriceNotes`). Показывается после фразы модели (`rankReason`); нет - сравнить не с
+   * чем или запись сохранена раньше.
    */
-  reason?: string | undefined;
+  priceNote?: string | undefined;
   /** Проверка сайта перед показом (`checkShownSites`): открывается ли ссылка. */
   siteCheck?: SiteCheck | undefined;
 }
 
-/** Предел длины строки «Почему в списке», собранной кодом. */
-export const SHORTLIST_CODE_REASON_MAX_CHARS = 600;
+/** Предел длины подробности о цене к «Почему в списке». */
+export const SHORTLIST_PRICE_NOTE_MAX_CHARS = 400;
 /** Предел длины адреса проверенного сайта. */
 const SITE_CHECK_URL_MAX_CHARS = 300;
 
@@ -285,7 +286,7 @@ const shortlistEntrySchema: z.ZodType<ShortlistEntry, z.ZodTypeDef, unknown> = z
   namedInactive: z.literal(true).optional(),
   locationGroup: z.string().min(1).optional(),
   rankReason: z.string().min(1).max(SHORTLIST_REASON_MAX_CHARS).optional(),
-  reason: z.string().min(1).max(SHORTLIST_CODE_REASON_MAX_CHARS).optional(),
+  priceNote: z.string().min(1).max(SHORTLIST_PRICE_NOTE_MAX_CHARS).optional(),
   siteCheck: siteCheckSchema.optional(),
   ...supplierDetailsShape,
 });

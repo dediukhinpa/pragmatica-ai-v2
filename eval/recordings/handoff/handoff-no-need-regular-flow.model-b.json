@@ -79,7 +79,7 @@
           "name": "askManagerToChoose",
           "arguments": {
             "requestId": "req-3",
-            "version": "hkwwxhkkzmgxktwh"
+            "version": "nnyxngmkswqkmrsh"
           }
         }
       ],
@@ -89,7 +89,7 @@
         "outputTokens": 27
       },
       "latencyMs": 650,
-      "requestHash": "d7a701b470002f487f4fc0f6a9e93d48dd4627768de09078a547268a4ea7b282"
+      "requestHash": "a0e47998df766a9db6cf762fd77296cf11e7b737868f4c1b2c8707036c3d8443"
     }
   ],
   "synthetic": true

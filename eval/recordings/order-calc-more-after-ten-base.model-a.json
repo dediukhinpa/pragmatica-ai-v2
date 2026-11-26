@@ -57,7 +57,7 @@
           "name": "askManagerToChoose",
           "arguments": {
             "requestId": "req-30",
-            "version": "sjqkxgwqnzxxknwy"
+            "version": "rjqzpxvrwhqxyttw"
           }
         }
       ],
@@ -67,7 +67,7 @@
         "outputTokens": 27
       },
       "latencyMs": 400,
-      "requestHash": "9d0f776e85d1ec969a1022228be405d5c364774cbdd74e979e4948b1c21d5ca5"
+      "requestHash": "299388091ae5315e34fb507a3a55bbfc21409a1ba1bb1f1c335105405a144e38"
     },
     {
       "content": "",
@@ -83,7 +83,7 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5133,
+        "inputTokens": 5063,
         "outputTokens": 23
       },
       "latencyMs": 400,

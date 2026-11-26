@@ -529,6 +529,8 @@ const ALERT_LABEL = 'Внимание';
 const SITE_LABEL = 'Сайт';
 /** Подпись причины выбора поставщика. */
 const REASON_LABEL = 'Почему в списке';
+/** Между фразой модели и подробностью о цене. */
+const REASON_SEPARATOR = '. ';
 /** Подписи источников в карточке. */
 const CARD_BASE_LABEL = 'из базы';
 /**
@@ -615,13 +617,13 @@ function entryFields(entry: Entry): EntryField[] {
   add('Рейтинг', entry.rating === null || entry.rating === undefined ? '' : ratingText(entry));
   add('Город', placeText(entry) || webPlaceText(entry));
   add('Контакты', contactsText(entry) || webContactsText(entry));
-  // «Почему в списке» собирает код после обогащения (`reason`, пометки источника - у частей).
-  // Записи, сохранённые раньше, показывают фразу модели ранжирования, как прежде.
-  if (entry.reason !== undefined) {
-    add(REASON_LABEL, entry.reason);
-  } else if (entry.rankReason !== undefined) {
-    add(REASON_LABEL, rankReasonText(entry, entry.rankReason));
-  }
+  // «Почему в списке»: фраза модели ранжирования (критерии - в её промпте), за ней цена против
+  // средней с числами, посчитанная кодом (замечания 26.11.2026). Без обеих - поля нет.
+  const reason = [
+    entry.rankReason === undefined ? '' : rankReasonText(entry, entry.rankReason),
+    entry.priceNote ?? '',
+  ].filter((part) => part !== '');
+  if (reason.length > 0) add(REASON_LABEL, reason.join(REASON_SEPARATOR));
   const site = siteOf(entry);
   if (site !== undefined) {
     add(SITE_LABEL, site.text, site.url === undefined ? {} : { link: site.url });

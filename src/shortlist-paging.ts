@@ -15,7 +15,7 @@ import type { ToolContext, WebSearchHit } from '@business-ai/core';
 import { EXTERNAL_SUPPLIER_PREFIX, type OrderCalcDeps } from './agents/order-calc/deps';
 import { enrichShownSuppliers } from './agents/order-calc/supplier-enrich';
 import { checkShownSites } from './agents/order-calc/site-check';
-import { withShortlistReasons } from './kit/domain/shortlist-reason';
+import { withPriceNotes } from './kit/domain/shortlist-price-note';
 import { knowledgeSearch } from './agents/order-calc/search-sources';
 import { loadChoiceConfirmation, saveChoiceAsk } from './agents/order-calc/choice-confirmation';
 import { findCard } from './agents/order-calc/named-suppliers';
@@ -854,8 +854,8 @@ export const showMoreSuppliers = defineTool<ShowMoreInput, ShowMoreOutput, Order
       shownIds: new Set(state.shownIds),
     };
     const built = await buildPage(work);
-    // «Почему в списке» - по итоговым данным страницы и средним первой выдачи (как у неё).
-    const page = withShortlistReasons(built.page, proposal, request.items.length);
+    // Цена против средней к «Почему в списке» - по средним первой выдачи (как у неё).
+    const page = withPriceNotes(built.page, proposal);
     const bothExhausted = state.baseExhausted && state.webExhausted && !built.webLimited;
     const exhausted = page.length < input.count && bothExhausted;
     state.expiresAt = pageStateExpiry(now);

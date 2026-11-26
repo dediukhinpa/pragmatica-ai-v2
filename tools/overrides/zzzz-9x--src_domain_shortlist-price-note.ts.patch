@@ -1,6 +1,6 @@
 --- /dev/null
-+++ src/domain/shortlist-reason.ts
-@@ -0,0 +1,275 @@
++++ src/domain/shortlist-price-note.ts
+@@ -0,0 +1,221 @@
 +import { pluralRu, type PluralForms } from '@business-ai/core';
 +import {
 +  formatPriceAmount,
@@ -8,30 +8,28 @@
 +  type MarketAverage,
 +  type MarketPriceSample,
 +} from './market-price';
-+import { SHORTLIST_CODE_REASON_MAX_CHARS, type ShortlistEntry } from './shortlist';
++import { SHORTLIST_PRICE_NOTE_MAX_CHARS, type ShortlistEntry } from './shortlist';
 +import { withWebNote } from './supplier-enrichment';
 +import { withTelegramNote } from './telegram-source';
 +import { unitSuffix } from './units';
 +
 +/**
-+ * «Почему в списке» - строка, которую собирает КОД по данным строки шорт-листа после поиска и
-+ * обогащения из интернета (замечания заказчика 26.11.2026). Модель ранжирования задаёт только
-+ * порядок; её фраза в показ больше не идёт: оценки без чисел («цена умеренная») клиенту
-+ * непонятны, а писалась она до обогащения и противоречила найденному («нет контактов» рядом с
-+ * контактами из интернета). Про контакты строка не пишет: пометки «нет контактов» в шорт-листе
-+ * нет по решению владельца 28.10, контакты видны в своём поле.
++ * Подробность о цене к «Почему в списке» (замечания заказчика 26.11.2026). Саму фразу пишет
++ * модель ранжирования по своим критериям (соответствие заявке, полнота цен, цена, контакты,
++ * город и срок, рейтинг) - она показывается как прежде. Слов «цена умеренная» клиенту мало,
++ * поэтому код дописывает к фразе числа: цену поставщика против средней по той же позиции,
++ * валюте и единице.
 + *
-+ * Критерий - те же признаки, по которым ранжируется список, в том же порядке:
-+ * 1. соответствие заявке: по скольким позициям у поставщика тот же товар (точная цена), по
-+ *    скольким - только похожий (аналог или цена по части слов позиции);
-+ * 2. цена относительно средней по той же позиции, валюте и единице: цена прайса базы - со
-+ *    средней по базе, цена с сайта - со средней по интернету, цена из канала - со средней по
-+ *    каналу. «в 13,7 раза дешевле средней по базе (9 710 ₽)» от двукратной разницы, «на 15%
-+ *    дешевле/дороже» до неё, «на уровне средней» в пределах ±10%; самая низкая цена группы
-+ *    отмечается; единственная цена позиции - «других цен по позиции нет». Не больше двух
-+ *    позиций, остальные - числом;
-+ * Цен нет совсем - где найден: в базе, поиском в интернете или в канале по товару заявки.
-+ * Части из интернета и из канала помечены каждая отдельно, а не вся строка.
++ * Правило:
++ * - цена прайса базы сравнивается со средней по базе, цена с сайта - со средней по интернету,
++ *   цена из канала - со средней по каналу; пометка источника - у каждой части отдельно;
++ * - от двукратной разницы - разами («в 13,9 раза дешевле средней по базе (9 710 ₽)»), до неё -
++ *   процентами («на 15% дороже»), в пределах ±10% - «на уровне средней»; самая низкая цена
++ *   группы отмечается («самая низкая из 3 цен»); единственная цена позиции - «других цен по
++ *   позиции нет»;
++ * - по каждой позиции - лучшая цена того же товара (иначе похожего); приблизительные цены и
++ *   «от»/диапазон против точной средней не сравниваются; не больше двух позиций, остальные -
++ *   числом.
 + */
 +
 +/** Цена в пределах этой доли от средней - «на уровне средней». */
@@ -118,22 +116,6 @@
 +  return [...base, ...web];
 +}
 +
-+/** Соответствие заявке: тот же товар и похожий - по числу позиций. */
-+function coverageText(samples: readonly PricedSample[], singlePosition: boolean): string {
-+  const exact = new Set(
-+    samples.filter((item) => isExact(item.sample)).map((item) => positionKey(item.sample)),
-+  );
-+  const similar = new Set(
-+    samples.map((item) => positionKey(item.sample)).filter((key) => !exact.has(key)),
-+  );
-+  const by = (count: number): string => `по ${count} ${pluralRu(count, BY_POSITION_FORMS)}`;
-+  if (exact.size === 0) {
-+    return singlePosition ? 'только похожий товар' : `только похожий товар ${by(similar.size)}`;
-+  }
-+  const head = singlePosition ? 'тот же товар, что в заявке' : `тот же товар ${by(exact.size)}`;
-+  return similar.size === 0 ? head : `${head}, похожий${DASH}${by(similar.size)}`;
-+}
-+
 +function marketOf(markets: ReasonMarkets, origin: PriceOrigin): MarketAverage | undefined {
 +  if (origin === 'web') return markets.webMarket;
 +  return origin === 'telegram' ? markets.telegramMarket : markets.market;
@@ -203,76 +185,40 @@
 +  return [...best.values()];
 +}
 +
-+/**
-+ * Строка без цен: где поставщик найден. Совпадение по товару заявки без цены - карточка или
-+ * прайс базы по названию позиции, страница из поиска в интернете, пост в канале.
-+ */
-+function foundWithoutPrices(entry: ShortlistEntry): ReasonPart {
-+  if (entry.sources.includes('knowledge')) {
-+    return { text: 'найден в базе по товару заявки, цен в прайсах нет', origin: 'base' };
-+  }
-+  if (entry.sources.includes('telegram')) {
-+    return { text: 'найден в канале по товару заявки, цен нет', origin: 'telegram' };
-+  }
-+  return { text: 'найден поиском по товару заявки, цен на странице нет', origin: 'web' };
-+}
-+
 +function noted(part: ReasonPart): string {
 +  if (part.origin === 'web') return withWebNote(part.text);
 +  return part.origin === 'telegram' ? withTelegramNote(part.text) : part.text;
 +}
 +
 +/**
-+ * Строка «Почему в списке» для одной строки шорт-листа. `singlePosition` - в заявке одна
-+ * позиция (тогда без «по N позициям»). Пустая строка - сказать нечего (поля в показе нет).
++ * Сравнение цен строки со средними словами и числами; пустая строка - сравнить не с чем (цен
++ * нет, приблизительные или нет группы средней).
 + */
-+export function shortlistReasonText(
-+  entry: ShortlistEntry,
-+  markets: ReasonMarkets,
-+  singlePosition: boolean,
-+): string {
-+  const samples = pricedSamples(entry);
++export function shortlistPriceNote(entry: ShortlistEntry, markets: ReasonMarkets): string {
 +  const parts: ReasonPart[] = [];
-+  if (samples.length > 0) {
-+    parts.push({ text: coverageText(samples, singlePosition), origin: 'base' });
-+    const compared = bestPerPosition(samples)
-+      .map((priced) => ({ priced, text: comparisonText(priced, markets) }))
-+      .filter((item): item is { priced: PricedSample; text: string } => item.text !== undefined);
-+    for (const item of compared.slice(0, REASON_POSITIONS_SHOWN)) {
-+      parts.push({ text: item.text, origin: item.priced.origin });
-+    }
-+    const rest = compared.length - REASON_POSITIONS_SHOWN;
-+    if (rest > 0) {
-+      parts.push({ text: `и ещё по ${rest} ${pluralRu(rest, BY_POSITION_FORMS)}`, origin: 'base' });
-+    }
-+  } else {
-+    parts.push(foundWithoutPrices(entry));
++  const compared = bestPerPosition(pricedSamples(entry))
++    .map((priced) => ({ priced, text: comparisonText(priced, markets) }))
++    .filter((item): item is { priced: PricedSample; text: string } => item.text !== undefined);
++  for (const item of compared.slice(0, REASON_POSITIONS_SHOWN)) {
++    parts.push({ text: item.text, origin: item.priced.origin });
 +  }
-+  return parts.map(noted).join(PART_SEPARATOR).slice(0, SHORTLIST_CODE_REASON_MAX_CHARS);
-+}
-+
-+/** Позиций заявки, по которым у строк есть цены (для «тот же товар, что в заявке»). */
-+function positionsOf(entries: readonly ShortlistEntry[]): number {
-+  const keys = new Set<string>();
-+  for (const entry of entries) {
-+    for (const priced of pricedSamples(entry)) keys.add(positionKey(priced.sample));
++  const rest = compared.length - REASON_POSITIONS_SHOWN;
++  if (rest > 0) {
++    parts.push({ text: `и ещё по ${rest} ${pluralRu(rest, BY_POSITION_FORMS)}`, origin: 'base' });
 +  }
-+  return keys.size;
++  return parts.map(noted).join(PART_SEPARATOR).slice(0, SHORTLIST_PRICE_NOTE_MAX_CHARS);
 +}
 +
 +/**
-+ * Строки шорт-листа с причиной «Почему в списке» (`reason`), посчитанной кодом по итоговым
-+ * данным: вызывается после обогащения из интернета, на каждой выдаче и странице «ещё».
-+ * `positionCount` - позиций в заявке; не известно - по ценам всех строк.
++ * Строки шорт-листа с подробностью о цене (`priceNote`), посчитанной кодом по итоговым ценам:
++ * на первой выдаче и на каждой странице «ещё».
 + */
-+export function withShortlistReasons(
++export function withPriceNotes(
 +  entries: readonly ShortlistEntry[],
 +  markets: ReasonMarkets,
-+  positionCount?: number | undefined,
 +): ShortlistEntry[] {
-+  const single = (positionCount ?? positionsOf(entries)) <= 1;
 +  return entries.map((entry) => {
-+    const reason = shortlistReasonText(entry, markets, single);
-+    return reason === '' ? entry : { ...entry, reason };
++    const priceNote = shortlistPriceNote(entry, markets);
++    return priceNote === '' ? entry : { ...entry, priceNote };
 +  });
 +}

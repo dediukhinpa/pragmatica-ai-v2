@@ -1,0 +1,22 @@
+--- tests/application/agents/shortlist-web-marks-review.test.ts
++++ tests/application/agents/shortlist-web-marks-review.test.ts
+@@ -76,6 +76,19 @@
+     });
+   }
+ 
++  test('фраза модели и цена против средней от кода - в одном поле, у цены своя пометка', () => {
++    const target = entry({
++      rankReason: REASON,
++      priceNote: 'Мёд: 100 ₽ — в 2 раза дешевле средней по базе (200 ₽)',
++    });
++    const expected = `${REASON}. Мёд: 100 ₽ — в 2 раза дешевле средней по базе (200 ₽)`;
++    expect(textValue(target, 'Почему в списке')).toBe(expected);
++    expect(cardValue(target, 'Почему в списке')).toBe(expected);
++    // Модель не ответила (порядок по правилу) - остаётся одно сравнение цены.
++    const ruled = entry({ priceNote: 'Мёд: 100 ₽ — других цен по позиции нет' });
++    expect(textValue(ruled, 'Почему в списке')).toBe('Мёд: 100 ₽ — других цен по позиции нет');
++  });
++
+   test('поставщик только из базы: причина без пометки', () => {
+     const target = entry({ city: 'Казань', rankReason: REASON });
+     expect(textValue(target, 'Почему в списке')).toBe(REASON);

@@ -35,7 +35,7 @@ import { orderShortlistPool, webShownCount } from './shortlist-compare';
 import { loadCompleteness, loadSourceResult, saveProposal } from './state';
 import { enrichShownSuppliers } from './supplier-enrich';
 import { checkShownSites } from './site-check';
-import { withShortlistReasons } from '../../kit/domain/shortlist-reason';
+import { withPriceNotes } from '../../kit/domain/shortlist-price-note';
 
 interface BuildShortlistInput {
   requestId: string;
@@ -353,13 +353,13 @@ export const buildShortlist = defineTool<
       const group = locations.length === 0 ? undefined : assignedLocation(entry, locations);
       return group === undefined ? entry : { ...entry, locationGroup: group };
     });
-    // Сайт показывается, только если ссылка открывается; «Почему в списке» считает код по
-    // итоговым данным - после поиска, обогащения и проверки сайтов (замечания 26.11.2026).
-    const shown = withShortlistReasons(
-      await checkShownSites(deps, context, located),
-      { market: merged.market, webMarket: merged.webMarket, telegramMarket: merged.telegramMarket },
-      request?.items.length,
-    );
+    // Сайт показывается, только если ссылка открывается; к «Почему в списке» код дописывает
+    // цену против средней с числами (замечания 26.11.2026).
+    const shown = withPriceNotes(await checkShownSites(deps, context, located), {
+      market: merged.market,
+      webMarket: merged.webMarket,
+      telegramMarket: merged.telegramMarket,
+    });
     // Не показано: всё активное за вычетом показанных (пул сравнения - только его часть).
     // Названные не из результатов поиска в найденные не входили - их не вычитаем.
     const truncated = Math.max(
