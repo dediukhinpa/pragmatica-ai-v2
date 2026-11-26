@@ -14,6 +14,8 @@ import {
 import type { ToolContext, WebSearchHit } from '@business-ai/core';
 import { EXTERNAL_SUPPLIER_PREFIX, type OrderCalcDeps } from './agents/order-calc/deps';
 import { enrichShownSuppliers } from './agents/order-calc/supplier-enrich';
+import { checkShownSites } from './agents/order-calc/site-check';
+import { withShortlistReasons } from './kit/domain/shortlist-reason';
 import { knowledgeSearch } from './agents/order-calc/search-sources';
 import { loadChoiceConfirmation, saveChoiceAsk } from './agents/order-calc/choice-confirmation';
 import { findCard } from './agents/order-calc/named-suppliers';
@@ -670,7 +672,11 @@ async function buildPage(work: Work): Promise<PageBuild> {
     state.baseExhausted = true;
   }
   const withWeb = await enrichWebEntries(work, ordered);
-  const enriched = await enrichShownSuppliers(work.deps, work.context, withWeb);
+  const enriched = await checkShownSites(
+    work.deps,
+    work.context,
+    await enrichShownSuppliers(work.deps, work.context, withWeb),
+  );
   const arranged = regroupByLocation(enriched, work.locations).map((entry) => {
     const group = work.locations.length === 0 ? undefined : assignedLocation(entry, work.locations);
     return group === undefined ? entry : { ...entry, locationGroup: group };
@@ -848,7 +854,8 @@ export const showMoreSuppliers = defineTool<ShowMoreInput, ShowMoreOutput, Order
       shownIds: new Set(state.shownIds),
     };
     const built = await buildPage(work);
-    const { page } = built;
+    // «Почему в списке» - по итоговым данным страницы и средним первой выдачи (как у неё).
+    const page = withShortlistReasons(built.page, proposal, request.items.length);
     const bothExhausted = state.baseExhausted && state.webExhausted && !built.webLimited;
     const exhausted = page.length < input.count && bothExhausted;
     state.expiresAt = pageStateExpiry(now);

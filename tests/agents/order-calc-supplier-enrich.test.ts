@@ -126,6 +126,15 @@ async function build(
   return buildShortlist.execute({ requestId: REQUEST_ID, limit: 10 }, h.deps, context);
 }
 
+/**
+ * Чтения обогащения (реестры и страницы сайта для контактов). Проверка сайта перед показом
+ * (`site-check`) читает главную найденного сайта отдельно: она не входит в бюджет обогащения.
+ */
+function enrichReads(h: Harness): string[] {
+  const siteHost = new URL(SITE).hostname;
+  return h.reader.urlCalls.filter((url) => new URL(url).hostname !== siteHost);
+}
+
 async function entryOf(h: Harness) {
   const proposal = await loadProposal(h.deps, REQUEST_ID);
   return proposal?.entries.find((entry) => entry.supplierId === 'luna');
@@ -144,7 +153,7 @@ describe('обогащение карточек базы: правила сов�
       site: SITE,
     });
     expect(JSON.stringify(entry)).not.toContain('Руководов');
-    expect(h.reader.urlCalls).toEqual([REGISTRY_URL]);
+    expect(enrichReads(h)).toEqual([REGISTRY_URL]);
   });
 
   test('первая страница без контактов (rusprofile), вторая полная: сливаются', async () => {
@@ -163,7 +172,7 @@ describe('обогащение карточек базы: правила сов�
       email: 'sales@luna-pack.example',
       site: SITE,
     });
-    expect(h.reader.urlCalls).toEqual([REGISTRY_URL, OTHER_REGISTRY_URL]);
+    expect(enrichReads(h)).toEqual([REGISTRY_URL, OTHER_REGISTRY_URL]);
   });
 
   test('вторая страница - другое юрлицо (другой ИНН): не сливается', async () => {
@@ -271,7 +280,7 @@ describe('обогащение карточек базы: подтвержден
     expect(h.searches).toBe(1);
     await build(h);
     expect(h.searches).toBe(1);
-    expect(h.reader.urlCalls).toHaveLength(1);
+    expect(enrichReads(h)).toHaveLength(1);
     expect((await entryOf(h))?.webEnrichment?.match).toBe('inn');
     // Через 31 день кэш устарел: поиск повторяется.
     h.deps.clock.advance(31 * 24 * 3_600_000);
@@ -303,7 +312,7 @@ describe('обогащение карточек базы: подтвержден
     h.deps.webSearchLimiter = busy();
     await build(h);
     expect(h.searches).toBe(1);
-    expect(h.reader.urlCalls).toEqual([REGISTRY_URL]);
+    expect(enrichReads(h)).toEqual([REGISTRY_URL]);
     expect((await entryOf(h))?.webEnrichment?.match).toBe('inn');
   });
 

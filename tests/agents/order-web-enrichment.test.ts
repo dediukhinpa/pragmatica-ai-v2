@@ -151,8 +151,15 @@ describe('searchWeb: обогащение кандидатов', () => {
     expect(lines.slice(empty + 1, empty + 6).every((line) => line.endsWith('нет данных'))).toBe(
       true,
     );
-    expect(lines[empty + 6]).toContain('Сайт: https://empty.test (ИЗ ИНТЕРНЕТА)');
-    expect(lines[at + 6]).toContain('Сайт: https://armatura.test (ИЗ ИНТЕРНЕТА)');
+    // Затем причина, собранная кодом, и ссылка.
+    expect(lines[empty + 6]).toContain('Почему в списке: найден поиском по товару заявки');
+    expect(lines[empty + 7]).toContain('Сайт: https://empty.test (ИЗ ИНТЕРНЕТА)');
+    // Цена с сайта сравнивается со средней по интернету; других цен нет - так и сказано.
+    expect(lines[at + 6]).toBe(
+      '   Почему в списке: тот же товар, что в заявке; 1 250,50 ₽/м — других цен по позиции нет' +
+        ' (ИЗ ИНТЕРНЕТА)',
+    );
+    expect(lines[at + 7]).toContain('Сайт: https://armatura.test (ИЗ ИНТЕРНЕТА)');
   });
 
   /** Выдача из N разных сайтов; запросы `site:` записываются, на них те же сайты отвечают. */

@@ -257,6 +257,8 @@ describe('showMoreSuppliers: соотношение базы и интернет
       expectNoRepeats(await entriesOf(deps));
       // Страница не пересекается с первой выдачей.
       expect(idsOf(page2).filter((id) => idsOf(page1).includes(id))).toEqual([]);
+      // «Почему в списке» и на странице «ещё» собирает код, у каждой строки (замечания 26.11).
+      expect(page2.every((entry) => entry.reason !== undefined)).toBe(true);
     });
   }
 

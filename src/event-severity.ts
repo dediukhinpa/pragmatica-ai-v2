@@ -120,6 +120,9 @@ export const PROJECT_EVENT_SEVERITY: Readonly<Record<string, Severity>> = {
   // Этап 121: обогащение карточек поставщиков через интернет; сбой не убирает поставщика из списка.
   supplier_enrich: 'info',
   supplier_enrich_failed: 'warning',
+  // Проверка сайтов показанных поставщиков: счётчики и сбой читателя (строка остаётся).
+  shortlist_site_check: 'info',
+  shortlist_site_check_failed: 'warning',
   // Этап 220: разовый проход по ящику-источнику. Сбой модели или записи - пропуск письма без
   // записи, прогон идёт дальше.
   supplier_mail_enrich_classify_failed: 'warning',

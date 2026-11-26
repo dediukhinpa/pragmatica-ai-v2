@@ -286,6 +286,38 @@ export function computeMarketAverage(prices: readonly MarketPriceSample[]): Mark
   return { status: 'ok', found, groups };
 }
 
+/** Цена в единицах группы средней и сама группа (см. `marketGroupOf`). */
+export interface MarketGroupMatch {
+  group: MarketAverageGroup;
+  /** Сумма цены в единицах группы: упаковка из N штук пересчитана в штуки, как в средней. */
+  amount: number;
+}
+
+/**
+ * Группа средней, в которую попадает цена: та же позиция, валюта и единица, упаковка из N
+ * штук - за штуку, как при расчёте средней. Нужна строке «Почему в списке»: сравнение цены
+ * поставщика со средней считает код, а не модель (оценки «цена умеренная» без чисел клиенту
+ * непонятны, замечания 26.11.2026). Средней нет или группы нет - `undefined`.
+ */
+export function marketGroupOf(
+  average: MarketAverage | undefined,
+  sample: MarketPriceSample,
+): MarketGroupMatch | undefined {
+  if (average === undefined || average.status !== 'ok') return undefined;
+  const piece = perPiece(sample);
+  const key = groupKey(piece);
+  const group = average.groups.find(
+    (item) =>
+      groupKey({
+        amount: item.average,
+        currency: item.currency,
+        ...(item.item === undefined ? {} : { item: item.item }),
+        ...(item.unit === undefined ? {} : { unit: item.unit }),
+      }) === key,
+  );
+  return group === undefined ? undefined : { group, amount: piece.amount };
+}
+
 /** Сумма для людей: пробелы между тысячами, запятая, копейки только если они есть. */
 export function formatPriceAmount(amount: number): string {
   const fixed = Math.abs(amount).toFixed(PRICE_DECIMALS);
