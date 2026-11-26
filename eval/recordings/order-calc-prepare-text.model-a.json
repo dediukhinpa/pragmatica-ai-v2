@@ -57,7 +57,7 @@
           "name": "askManagerToChoose",
           "arguments": {
             "requestId": "req-1",
-            "version": "sjgjqhhhprrhkxjt"
+            "version": "yyhwrvsqpgnvzmvr"
           }
         }
       ],
@@ -67,7 +67,7 @@
         "outputTokens": 27
       },
       "latencyMs": 400,
-      "requestHash": "b6afdc11d47e2fce92bfa1b53e096f26e37f225af2ae674e469a93b4a1055f26"
+      "requestHash": "400d167c826140b361ed26ce8f7dc63460214406d09f098c2eff02b86fed2c3f"
     },
     {
       "content": "",
@@ -87,7 +87,7 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5314,
+        "inputTokens": 5420,
         "outputTokens": 34
       },
       "latencyMs": 400,
@@ -110,7 +110,7 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5389,
+        "inputTokens": 5494,
         "outputTokens": 26
       },
       "latencyMs": 400,
@@ -129,7 +129,7 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5455,
+        "inputTokens": 5561,
         "outputTokens": 22
       },
       "latencyMs": 400,
@@ -148,7 +148,7 @@
       ],
       "stopReason": "tool_use",
       "usage": {
-        "inputTokens": 5647,
+        "inputTokens": 5752,
         "outputTokens": 20
       },
       "latencyMs": 400,
