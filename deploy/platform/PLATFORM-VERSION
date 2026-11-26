@@ -1,16 +1,18 @@
 # Закреплённая копия платформы, нужная compose. Править файлы этого каталога нельзя: обновление
 # версии — заменой копии целиком (git show <коммит>:<путь>) и пересчётом строк ниже вместе с
 # версией пакетов в package.json. Проверяет tests/deploy/test_platform_pin.py.
-PLATFORM_PACKAGES_VERSION=1.1.11
-PLATFORM_COMMIT=ad022e6a4677d56690692e5c606a3a4ed27c7d31
-PLATFORM_TAG=v1.1.11
-# Репозиторий-источник: business-ai, выпуск 1.1.11 (тег v1.1.11, создаёт владелец; 1.1.4 в git есть, но проект на нём
+PLATFORM_PACKAGES_VERSION=1.1.12
+PLATFORM_COMMIT=864b62c6a0c95eef4b9dbe0209fee4e05fd9461a
+PLATFORM_TAG=v1.1.12
+# Репозиторий-источник: business-ai, выпуск 1.1.12 (тег v1.1.12; 1.1.4 в git есть, но проект на нём
 # не работал; 1.1.7 не публиковался). Относительно 1.1.6 изменился только compose.base.yml: у documents
 # новая переменная DOCUMENTS_EDIT_PDF_TEXT (правка чисел PDF вне таблиц с линиями; действует вместе с
 # DOCUMENTS_EDIT_PDF), у speech mem_limit 1152m -> 1664m и переменные диаризации SPEECH_DIARIZATION_*
 # (профиль speech у проекта выключен), у app две переменные записи звонка B24_CALL_RECORDING_*;
 # миграций нет, остальные файлы те же, что в 1.1.6. Относительно 1.1.10 (1.1.11): у app новая
 # переменная VISION_TEXT_FIRST (слоты зрения сначала картинкам с текстом, по умолчанию true).
+# Относительно 1.1.11 (1.1.12, labops-pii v1.3.0) файлы копии не изменились; новых переменных
+# и миграций нет, меняются образы app-base, documents, pseudonymizer и mask (images.lock).
 # Пути источника: deploy/compose.base.yml, deploy/nginx/, deploy/alloy/, db/migrate.sh, db/platform/.
 # Дополнительно: deploy/docker/project-app.Dockerfile(.dockerignore) и deploy/images.lock.example
 # лежат в deploy/docker/ и deploy/ проекта (образцы платформы, правятся проектом).
